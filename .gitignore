@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+.pw-intelligence/
+*.log
+.DS_Store
+Thumbs.db

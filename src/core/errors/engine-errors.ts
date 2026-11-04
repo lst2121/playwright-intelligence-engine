@@ -57,3 +57,23 @@ export class WorktreeOperationError extends PlaywrightIntelligenceError {
   }
 }
 
+export class UnauthorizedAstModificationError extends PlaywrightIntelligenceError {
+  constructor(details: string) {
+    super(
+      `Diff allowlist violation: Unauthorized AST modification detected (${details}). Only targeted locator declarations may be altered.`,
+      'UNAUTHORIZED_AST_MODIFICATION'
+    );
+    this.name = 'UnauthorizedAstModificationError';
+  }
+}
+
+export class IntentInvariantViolationError extends PlaywrightIntelligenceError {
+  constructor(invariantName: string, details: string) {
+    super(
+      `Intent Invariant v2 violation [${invariantName}]: ${details}`,
+      'INTENT_INVARIANT_VIOLATION'
+    );
+    this.name = 'IntentInvariantViolationError';
+  }
+}
+

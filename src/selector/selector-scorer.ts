@@ -5,17 +5,20 @@ export interface ScorerWeights {
   wI: number; // Identity Match
   wM: number; // Semantic Match (Role/Label over raw CSS)
   wA: number; // Actionability (visible/enabled)
-  wH: number; // Historical Reliability
+  wH: number; // Historical Execution Reliability
   wD: number; // Volatile Implementation Dependence penalty
 }
 
 export interface ScoreBreakdown {
   score: number;
+  calibratedProbability?: number;
   uniqueness: number;
+  matchCount: number;
   identityMatch: number;
   semanticMatch: number;
   actionability: number;
   historicalReliability: number;
+  historicalExecutionReliability: number;
   volatilePenalty: number;
   explanation: string[];
 }
@@ -32,6 +35,8 @@ export class SelectorScorer {
 
   /**
    * Scores a candidate element against the multi-factor formula S(L) = w1*U + w2*I + w3*M + w4*A + w5*H - w6*D
+   * Uniqueness is strictly checked: matchCount === 1 yields U = 1.0; matchCount > 1 yields 1 / matchCount.
+   * Differentiates heuristic rawScore from calibrated probability.
    */
   public static score(
     candidate: ResolvedElement,
@@ -42,26 +47,27 @@ export class SelectorScorer {
   ): ScoreBreakdown {
     const explanation: string[] = [];
 
-    // 1. Uniqueness U: 1.0 if candidate is unique in tag+role+name combination among candidates
+    // 1. Uniqueness U: 1.0 if strictly unique (matchCount === 1); 1 / matchCount otherwise
     const matchingCount = allCandidates.filter(
       (c) =>
         c.tag === candidate.tag &&
         c.role === candidate.role &&
         c.accessibleName === candidate.accessibleName
     ).length;
-    const uniqueness = matchingCount === 1 ? 1.0 : matchingCount === 2 ? 0.5 : 0.2;
+    const uniqueness = matchingCount === 1 ? 1.0 : matchingCount > 1 ? parseFloat((1 / matchingCount).toFixed(3)) : 0.0;
     explanation.push(`Uniqueness U: ${uniqueness} (${matchingCount} matching element(s) in scope)`);
 
     // 2. Identity Match I: Entity identity and parent/name affinity
     let identityMatch = 0.5;
-    if (originalSelector && candidate.accessibleName) {
-      const origLower = originalSelector.toLowerCase();
-      const nameLower = candidate.accessibleName.toLowerCase();
-      if (origLower.includes(nameLower) || nameLower.includes(origLower)) {
-        identityMatch = 1.0;
-      }
-    } else if (candidate.accessibleName) {
+    if (candidate.accessibleName) {
       identityMatch = 0.8;
+      if (originalSelector) {
+        const origNorm = originalSelector.toLowerCase().replace(/[-_]/g, ' ');
+        const nameNorm = candidate.accessibleName.toLowerCase().replace(/[-_]/g, ' ');
+        if (origNorm.includes(nameNorm) || nameNorm.includes(origNorm)) {
+          identityMatch = 1.0;
+        }
+      }
     }
     explanation.push(`Identity Match I: ${identityMatch}`);
 
@@ -81,9 +87,9 @@ export class SelectorScorer {
     const actionability = isDisabled ? 0.0 : 1.0;
     explanation.push(`Actionability A: ${actionability} (Disabled: ${isDisabled})`);
 
-    // 5. Historical Reliability H: Time-decayed reliability
+    // 5. Historical Execution Reliability H: Time-decayed reliability
     const historicalReliability = Math.max(0, Math.min(1.0, historicalScore));
-    explanation.push(`Historical Reliability H: ${historicalReliability}`);
+    explanation.push(`Historical Execution Reliability H: ${historicalReliability}`);
 
     // 6. Volatile Implementation Dependence D (Penalizes hashed classes and dynamic IDs)
     let volatilePenalty = 0.0;
@@ -114,13 +120,19 @@ export class SelectorScorer {
 
     const finalScore = Math.max(0, Math.min(1.0, parseFloat(rawScore.toFixed(3))));
 
+    // Calibrated probability estimate via sigmoid scaling of raw score margin
+    const calibratedProbability = parseFloat((1 / (1 + Math.exp(-6 * (finalScore - 0.65)))).toFixed(3));
+
     return {
       score: finalScore,
+      calibratedProbability,
       uniqueness,
+      matchCount: matchingCount,
       identityMatch,
       semanticMatch,
       actionability,
       historicalReliability,
+      historicalExecutionReliability: historicalReliability,
       volatilePenalty,
       explanation,
     };

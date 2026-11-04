@@ -5,10 +5,14 @@ export interface SelectorHistoryRecord {
   selector: string;
   successes: number;
   failures: number;
-  lastSuccess?: number;
-  lastFailure?: number;
+  semanticVerifications: number;
+  repairsAccepted: number;
+  falseRepairIncidents: number;
+  lastSuccess?: number | undefined;
+  lastFailure?: number | undefined;
   failureCategories: string[];
   reliabilityScore: number;
+  historicalExecutionReliability: number;
 }
 
 export interface StabilityLedgerData {
@@ -32,7 +36,7 @@ export class StabilityLedger {
       this.data = JSON.parse(raw);
     } catch {
       this.data = {
-        version: 1,
+        version: 2,
         updatedAt: Date.now(),
         selectors: {},
       };
@@ -53,13 +57,18 @@ export class StabilityLedger {
       selector,
       successes: 0,
       failures: 0,
+      semanticVerifications: 1,
+      repairsAccepted: 0,
+      falseRepairIncidents: 0,
       failureCategories: [],
       reliabilityScore: 0.8,
+      historicalExecutionReliability: 0.8,
     };
 
     existing.successes += 1;
     existing.lastSuccess = Date.now();
-    existing.reliabilityScore = this.computeScore(existing.successes, existing.failures);
+    existing.reliabilityScore = this.computeScore(existing);
+    existing.historicalExecutionReliability = existing.reliabilityScore;
     this.data!.selectors[selector] = existing;
     await this.save();
   }
@@ -70,8 +79,12 @@ export class StabilityLedger {
       selector,
       successes: 0,
       failures: 0,
+      semanticVerifications: 0,
+      repairsAccepted: 0,
+      falseRepairIncidents: 0,
       failureCategories: [],
       reliabilityScore: 0.8,
+      historicalExecutionReliability: 0.8,
     };
 
     existing.failures += 1;
@@ -79,15 +92,41 @@ export class StabilityLedger {
     if (!existing.failureCategories.includes(category)) {
       existing.failureCategories.push(category);
     }
-    existing.reliabilityScore = this.computeScore(existing.successes, existing.failures);
+    existing.reliabilityScore = this.computeScore(existing);
+    existing.historicalExecutionReliability = existing.reliabilityScore;
     this.data!.selectors[selector] = existing;
     await this.save();
   }
 
-  private computeScore(successes: number, failures: number): number {
-    const total = successes + failures * 2; // Penalize failures with double weight
+  public async recordFalseRepairIncident(selector: string): Promise<void> {
+    await this.ensureLoaded();
+    const existing = this.data!.selectors[selector] ?? {
+      selector,
+      successes: 0,
+      failures: 1,
+      semanticVerifications: 0,
+      repairsAccepted: 0,
+      falseRepairIncidents: 0,
+      failureCategories: ['FALSE_REPAIR'],
+      reliabilityScore: 0.2,
+      historicalExecutionReliability: 0.2,
+    };
+
+    existing.falseRepairIncidents += 1;
+    existing.reliabilityScore = this.computeScore(existing);
+    existing.historicalExecutionReliability = existing.reliabilityScore;
+    this.data!.selectors[selector] = existing;
+    await this.save();
+  }
+
+  private computeScore(record: { successes: number; failures: number; falseRepairIncidents: number }): number {
+    // If any false repair incident occurred, severely penalize (fail-safe against confirmation bias)
+    if (record.falseRepairIncidents > 0) {
+      return 0.1;
+    }
+    const total = record.successes + record.failures * 2; // Penalize failures with double weight
     if (total === 0) return 0.8;
-    const score = successes / total;
+    const score = record.successes / total;
     return parseFloat(score.toFixed(3));
   }
 

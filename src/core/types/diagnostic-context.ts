@@ -9,6 +9,10 @@ export const NetworkEventSchema = z.object({
   timestamp: z.number(),
   durationMs: z.number().optional(),
   errorText: z.string().optional(),
+  requestId: z.string().optional(),
+  frameId: z.string().optional(),
+  resourceType: z.string().optional(),
+  initiator: z.string().optional(),
 });
 
 export type NetworkEvent = z.infer<typeof NetworkEventSchema>;
@@ -29,11 +33,17 @@ export type ConsoleEvent = z.infer<typeof ConsoleEventSchema>;
 export const FailureCategorySchema = z.enum([
   'LOCATOR_DRIFT',
   'AUTH_EXPIRED',
+  'AUTH_SESSION_EXPIRED',
   'TIMING_RACE',
+  'DYNAMIC_CONTENT_SLOW',
   'BACKEND_500',
   'ASSERTION_FAILURE',
+  'ASSERTION_FAILED',
   'NETWORK_OFFLINE',
   'AMBIGUOUS_MATCH',
+  'MIXED_FAILURE',
+  'INCOMPLETE_EVIDENCE',
+  'UNSUPPORTED_TRACE_FORMAT',
   'UNKNOWN_ERROR',
 ]);
 

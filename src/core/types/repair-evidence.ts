@@ -4,7 +4,13 @@ export const SourceLocationSchema = z.object({
   filePath: z.string(),
   className: z.string(),
   memberName: z.string(),
-  nodeKind: z.enum(['property', 'constructor-assignment', 'getter-return']),
+  nodeKind: z.enum([
+    'property',
+    'constructor-assignment',
+    'getter-return',
+    'parameterless-factory',
+    'locator-constant',
+  ]),
   line: z.number(),
   column: z.number().optional(),
 });

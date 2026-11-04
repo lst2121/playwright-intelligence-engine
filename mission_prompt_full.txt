@@ -1,0 +1,2417 @@
+<USER_REQUEST>
+/goal # MASTER AUTONOMOUS ENGINEERING MISSION
+# PLAYWRIGHT INTELLIGENCE ENGINE — ENTERPRISE-GRADE IMPLEMENTATION
+
+**Project:** Playwright Intelligence Engine  
+**Mission:** Design, implement, test, benchmark, harden and document a production-quality Playwright test reliability platform.  
+**Architecture baseline:** Playwright Intelligence Engine v2.3 As-Built  
+**Review baseline:** Expert Architectural Audit & Code Review supplied alongside this prompt  
+**Execution mode:** Autonomous engineering with continuous implementation, testing, debugging and verification.
+
+---
+
+# 1. YOUR ROLE
+
+You are acting as an autonomous engineering organization consisting of:
+
+1. Principal Software Architect
+2. Staff TypeScript Engineer
+3. Playwright Automation Architect
+4. TypeScript Compiler and AST Specialist
+5. Test Reliability Research Engineer
+6. QA Automation Lead
+7. Performance Engineer
+8. Application Security Engineer
+9. CI/CD and Infrastructure Engineer
+10. Technical Documentation Engineer
+
+You have full responsibility for delivering the working Playwright Intelligence Engine.
+
+You are not being asked to produce a design proposal, architecture document, skeleton repository or proof-of-concept demonstration.
+
+**You must build the actual application, write the actual implementation, execute the actual tests, inspect failures, fix defects, and continue until the acceptance criteria in this mission are satisfied.**
+
+Do not stop after producing a plan.
+
+Do not stop after the first successful test.
+
+Do not stop after generating 100 test files.
+
+Do not report a feature as implemented merely because its TypeScript interface or placeholder function exists.
+
+A feature is implemented only when its real execution path has been tested.
+
+---
+
+# 2. REFERENCE MATERIAL — MANDATORY
+
+I will provide the following reference materials:
+
+1. Playwright Intelligence Engine v2.3 As-Built Architecture.
+2. Expert Architectural Audit & Code Review.
+3. Product Roadmap v2.2.
+4. Market and Technical Research Report.
+5. Adversarial Benchmark Report v1.0.
+
+Read all supplied materials before making architectural changes.
+
+The expert audit is a mandatory engineering reference.
+
+You must address its identified weaknesses rather than simply reproducing the existing architecture.
+
+Important corrections to incorporate:
+
+- Assertion fingerprinting alone does not prove intent preservation.
+- Network temporal correlation does not establish causality.
+- Candidate scoring must not be confused with calibrated probability.
+- Exactly two matching elements must not pass a strict uniqueness gate.
+- Directory junctions do not automatically provide dependency isolation.
+- Playwright trace serialization is not a stable public API.
+- Application-side mutation testing must be separated from test-side locator corruption.
+- Public demo websites cannot provide reliable business-defect injection.
+- A passing repaired test does not prove that a genuine business regression remains detectable.
+- Competitor claims must not be treated as established facts without evidence.
+
+Where the existing architecture is correct, preserve it.
+
+Where the review identifies a genuine weakness, improve the architecture and update the documentation.
+
+Do not blindly rewrite working code.
+
+Before major architectural changes, inspect the existing implementation and identify the actual problem.
+
+---
+
+# 3. THE CORE PRODUCT OBJECTIVE
+
+Build an enterprise-grade, verification-first Playwright reliability platform.
+
+The platform must:
+
+1. Ingest native Playwright trace archives.
+2. Reconstruct the relevant failure context.
+3. Classify the likely root cause.
+4. Extract potential replacement locators.
+5. Evaluate semantic equivalence.
+6. Abstain when the evidence is insufficient.
+7. Generate constrained TypeScript AST patches.
+8. Apply patches inside isolated Git worktrees.
+9. Verify source-level invariants.
+10. Execute the repaired test.
+11. Run adversarial business-defect verification.
+12. Produce a reproducible repair evidence package.
+13. Require human approval before applying a verified repair to the developer's active branch.
+
+The central product promise is:
+
+**We do not simply make failing tests pass. We verify that repaired tests still test the intended business behavior.**
+
+This principle must govern every implementation decision.
+
+---
+
+# 4. AUTONOMOUS EXECUTION PROTOCOL
+
+You must operate as a persistent engineering loop.
+
+Use this execution cycle:
+
+DISCOVER → PLAN → IMPLEMENT → TEST → ANALYZE → FIX → RETEST → DOCUMENT → VERIFY
+
+Repeat until the mission's acceptance gates are satisfied.
+
+## 4.1 Initial repository inspection
+
+Before writing code:
+
+1. Inspect the complete repository.
+2. Identify the existing architecture.
+3. Inspect package.json and dependencies.
+4. Inspect TypeScript compiler configuration.
+5. Inspect all existing source files.
+6. Inspect existing tests and benchmark harnesses.
+7. Run the current unit test suite.
+8. Run TypeScript compilation.
+9. Run linting, if configured.
+10. Run the existing benchmark where safe.
+11. Record all existing failures.
+
+Create:
+
+- `docs/INITIAL_CODEBASE_AUDIT.md`
+- `docs/IMPLEMENTATION_PLAN.md`
+- `.pw-intelligence/PROGRESS.md`
+- `.pw-intelligence/DECISIONS.md`
+
+Do not destroy existing working functionality.
+
+## 4.2 Continuous progress tracking
+
+Maintain a persistent progress ledger.
+
+Every meaningful implementation cycle must update:
+
+`.pw-intelligence/PROGRESS.md`
+
+Track:
+
+- Completed features.
+- Pending features.
+- Failed tests.
+- Fixed defects.
+- Known limitations.
+- Benchmark results.
+- Architecture changes.
+- Current execution state.
+- Next concrete engineering tasks.
+
+Create a task checklist with dependencies.
+
+After every major milestone:
+
+1. Run relevant tests.
+2. Run TypeScript compilation.
+3. Update documentation.
+4. Record evidence.
+5. Commit changes locally when the repository permits it.
+
+If the session is interrupted, resume from the progress ledger and repository state.
+
+Do not assume an earlier session completed something merely because it appears in the progress notes. Verify the actual code and test results.
+
+## 4.3 No artificial completion
+
+Never declare completion based on:
+
+- A successful build alone.
+- A few unit tests.
+- Mock-only tests.
+- A manually inspected screenshot.
+- A test that passes only because retries hide the failure.
+- A benchmark with hardcoded results.
+- A report containing fabricated metrics.
+
+Every completion claim must have executable evidence.
+
+---
+
+# 5. PRODUCT ARCHITECTURE
+
+Preserve the deterministic TypeScript controller architecture.
+
+Do not introduce a free-form autonomous LLM execution loop that can directly modify arbitrary source files.
+
+The core controller must remain deterministic.
+
+LLMs, if used, may assist with bounded semantic interpretation, but cannot override mandatory abstention or verification policies.
+
+Implement and maintain these subsystems.
+
+## 5.1 Trace ingestion
+
+Implement:
+
+- ArchiveReader
+- VersionDetector
+- TraceParser
+- NetworkParser
+- SnapshotResolver
+- ArchiveSecurityValidator
+
+Requirements:
+
+1. Support explicitly tested Playwright trace formats.
+2. Separate producer version, trace format version and adapter version.
+3. Discover archive entries rather than assuming fixed filenames.
+4. Handle chunked traces.
+5. Validate JSONL records using Zod.
+6. Resolve snapshot references safely.
+7. Support before/action/after snapshots.
+8. Preserve frame and call relationships where available.
+9. Track incomplete snapshots.
+10. Reject unsupported formats safely.
+
+Implement explicit version adapters.
+
+Never silently interpret an unknown trace format using an incompatible parser.
+
+Use:
+
+`UNSUPPORTED_TRACE_FORMAT`
+
+`INCOMPLETE_TRACE_EVIDENCE`
+
+as explicit diagnostic outcomes.
+
+Security requirements:
+
+- Zip-Slip protection.
+- Zip-bomb protection.
+- Maximum total uncompressed size.
+- Maximum entry count.
+- Maximum individual entry size.
+- Maximum JSONL record size.
+- Duplicate path detection.
+- Safe archive entry handling.
+- No unsafe automatic recursive extraction.
+
+Create a versioned golden trace corpus.
+
+Include real traces produced by multiple Playwright versions wherever available.
+
+Do not fabricate compatibility claims for untested versions.
+
+## 5.2 Diagnostic engine
+
+Implement:
+
+- FailureClassifier
+- EvidenceCorrelator
+- ActionCorrelator
+- EvidenceProvenance
+- DiagnosticReport
+
+Failure categories must include:
+
+- LOCATOR_DRIFT
+- AUTH_EXPIRED
+- BACKEND_500
+- NETWORK_FAILURE
+- TIMING_RACE
+- MISSING_TEST_DATA
+- APPLICATION_DEFECT
+- INCOMPLETE_EVIDENCE
+- UNSUPPORTED_TRACE_FORMAT
+- MIXED_FAILURE
+- UNKNOWN
+
+Do not classify an entire execution as a backend failure merely because an unrelated HTTP request returned 500.
+
+Correlate:
+
+- Failed action.
+- Call ID.
+- Frame ID.
+- Relevant request.
+- Request initiator where available.
+- Response status.
+- Temporal relationship.
+- Console errors.
+- Snapshot evidence.
+- Authentication state where observable.
+
+Use evidence-based causal relationships.
+
+When causal attribution is uncertain, abstain.
+
+Every diagnostic must explain:
+
+1. What failed?
+2. Where did it fail?
+3. What evidence supports the diagnosis?
+4. What alternative explanations exist?
+5. What evidence is missing?
+6. Why is repair permitted or rejected?
+
+## 5.3 Candidate extraction and semantic scoring
+
+Implement:
+
+- CandidateExtractor
+- SelectorScorer
+- SemanticIdentityValidator
+- AbstentionPolicy
+- CandidateEvidenceReport
+
+The scoring model can initially use the existing weighted formula:
+
+S(L) = 0.25U + 0.25I + 0.20M + 0.15A + 0.10H - 0.20D
+
+But do not call it statistically calibrated until calibration experiments establish that.
+
+Separate:
+
+- Raw heuristic score.
+- Calibrated probability.
+- Authorization decision.
+
+Enforce the following hard gates:
+
+1. Target identity must be supported by evidence.
+2. Candidate must be interactive and appropriate for the failed action.
+3. Candidate must be unique within the verified scope.
+4. Candidate must preserve the original action semantics.
+5. Candidate must not conflict with known business context.
+6. Evidence must be complete enough for the proposed repair.
+7. Ambiguity delta must meet the configured threshold.
+8. Confidence must meet the validated acceptance threshold.
+
+Exactly two matching candidates must trigger abstention unless a verified parent scope resolves the ambiguity.
+
+A high aggregate score must never override a failed semantic identity check.
+
+Support modern Playwright locator strategies:
+
+- getByRole
+- getByLabel
+- getByPlaceholder
+- getByText
+- getByTestId
+- locator with stable attributes
+
+Prioritize user-centric locators, but never assume ARIA superiority alone proves semantic correctness.
+
+---
+
+# 6. INTENT PRESERVATION AND SOURCE INVARIANTS
+
+This is one of the highest-priority components.
+
+Implement an expanded IntentValidator.
+
+AssertionHasher must remain, but it is only one part of the invariant system.
+
+Implement:
+
+1. Assertion fingerprint.
+2. Test-body structural fingerprint.
+3. Critical fixture fingerprint.
+4. Action-semantics fingerprint.
+5. Target-entity invariant.
+6. Critical helper dependency validation.
+7. Source diff allowlist.
+8. Execution configuration fingerprint.
+
+The invariant must ensure that a permitted locator repair does not silently alter:
+
+- Expected results.
+- Test assertions.
+- Business action.
+- Intended business entity.
+- Important input data.
+- Fixture behavior.
+- Test setup and teardown.
+- Relevant helper semantics.
+- Test execution conditions.
+
+Use TypeScript AST and TypeChecker analysis wherever appropriate.
+
+Do not claim mathematical proof of arbitrary business intent.
+
+Define the exact supported guarantee and its limitations.
+
+The patcher must only change explicitly authorized locator expressions.
+
+If the intended entity cannot be established, abstain.
+
+If multiple AST nodes match the same repair target, abstain.
+
+If the source structure is unsupported, abstain.
+
+If a patch changes any unauthorized source node, reject and roll back.
+
+Write adversarial tests that attempt to preserve assertions while changing business behavior.
+
+These must fail the repair verification.
+
+---
+
+# 7. AST PATCHER AND PAGE OBJECT SUPPORT
+
+Preserve the three existing MVP patterns:
+
+1. Property initializers.
+2. Getter methods.
+3. Constructor assignments.
+
+Expand support carefully.
+
+Prioritize:
+
+- Private/protected locator properties.
+- Parameterless locator factory methods.
+- Locator constants.
+- Inherited Page Objects.
+- Component composition.
+- Nested Page Object properties.
+- Method-chained locator expressions.
+- Imported selector maps.
+- Fixture-injected Page Objects.
+
+Use the TypeScript TypeChecker to resolve symbols across files.
+
+Example:
+
+`checkoutPage.header.accountLink.click()`
+
+The engine must resolve the `HeaderComponent` definition and identify the actual locator expression.
+
+Do not change the public component API unnecessarily.
+
+For dynamic parameterized locators such as:
+
+`getRow(id).deleteButton`
+
+abstain unless the engine can prove that the business identity and filtering semantics are preserved.
+
+Use ts-morph for surgical AST modifications.
+
+After each patch:
+
+1. Reparse the source.
+2. Validate the AST.
+3. Validate the diff allowlist.
+4. Validate invariants.
+5. Run TypeScript compilation.
+6. Reject unsupported or ambiguous modifications.
+
+Never use naive string replacement as the primary source modification mechanism.
+
+---
+
+# 8. ISOLATED WORKTREE ENGINE
+
+Implement a robust WorktreeManager.
+
+Requirements:
+
+- Detached Git worktrees.
+- Unique repair IDs.
+- Canonical path validation.
+- Repository ownership validation.
+- Concurrent execution locks.
+- Safe worktree creation.
+- Safe cleanup.
+- Crash recovery.
+- Process-tree tracking.
+- Registry validation.
+- Junction pre-unlinking.
+- Bounded retry with exponential backoff.
+- No active developer branch modifications.
+
+Do not use age-based cleanup alone.
+
+Do not trust a PID without validating process identity and creation time.
+
+## Dependency management
+
+Implement a dependency strategy adapter.
+
+Support and test:
+
+- npm.
+- npm workspaces.
+- pnpm.
+- pnpm workspaces.
+- Yarn Classic.
+- Yarn Berry with node-modules linker.
+
+Treat Yarn PnP as a separate implementation or explicitly unsupported mode until correctly supported.
+
+Windows junctions are an optimization, not a universal requirement.
+
+Never share mutable dependency state between concurrent repairs.
+
+If the dependency environment cannot be proven safe, use isolated dependency installation or abstain from autonomous repair.
+
+Verify the worktree with actual TypeScript compilation and test execution.
+
+---
+
+# 9. APPLICATION INTERFACES
+
+Complete both interfaces.
+
+## 9.1 CLI
+
+Implement:
+
+`pw-intel diagnose <trace.zip>`
+
+`pw-intel repair <trace.zip>`
+
+`pw-intel verify <repair-id>`
+
+`pw-intel benchmark`
+
+`pw-intel generate <featureName>`
+
+`pw-intel mcp`
+
+`pw-intel status`
+
+Provide:
+
+- Help output.
+- Clear error handling.
+- Structured JSON output.
+- Human-readable terminal output.
+- Exit codes suitable for CI.
+
+## 9.2 MCP server
+
+Implement JSON-RPC-compatible MCP stdio integration.
+
+Expose:
+
+- diagnose_trace
+- inspect_candidates
+- plan_repair
+- repair_page_object
+- verify_repair
+- generate_playwright_test
+- get_repair_evidence
+- get_engine_status
+
+Requirements:
+
+- Strict input validation.
+- Authorized workspace boundaries.
+- Safe path handling.
+- No arbitrary shell execution.
+- Proper stdout/stderr separation.
+- Cancellation handling.
+- Concurrent request protection.
+- Human approval before committing changes.
+- Structured evidence output.
+
+A diagnostic MCP operation must never implicitly execute a repair.
+
+A repair operation must never bypass abstention or verification gates.
+
+---
+
+# 10. TESTING MISSION — BUILD HUNDREDS OF REAL TEST CASES
+
+This is a mandatory core deliverable.
+
+I want a comprehensive testing ecosystem, not a small demonstration suite.
+
+Target:
+
+**At least 300 meaningful automated test cases across unit, integration, end-to-end, adversarial, security and benchmark suites.**
+
+The number is a minimum, not the definition of quality.
+
+Do not inflate the count using duplicate tests.
+
+Every test must verify a distinct behavior, input boundary, failure mode, mutation or invariant.
+
+Maintain a test inventory in:
+
+`docs/TEST_COVERAGE_MATRIX.md`
+
+Each test must have:
+
+- Unique test ID.
+- Category.
+- Description.
+- Expected result.
+- Actual result.
+- Execution status.
+- Evidence or output reference.
+
+## 10.1 Proposed test allocation
+
+| Test category | Minimum target |
+|---|---:|
+| Archive security and trace parsing | 45 |
+| Version compatibility and snapshots | 35 |
+| Failure classification and correlation | 40 |
+| Candidate extraction and scoring | 35 |
+| Abstention and negative controls | 35 |
+| AST patching and source invariants | 45 |
+| Worktree and dependency isolation | 30 |
+| CLI and MCP integration | 20 |
+| End-to-end repair workflows | 15 |
+| **Total** | **300** |
+
+Add further tests where the discovered risks justify them.
+
+## 10.2 Unit tests
+
+Write comprehensive Vitest tests for every module.
+
+Test:
+
+- Valid inputs.
+- Invalid inputs.
+- Boundary conditions.
+- Empty values.
+- Missing values.
+- Malformed inputs.
+- Duplicate elements.
+- Ambiguous candidates.
+- Unsupported AST patterns.
+- Incomplete traces.
+- Missing network events.
+- Invalid archive metadata.
+- Failed filesystem operations.
+- Rollback behavior.
+- Concurrent operations.
+
+## 10.3 Property-based tests
+
+Use property-based testing where appropriate.
+
+Examples:
+
+- Any path traversal archive must be rejected.
+- Any unsupported trace format must never produce an authorized repair.
+- Any duplicate target without verified scoping must abstain.
+- Any unauthorized AST modification must cause rejection.
+- Any failed invariant must prevent verification success.
+- Any failed worktree cleanup must not delete root dependencies.
+
+Use fast-check or an equivalent established library.
+
+## 10.4 Mutation testing
+
+Introduce actual mutations into the engine itself.
+
+Use Stryker or an equivalent TypeScript mutation-testing tool.
+
+Target:
+
+- Scoring thresholds.
+- Comparison operators.
+- Abstention conditions.
+- Network classification.
+- AST node selection.
+- Invariant validation.
+- Path validation.
+- Rollback logic.
+
+Aim for at least 80% mutation score on critical safety modules.
+
+Report surviving mutations.
+
+Do not claim 100% mutation coverage merely because all ordinary tests pass.
+
+---
+
+# 11. PARALLEL MULTI-BROWSER TESTING
+
+I explicitly authorize the use of multiple browser instances and parallel browser workers.
+
+Use Playwright with Chromium, Firefox and WebKit.
+
+However, concurrency must be controlled.
+
+Do not open hundreds of uncontrolled browser instances.
+
+Design a configurable execution system.
+
+Example:
+
+```typescript
+interface BrowserExecutionConfig {
+  browsers: Array<
+    'chromium' | 'firefox' | 'webkit'
+  >;
+
+  maxWorkers: number;
+
+  maxBrowsersPerWorker: number;
+
+  retries: number;
+
+  trace: 'retain-on-failure';
+
+  video: 'retain-on-failure';
+}
+```
+
+Suggested initial configuration:
+
+- 3 browser engines.
+- 3–6 concurrent workers on a suitable machine.
+- Separate browser contexts for independent scenarios.
+- Isolated test accounts.
+- No shared mutable test data.
+- Sequential execution against public websites where necessary.
+
+Determine actual hardware capacity before selecting worker count.
+
+## Browser execution strategy
+
+Use multiple browser instances for:
+
+1. Chromium baseline tests.
+2. Firefox compatibility tests.
+3. WebKit compatibility tests.
+4. Controlled mutation scenarios.
+5. Cross-browser locator behavior.
+6. Screenshot and DOM snapshot comparisons.
+7. Repaired-test verification.
+
+Where tests share state or target third-party sites, use isolation or sequential execution.
+
+Do not confuse the number of browser workers with the number of independent benchmark observations.
+
+## Browser coverage requirements
+
+Verify:
+
+- Locator behavior.
+- Accessible names.
+- ARIA roles.
+- Visibility.
+- Actionability.
+- Strict-mode behavior.
+- Dynamic DOM updates.
+- Navigation.
+- Iframes where supported.
+- Shadow DOM where supported.
+- Screenshot behavior.
+- Trace production.
+- Browser-specific differences.
+
+Record unsupported features and limitations.
+
+---
+
+# 12. REAL APPLICATION BENCHMARK PORTFOLIO
+
+Maintain the existing six public applications as compatibility targets:
+
+1. UI Testing Playground.
+2. SauceDemo.
+3. The Internet.
+4. LetCode.
+5. OrangeHRM.
+6. Automation Exercise.
+
+Use them for live compatibility testing.
+
+Do not assume these public sites are reliable defect-injection environments.
+
+Do not use uncontrolled third-party application changes as ground truth.
+
+Implement a separate controlled benchmark environment.
+
+## Controlled application requirements
+
+Build a local demonstration application with:
+
+- Login.
+- User management.
+- Search.
+- Product listing.
+- Shopping cart.
+- Checkout.
+- Payment validation.
+- Order management.
+- Table operations.
+- Dynamic forms.
+- Navigation.
+- Modal interactions.
+
+Use a reproducible database and seeded data.
+
+Provide feature flags or mutation configurations to introduce known application defects.
+
+Maintain baseline and mutated application versions.
+
+Use Docker where practical.
+
+The controlled application must permit repeatable mutation experiments.
+
+---
+
+# 13. ADVERSARIAL BENCHMARK — REQUIRED EXPERIMENTS
+
+Build a benchmark harness that runs the following experiments.
+
+## Experiment A: Baseline reliability
+
+Run at least 30 repetitions for each selected baseline scenario.
+
+Initially target 24 live scenarios.
+
+Disable retries during baseline reliability measurement.
+
+Report:
+
+- Pass count.
+- Fail count.
+- Flakiness rate.
+- P50 execution time.
+- P95 execution time.
+- Environment fingerprint.
+
+Do not classify one passing execution as proof of stability.
+
+## Experiment B: Application and test mutations
+
+Implement at least 50 distinct mutation scenarios.
+
+Cover five structural mutation families:
+
+1. Accessible-name drift.
+2. Test-ID removal.
+3. CSS and DOM restructuring.
+4. Duplicate controls.
+5. Dynamic table and component re-rendering.
+
+Separate test-side mutations from application-side mutations.
+
+For every scenario record:
+
+- Original application version.
+- Mutated application version.
+- Original test source.
+- Mutated test source, where applicable.
+- Expected behavior.
+- Actual diagnostic.
+- Candidate list.
+- Selected repair or abstention.
+- Final verification result.
+
+## Experiment C: Business-defect resistance
+
+This is a release-blocking experiment.
+
+Seed at least six distinct business defects in the controlled application.
+
+Examples:
+
+- Invalid payment accepted.
+- Incorrect order total.
+- Missing required field accepted.
+- Wrong record updated.
+- Unauthorized action permitted.
+- Incorrect workflow transition.
+
+Run the original and repaired tests against the defect-injected application.
+
+The repaired test must continue detecting the seeded defect.
+
+A repair that causes a seeded defect to pass is a FALSE REPAIR.
+
+Reject it.
+
+Measure:
+
+- Defect detection rate.
+- Defect masking rate.
+- False repair rate.
+- Verification failure rate.
+
+## Experiment D: Negative controls
+
+Test:
+
+- HTTP 401.
+- HTTP 403.
+- HTTP 500.
+- HTTP 502.
+- HTTP 503.
+- HTTP 504.
+- DNS failure.
+- Network timeout.
+- Missing database record.
+- Empty API response.
+- Stale authentication.
+- Missing test fixture.
+- Incomplete trace.
+- Unsupported trace format.
+- Genuine application-side business defect.
+
+The engine must abstain whenever repair eligibility cannot be established.
+
+A correct abstention is a successful safety outcome.
+
+## Experiment E: Security and resilience
+
+Test:
+
+- Malformed ZIP archives.
+- Zip-Slip archives.
+- Zip bombs.
+- Duplicate archive entries.
+- Invalid JSONL.
+- Extremely large JSONL records.
+- Malicious file paths.
+- Concurrent repair operations.
+- Process interruption.
+- Worktree cleanup failure.
+- Junction handling.
+- Untrusted trace content.
+- MCP path traversal attempts.
+
+No security test may be replaced by a mocked success response.
+
+---
+
+# 14. BENCHMARK QUALITY AND STATISTICAL REPORTING
+
+Do not use headline success percentages without denominators.
+
+For every benchmark report:
+
+- Number of scenarios.
+- Number of independent mutation seeds.
+- Number of repeated runs.
+- Number of application families.
+- Number of browser engines.
+- Number of failures.
+- Number of abstentions.
+- Number of false repairs.
+- Confidence intervals.
+- Execution environment.
+
+Report these metrics independently:
+
+1. Diagnostic accuracy.
+2. Locator recovery precision.
+3. Locator recovery recall.
+4. Abstention precision.
+5. Abstention recall.
+6. False repair rate.
+7. Defect masking rate.
+8. Assertion invariant preservation.
+9. Intent invariant preservation.
+10. Worktree isolation failures.
+11. P50/P95/P99 diagnostic latency.
+12. Peak memory usage.
+
+Use separate training, calibration and held-out evaluation datasets for scoring thresholds.
+
+Never tune the scoring weights on the same dataset used for final performance reporting.
+
+Do not advertise 100% reliability based on 100 successful observations.
+
+Use statistically appropriate confidence intervals and explicitly discuss correlated observations.
+
+---
+
+# 15. PERFORMANCE AND RESOURCE TESTING
+
+Test the trace engine with multiple archive sizes.
+
+Suggested workload:
+
+- 1 MB.
+- 10 MB.
+- 50 MB.
+- 100 MB.
+- 250 MB.
+- 500 MB boundary.
+
+Measure:
+
+- Archive scanning time.
+- JSONL parsing time.
+- Snapshot reconstruction time.
+- Classification time.
+- Candidate extraction time.
+- Memory consumption.
+- CPU utilization.
+- Worktree creation time.
+- Repaired-test execution time.
+- Cleanup time.
+
+Separate original test execution overhead from post-mortem processing time.
+
+Do not claim zero overhead without measuring instrumentation overhead independently.
+
+Use representative hardware and document the environment.
+
+---
+
+# 16. SECURITY AND ENTERPRISE READINESS
+
+Implement security controls from the beginning.
+
+Required:
+
+- Trace PII redaction.
+- Secret and token detection.
+- Configurable network-body exclusions.
+- Secure temporary storage.
+- Retention policies.
+- No unexpected telemetry.
+- Authorized workspace boundaries.
+- Safe subprocess execution.
+- Process-tree termination.
+- Worktree path validation.
+- Evidence package integrity.
+- Audit logging.
+- Human approval for final source changes.
+
+The system must never automatically commit a repair into the developer's active branch without explicit authorization.
+
+Test against:
+
+- Cookies.
+- Authorization headers.
+- API tokens.
+- Sensitive request bodies.
+- User identifiers.
+- Medical or financial data in synthetic fixtures.
+
+Use synthetic data for the benchmark.
+
+Document the security boundary and remaining limitations.
+
+---
+
+# 17. TEST GENERATION CAPABILITY
+
+Complete the existing `pw-intel generate` functionality.
+
+Generate actual TypeScript Playwright Page Objects and test specifications.
+
+Requirements:
+
+- Type-safe Page Objects.
+- Reusable fixtures.
+- Modern Playwright locators.
+- Web-first assertions.
+- No arbitrary sleeps.
+- Clear test names.
+- Meaningful test data.
+- Stable test IDs.
+- Trace configuration.
+- Clean TypeScript compilation.
+
+Generated tests must be executable.
+
+Build a test-generation benchmark containing multiple feature specifications.
+
+For each generated test:
+
+1. Compile.
+2. Execute.
+3. Validate assertions.
+4. Introduce relevant application mutations.
+5. Verify that the test detects the intended defect.
+
+Do not count generated files as successful tests until they have actually executed.
+
+---
+
+# 18. DOCUMENTATION DELIVERABLES
+
+Keep documentation synchronized with the implementation.
+
+Produce:
+
+1. `README.md`
+2. `docs/ARCHITECTURE.md`
+3. `docs/ARCHITECTURE_DECISIONS.md`
+4. `docs/TRACE_COMPATIBILITY.md`
+5. `docs/DIAGNOSTIC_TAXONOMY.md`
+6. `docs/INTENT_INVARIANTS.md`
+7. `docs/AST_PATCHING.md`
+8. `docs/WORKTREE_ISOLATION.md`
+9. `docs/SECURITY_MODEL.md`
+10. `docs/MCP_INTEGRATION.md`
+11. `docs/CLI_REFERENCE.md`
+12. `docs/TEST_COVERAGE_MATRIX.md`
+13. `docs/BENCHMARK_METHODOLOGY.md`
+14. `docs/BENCHMARK_RESULTS.md`
+15. `docs/KNOWN_LIMITATIONS.md`
+16. `docs/IMPLEMENTATION_STATUS.md`
+
+Include actual commands and real output examples.
+
+Clearly distinguish:
+
+- Implemented.
+- Tested.
+- Partially supported.
+- Experimental.
+- Unsupported.
+- Planned.
+
+Do not document a planned capability as implemented.
+
+---
+
+# 19. AUTONOMOUS DEBUGGING RULES
+
+When a test fails:
+
+1. Capture the complete error.
+2. Identify the failing component.
+3. Inspect relevant source code.
+4. Reproduce the failure.
+5. Determine the root cause.
+6. Fix the actual problem.
+7. Add a regression test.
+8. Run the targeted test.
+9. Run the relevant subsystem suite.
+10. Run the complete regression suite where feasible.
+
+Do not:
+
+- Delete failing tests to obtain green builds.
+- Weaken assertions.
+- Increase timeouts blindly.
+- Add arbitrary waits.
+- Disable security validation.
+- Suppress exceptions without justification.
+- Replace real integration tests with mocks merely because they are difficult.
+- Change expected results to match incorrect implementation behavior.
+- Reduce coverage thresholds to conceal defects.
+
+If a third-party public website is unavailable:
+
+- Record the failure as an environmental issue.
+- Do not count it as an engine success or failure.
+- Use the controlled local application to continue product validation.
+- Retry public availability only according to a bounded policy.
+
+If you encounter an unsupported technical requirement, document it, implement the safest available alternative and continue with independent tasks.
+
+---
+
+# 20. AUTONOMOUS PARALLEL ENGINEERING
+
+Use parallel agents or independent engineering workstreams if your environment supports them.
+
+Suggested workstreams:
+
+**Agent 1 — Trace and Diagnostics**
+- Trace parser.
+- Version adapters.
+- Snapshot reconstruction.
+- Network correlation.
+
+**Agent 2 — AST and Intent**
+- AssertionHasher.
+- IntentValidator.
+- TypeScript TypeChecker integration.
+- AST patcher.
+
+**Agent 3 — Worktree and Infrastructure**
+- Git worktree manager.
+- Windows junction safety.
+- Dependency strategies.
+- Process lifecycle.
+
+**Agent 4 — Test Engineering**
+- Unit tests.
+- Property-based tests.
+- Adversarial tests.
+- Controlled benchmark application.
+
+**Agent 5 — Integration and Product**
+- CLI.
+- MCP.
+- Test generation.
+- Documentation.
+
+You are the principal architect and integration owner.
+
+Before parallel agents modify code:
+
+1. Assign explicit file ownership.
+2. Define interfaces.
+3. Avoid concurrent modification of shared files.
+4. Establish integration checkpoints.
+5. Run complete tests after merging work.
+
+Do not create multiple agents that independently rewrite the same architecture.
+
+Do not allow parallel execution to compromise test data isolation.
+
+---
+
+# 21. RELEASE GATES — NO PREMATURE COMPLETION
+
+The project is not complete until the following gates are addressed.
+
+## Gate 1: Build integrity
+
+- Strict TypeScript compilation passes.
+- No unresolved imports.
+- No placeholder implementations in claimed production paths.
+- CLI starts correctly.
+- MCP starts correctly.
+
+## Gate 2: Testing
+
+- At least 300 meaningful automated test cases exist.
+- Test inventory is documented.
+- Unit and integration suites execute.
+- Property-based tests execute.
+- Critical safety modules achieve at least 80% mutation score, with surviving mutants reviewed.
+- Cross-browser scenarios are executed where applicable.
+
+## Gate 3: Diagnostic reliability
+
+- Supported trace formats have tested adapters.
+- Unsupported formats abstain.
+- Incomplete evidence abstains where required.
+- Causal correlation is tested.
+- Diagnostic reports provide evidence provenance.
+
+## Gate 4: Repair safety
+
+- Only authorized AST expressions change.
+- Assertion invariants pass.
+- Intent invariants pass within the documented supported scope.
+- Ambiguous candidates abstain.
+- Dynamic unsupported patterns abstain.
+- Worktree isolation is verified.
+
+## Gate 5: Defect resistance
+
+- At least six distinct business defects are seeded.
+- Repaired tests continue to detect them.
+- No false repair is accepted in the defined adversarial benchmark.
+- All results are reproducible.
+
+## Gate 6: Benchmark integrity
+
+- At least 100 distinct benchmark scenarios.
+- Repeated baseline execution.
+- Independent mutation seeds.
+- Held-out evaluation.
+- Complete metrics and confidence intervals.
+- Public and controlled applications reported separately.
+
+## Gate 7: Enterprise safety
+
+- Security tests pass.
+- PII redaction is verified.
+- No unauthorized active-branch modification.
+- No unsafe dependency sharing.
+- Repair evidence is reproducible.
+
+If a gate cannot be completed because of an external limitation, report it honestly.
+
+Do not invent a passing result.
+
+---
+
+# 22. FINAL DELIVERY PACKAGE
+
+When the implementation reaches its completion gates, provide:
+
+1. Complete working source code.
+2. Complete unit and integration tests.
+3. At least 300 meaningful automated test cases.
+4. Controlled benchmark application.
+5. Public-site compatibility benchmark.
+6. Multi-browser execution configuration.
+7. Adversarial mutation suite.
+8. Business-defect injection suite.
+9. CLI and MCP interfaces.
+10. Documentation.
+11. Benchmark results.
+12. Security report.
+13. Known limitations.
+14. Final architecture diagram.
+15. Release-readiness assessment.
+
+The final report must contain:
+
+- What was implemented.
+- What was tested.
+- What passed.
+- What failed.
+- What remains unsupported.
+- Number of test cases.
+- Actual execution counts.
+- Browser engines tested.
+- Actual benchmark metrics.
+- False repair count.
+- Defect masking count.
+- Remaining technical risks.
+
+---
+
+# 23. MOST IMPORTANT EXECUTION INSTRUCTION
+
+**START WORK NOW.**
+
+First inspect the repository and supplied reference documents.
+
+Then produce the initial codebase audit and implementation plan.
+
+Immediately begin implementing the highest-priority engineering work.
+
+Do not wait for me to approve every individual coding decision.
+
+Use sound engineering judgment and maintain the architectural guardrails.
+
+After each milestone, test the implementation and update the progress ledger.
+
+Continue working through implementation, browser execution, debugging, regression testing, security validation, benchmarking and documentation.
+
+If one workstream is blocked, continue with another independent workstream.
+
+If a test fails, investigate and fix it.
+
+If a feature is incomplete, implement it.
+
+If an architecture decision proves unsafe, revise it and document why.
+
+If a benchmark is invalid, redesign it rather than reporting misleading results.
+
+**Your objective is a functioning, reproducible, thoroughly tested Playwright Intelligence Engine — not a collection of generated files or an impressive-looking architecture document.**
+
+Do not declare the project complete until all mandatory release gates have been evaluated and the evidence is available.
+
+If you reach an execution limit, save all work, update the progress ledger with the exact remaining tasks and provide a precise resume point.
+
+At every stage, prioritize correctness, reproducibility, safety and evidence over speed or superficial feature count.
+
+**BEGIN WITH REPOSITORY INSPECTION, THEN EXECUTE THE ENGINEERING MISSION UNTIL THE DEFINED GOALS ARE ACHIEVED.**Playwright Intelligence Engine — Expert Architectural Audit
+Audit target: Architecture v2.3 (As-Built), benchmark claims, and the four technical questions.
+Review perspective: Staff QA Systems Architect, Principal TypeScript Tooling Engineer, Academic Program Repair Researcher, and Enterprise Security Reviewer.
+CONDITIONAL GO — WITH ARCHITECTURAL CORRECTIONS
+The architecture is technically promising. The safety guarantees are not yet established.
+Dimension
+Assessment
+Product differentiation
+Strong potential
+Trace ingestion
+Feasible, version risk
+Failure classification
+Too simplistic
+Semantic locator recovery
+Needs stronger oracle
+Assertion protection
+Useful but insufficient
+AST modification
+Good initial scope
+Worktree isolation
+Important dependency risks
+Benchmark methodology
+Not statistically sufficient
+Enterprise readiness
+Not demonstrated
+0. Scope and evidence standard
+I have the following materials:
+Your v2.3 as-built architecture document.
+The earlier product roadmap v2.2.
+The six-application benchmark report.
+The market and technical research report.
+Your latest technical implementation description.
+One important distinction: I have architectural documentation, not the actual TypeScript source code, test fixtures, trace archives or benchmark execution logs.
+Therefore, I can audit architectural correctness, identify implementation-level failure modes and challenge the reported results. I cannot certify that the actual implementation correctly handles every case described.
+I will distinguish three things:
+Documented: Explicitly described in your architecture.
+Inferred: A likely implementation consequence that requires code inspection.
+Required: A correction or additional experiment I recommend.
+My most important finding is this:
+Your biggest technical risk is not AST corruption. It is incorrect semantic equivalence.
+The engine can produce syntactically valid TypeScript, preserve every expect() statement, execute successfully, and still silently change what the test is testing.
+That is the central architectural challenge.
+1. Differentiation and the defect-masking problem
+1.1 Is post-mortem repair fundamentally different?
+Yes. Your architecture has a meaningful distinction from runtime self-healing systems.
+Conventional runtime healing
+Test executes
+Locator fails
+Runtime interception
+Alternative element selected
+Test continues
+Risk: The test may continue against the wrong element.
+Your proposed architecture
+Test executes
+Failure and trace captured
+Post-mortem diagnosis
+Candidate repair proposed
+AST modification in isolated worktree
+Independent verification
+Repair accepted or rejected
+Advantage: The original execution is not silently rescued by a substitute element.
+This is a genuine architectural advantage.
+However, I would challenge one statement in the product positioning:
+Post-mortem execution does not automatically mean zero latency or zero risk.
+It means zero additional latency in the original test execution from the diagnostic and repair engine, assuming the instrumentation itself does not introduce overhead.
+Your engine still consumes CI resources afterward:
+Trace extraction.
+Parsing.
+Snapshot reconstruction.
+Classification.
+Candidate extraction.
+Worktree creation.
+Re-execution.
+Defect verification.
+Measure these separately.
+I would use the term zero in-band healing latency, rather than zero runtime latency.
+1.2 Competitor comparison
+The earlier research report characterizes Healenium, BrowserStack AI and mabl as runtime-oriented approaches. That is directionally useful, but the categorical competitor claims need qualification.
+Capability
+Healenium
+BrowserStack AI
+mabl
+Your engine
+Runtime healing
+Yes, architecture-dependent
+Yes
+Platform-managed
+No
+Native Playwright integration
+Supported variants
+Supported
+Integration available
+Native target
+Post-mortem diagnosis
+Not established as core workflow
+Not established as core workflow
+Not established as core workflow
+Core design
+TypeScript POM refactoring
+Not established
+Not established
+Not established
+Proposed core capability
+Isolated Git verification
+Not established
+Not established
+Not established
+Core design
+Explicit assertion invariants
+Not established
+Not established
+Not established
+Core design
+Defect-injection verification
+Not established
+Not established
+Not established
+Required differentiator
+The correct conclusion is not that competitors cannot do these things. It is that your proposed product combines them into a different workflow.
+That is the differentiation worth investigating commercially.
+1.3 Does SHA-256 assertion fingerprinting solve the passing-for-the-wrong-reason problem?
+No — not by itself
+Your invariant is:
+\[ TargetIdentity \land AssertionsUntouched \land ActionSemanticsPreserved \]
+This is a good formal direction.
+But the actual implemented fingerprint mechanism described in v2.3 establishes only one part of this expression.
+You extract expect() call expressions, canonicalize them and calculate SHA-256.
+Pasted markdown(20261104-182450).md
+Let's examine a concrete attack.
+Attack 1: Preserve assertion, change business action
+Original Page Object:
+class CheckoutPage { readonly submitBtn = this.page.getByRole('button', { name: 'Place order' }); }
+Original test:
+await checkoutPage.submitBtn.click(); await expect( page.getByText('Order successful') ).toBeVisible();
+The application changes its interface.
+The engine incorrectly identifies a different candidate:
+readonly submitBtn = this.page.getByRole('button', { name: 'Save for later' });
+The assertion AST is identical.
+The fingerprint is identical.
+But the test now clicks the wrong business action.
+This is a false repair.
+Attack 2: Preserve assertion, change fixture data
+test('rejects invalid card', async ({ page }) => { const card = '4111111111111111'; await paymentPage.pay(card); await expect( page.getByText('Payment declined') ).toBeVisible(); });
+A repair modifies a fixture or helper so that the test uses a different card.
+The assertion is untouched.
+The test's business intent has changed.
+Attack 3: Preserve assertion, change helper implementation
+async submitOrder() { await this.submitBtn.click(); }
+Suppose the helper is modified to:
+async submitOrder() { await this.cancelBtn.click(); }
+If the final assertion is insufficiently discriminating, the test may still pass under an unintended flow.
+Attack 4: Preserve assertion, modify hooks
+test.beforeEach(async ({ page }) => { await login(page); });
+An unauthorized change to setup, test hooks, fixtures or routing can change the environment in which the assertion runs.
+The assertion fingerprint does not protect these dependencies.
+Attack 5: Fingerprinting scope and semantics
+There are further implementation-level questions:
+Does the hasher cover expect.soft()?
+Does it cover imported custom assertion functions?
+Does it include assertions inside callbacks and helper methods?
+Does it include assertions in fixtures?
+Does it distinguish different test files?
+Does canonicalization preserve argument order?
+Does it preserve template literal substitutions?
+Does it account for assertion configuration and timeout options?
+Does it detect assertion deletion as well as modification?
+Sorting object keys is reasonable when the object is semantically unordered, but arbitrary AST sorting is unsafe.
+For example, function arguments are ordered. Their order must never be normalized away.
+1.4 My recommended solution: Intent Invariant v2
+Do not abandon assertion hashing. Expand it.
+Invariant
+What it protects
+Assertion fingerprint
+expect() expressions
+Test-body fingerprint
+Test structure and control flow
+Fixture fingerprint
+Important test inputs and fixture wiring
+Action fingerprint
+Click, fill, select, submit semantics
+Target identity
+Intended business entity
+Dependency fingerprint
+Relevant helper and method implementations
+Diff allowlist
+Only authorized locator expressions
+Execution contract
+Original test scope and configuration
+The repair transaction should satisfy:
+\[ V = A \land T \land F \land I \land D \land E \]
+Where:
+\(A\): Assertions unchanged.
+\(T\): Test structure unchanged.
+\(F\): Fixtures and critical inputs preserved.
+\(I\): Intended target identity preserved.
+\(D\): Only permitted source differences exist.
+\(E\): Independent execution verification passes.
+Even this does not mathematically prove business intent in every arbitrary program. It establishes a much stronger, explicitly scoped safety contract.
+My recommendation: Rename the current capability Assertion Immutability, not Intent Preservation. Reserve the latter for when the broader invariant system is implemented and tested.
+2. Playwright trace ingestion — technical landmines
+High-priority compatibility risk
+Your ArchiveReader and VersionDetector are among the most important components in the architecture.
+The design is correct in principle:
+trace.zip | +-- trace.trace +-- trace.network +-- trace.stacks +-- resources/ | v VersionDetector | v Version-specific parser | v Normalized DiagnosticContext
+The critical issue is that Playwright trace serialization is an internal implementation format, not a stable public API contract.
+The official documentation describes recording, viewing and examining traces, but does not promise that consumers can depend on the underlying serialized schema remaining backward- and forward-compatible.
+Playwright+1
+2.1 Your version detection needs a stronger compatibility model
+The as-built document claims support for trace formats 5–10, corresponding to Playwright v1.38 through v1.64+.
+Pasted markdown(20261104-182450).md
+I would challenge that mapping.
+There are three separate version concepts:
+Version
+Meaning
+Playwright package version
+Version of the producer
+Trace format version
+Serialization schema version
+Engine adapter version
+Version of your parser implementation
+These must not be treated as interchangeable.
+A Playwright package version is not necessarily enough to identify every structural change in a trace archive.
+I would also avoid assuming that every archive uses a single predictable file naming convention.
+The official Playwright repository's own tracing tests demonstrate archive contents including trace.trace, trace.network, trace.stacks and resources, and test chunked traces with different filenames.
+GitHub
+Recommended compatibility strategy
+interface TraceAdapter { formatVersion: number; canParse( archive: ArchiveManifest ): boolean; parse( archive: ArchiveManifest ): Promise<DiagnosticContext>; validate( context: DiagnosticContext ): ValidationResult; }
+Maintain explicit adapters:
+adapters/ v5/ v6/ v7/ v8/ v9/ v10/ unknown/
+Do not silently parse an unknown version using the newest adapter.
+Use:
+if (!adapter) { return { status: 'ABSTAIN', reason: 'UNSUPPORTED_TRACE_FORMAT' }; }
+A diagnostic engine that invents evidence from an unsupported trace is worse than one that refuses to diagnose it.
+2.2 Snapshot reconstruction is a particularly dangerous area
+Your architecture describes array-based NodeSnapshot tuples and compact delta snapshots.
+The parser must understand more than a simple recursive DOM tree.
+Potential difficulties include:
+Snapshot references to earlier records.
+Incremental DOM changes.
+Frame-specific snapshots.
+Iframes and nested browsing contexts.
+Shadow DOM boundaries.
+Detached nodes.
+Cross-frame locator relationships.
+Missing resource blobs.
+Incomplete before/action/after snapshots.
+The official tracing implementation includes separate snapshot and resource mechanisms.
+GitHub+1
+I would require the snapshot resolver to return not just DOM data, but provenance and completeness:
+interface ResolvedSnapshot { frameId: string; callId?: string; phase: | 'before' | 'action' | 'after'; completeness: | 'COMPLETE' | 'PARTIAL' | 'UNAVAILABLE'; unresolvedReferences: string[]; dom: ResolvedNode[]; }
+Important: A missing snapshot reference must never be interpreted as an absent element.
+An absent element and an unavailable snapshot are entirely different states.
+2.3 Network correlation: your current design needs correction
+Your architecture says the FailureClassifier correlates a failed action callId with HTTP status codes in network logs.
+The document does not establish that network events carry a direct, reliable action callId relationship.
+Pasted markdown(20261104-182450).md
+This matters because a temporal correlation can easily produce false causality.
+Consider:
+10:00:00.100 Click checkout 10:00:00.120 GET /analytics 500 10:00:00.150 POST /checkout 200 10:00:00.200 Locator timeout
+A simplistic classifier might identify BACKEND_500.
+But the failed checkout might have nothing to do with the analytics endpoint.
+The opposite problem is also possible:
+10:00:00.100 Click checkout 10:00:00.120 POST /checkout 500 10:00:00.150 Locator timeout
+Here the relationship is much more plausible.
+Required improvement: causal evidence graph
+Instead of:
+if (response.status >= 500) { return 'BACKEND_500'; }
+Use an evidence graph:
+Failed action | +-- Frame ID | +-- Action interval | +-- Request initiator | +-- Request URL / method | +-- Response status | +-- Application error evidence | +-- Relevant state transition
+Use monotonic timestamps for ordering where available. Wall-clock timestamps are useful for display, but are more vulnerable to clock adjustments.
+Also introduce an explicit MIXED_FAILURE or INSUFFICIENT_EVIDENCE category.
+An authentication failure and locator drift can occur in the same execution. Do not force every trace into exactly one root-cause category.
+2.4 Trace capture is not automatically complete
+There is an important distinction in the official Playwright API documentation:
+The low-level context.tracing API captures browser operations and network activity.
+It does not record test assertions.
+Playwright Test configuration provides a more complete test trace.
+Playwright
+Your architecture must explicitly require Playwright Test traces when assertion-level diagnostic context is needed.
+Also, retain-on-failure is useful, but it is not equivalent to collecting every failed execution under every configuration.
+For example, your benchmark uses retries disabled, which is good for isolating initial failure behavior. But the production integration needs a policy for retries, interrupted workers and incomplete archives.
+I would add:
+Archive integrity validation.
+Required-entry validation.
+Snapshot completeness validation.
+Trace capture mode metadata.
+Explicit distinction between missing evidence and negative evidence.
+A trace that contains no HTTP 500 is not proof that the backend did not fail if network capture was incomplete.
+3. Windows NTFS worktrees and dependency isolation
+Potentially serious implementation risk
+Your use of directory junctions is technically legitimate.
+Node.js documents the Windows junction option, including its absolute-path behavior.
+GitHub+1
+However:
+A junction is a filesystem link, not a dependency-isolation mechanism.
+Your architecture describes sharing the root node_modules with detached repair worktrees.
+Pasted markdown(20261104-182450).md
+This is where I see the biggest risk in the infrastructure design.
+3.1 Compatibility across package managers
+Package manager
+Junction strategy
+My assessment
+npm
+Often works for simple dependency trees
+Conditional
+npm workspaces
+Root resolution and workspace links require testing
+Risky
+pnpm isolated linker
+Internal symlinks and virtual store dependencies
+High risk
+pnpm hoisted linker
+Simpler directory layout
+More feasible
+pnpm global virtual store
+External shared paths
+Additional complexity
+Yarn Classic
+Conventional node_modules
+More feasible
+Yarn Berry PnP
+No conventional node_modules by default
+Unsupported by current strategy
+Yarn Berry node-modules linker
+Conventional dependency directory
+Conditional
+Yarn's official documentation explicitly explains that Plug'n'Play replaces the traditional node_modules directory with a loader file.
+Yarn
+pnpm's documentation explains its isolated dependency layout, virtual store, symlink structure and content-addressable store.
+pnpm+2
+Therefore, your claim of compatibility across different enterprise monorepo tooling would be premature.
+pnpm-specific problem
+Imagine:
+root/ node_modules/ .pnpm/ package-a -> .pnpm/package-a@1.0/node_modules/package-a package-b -> .pnpm/package-b@2.0/node_modules/package-b
+You create:
+worktree/ node_modules -> root/node_modules
+This shares the dependency tree.
+But what happens when a package's installation scripts or generated artifacts write into:
+node_modules/.cache/ node_modules/.vite/ node_modules/.prisma/
+Both worktrees can now observe shared mutable state.
+Additionally, package resolution may depend on the real location of the project, workspace symlinks, peer dependencies and package-manager-specific resolution behavior.
+A successful import does not prove correct workspace isolation.
+3.2 The monorepo problem is bigger than node_modules
+Consider:
+enterprise-repo/ package.json pnpm-workspace.yaml pnpm-lock.yaml packages/ ui/ api/ shared/ apps/ frontend/ backend/
+A repair worktree must preserve the relationship between:
+Workspace package paths.
+Relative symlinks.
+Package exports.
+Project references.
+TypeScript configuration inheritance.
+Build outputs.
+Generated clients.
+Package-manager metadata.
+A shared root node_modules directory alone does not guarantee these relationships are preserved.
+3.3 A safer architecture: dependency strategy adapter
+I would introduce:
+dependency/ dependency-strategy.ts npm-strategy.ts pnpm-strategy.ts yarn-classic-strategy.ts yarn-pnp-strategy.ts
+Example contract:
+interface DependencyStrategy { detect(root: string): Promise<boolean>; prepare( worktree: string ): Promise<DependencyPreparationResult>; validate( worktree: string ): Promise<DependencyValidationResult>; cleanup( worktree: string ): Promise<void>; }
+And the result should explicitly describe isolation:
+type IsolationLevel = | 'FULLY_ISOLATED' | 'IMMUTABLE_SHARED' | 'SHARED_MUTABLE' | 'UNSUPPORTED';
+I would not run autonomous source modifications when the dependency environment is classified as SHARED_MUTABLE.
+3.4 Specific Windows landmines
+Risk
+Recommended control
+Junction deletion traverses target
+Use lstat, unlink the link itself, then clean up
+Path escaping
+Canonicalize paths and validate repository ownership
+Concurrent repair jobs
+Per-worktree locks
+PID reuse
+Process identity plus creation time and process-tree validation
+Crash during junction creation
+Transactional registry and startup reconciliation
+Windows Defender locks
+Bounded retry with jitter
+Shared dependency writes
+Immutable dependency policy or isolated install
+Cross-volume worktrees
+Validate filesystem and Git behavior
+Git cleanup failure
+Preserve registry entry and recover later
+Particularly important: stale PID detection
+Your registry records active PIDs and timestamps.
+That is insufficient on its own.
+Operating systems can reuse process IDs.
+A stale worktree cleanup mechanism should validate process identity, creation time and ownership before deciding that a worktree is abandoned.
+Also, do not use broad recursive deletion on paths that have not been canonicalized and verified against the expected worktree root.
+My verdict: Keep junctions as an optimization for explicitly supported dependency layouts. Never make them a universal worktree requirement.
+4. Multi-factor scoring — is it really calibrated?
+The word calibrated is currently unjustified
+Your scoring model is:
+\[ S(L)=0.25U+0.25I+0.20M+0.15A+0.10H-0.20D \]
+This is a sensible heuristic architecture.
+However, I see four issues.
+4.1 The weights are not demonstrated to be calibrated
+Your document specifies fixed weights and a 0.70 acceptance threshold.
+Pasted markdown(20261104-182450).md
+But calibration requires empirical evidence.
+You need a labeled dataset containing:
+Correct locator replacements.
+Incorrect locator replacements.
+Ambiguous candidates.
+Semantically similar but incorrect candidates.
+Candidates that preserve actionability but change business meaning.
+Then:
+Fit weights on a training dataset.
+Select thresholds on a separate validation dataset.
+Freeze the scoring model.
+Evaluate on a held-out test dataset.
+Measure calibration error and repair precision.
+Do not tune the weights against the same 100 benchmark cases used to advertise performance.
+Also, distinguish the raw score from probability:
+interface CandidateScore { rawScore: number; calibratedProbability?: number; decision: | 'ACCEPT_CANDIDATE' | 'ABSTAIN'; }
+A score of 0.93 does not mean 93% probability of correctness.
+4.2 Your uniqueness calculation has a boundary problem
+You define:
+One match: U = 1.0.
+Two matches: U = 0.5.
+More than two matches: U = 0.2.
+Then:
+if (U < 0.5) { abstain(); }
+This permits a candidate with exactly two matches to pass the uniqueness gate.
+That contradicts the stated intention of strict uniqueness.
+I would change the decision logic to use an explicit count:
+if (candidate.matchCount !== 1) { return abstain('NON_UNIQUE_CANDIDATE'); }
+There is one qualification: a candidate may become unique after applying a verified parent-container scope. That scope must itself be grounded in the original business context.
+4.3 Your ambiguity delta is not sufficient
+You use:
+\[ S_1-S_2 \geq 0.08 \]
+This helps identify close candidates.
+But consider:
+Candidate
+Score
+Checkout
+0.91
+Cancel order
+0.80
+The difference is 0.11, so your engine accepts the first candidate.
+But the score gap does not prove that Checkout is the correct business action.
+Likewise:
+Candidate
+Score
+Save for later
+0.92
+Place order
+0.82
+The scoring model could prefer a candidate with stronger uniqueness and accessibility properties while selecting the wrong business action.
+Therefore:
+Semantic equivalence must be a hard authorization gate, not merely another weighted score.
+4.4 Historical reliability can create confirmation bias
+Your stability ledger uses:
+\[ H=\frac{successes}{successes+2\times failures} \]
+This is a reasonable heuristic for historical stability.
+However, consider a selector that has historically identified the wrong button.
+It can still accumulate successful executions.
+Historical reliability measures execution success, not semantic correctness.
+I would rename this factor HistoricalExecutionReliability.
+Store separate metrics:
+Historical execution reliability.
+Historical semantic verification.
+Historical repair acceptance.
+Historical false-repair incidents.
+A previously accepted incorrect repair must not improve future confidence merely because it passed.
+My recommended decision pipeline
+Do not let a weighted sum decide everything.
+#chatgpt-mermaid-_r_1c7_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(237, 237, 237);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-_r_1c7_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-_r_1c7_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-_r_1c7_ .error-icon{fill:rgb(48, 48, 48);}#chatgpt-mermaid-_r_1c7_ .error-text{fill:rgb(237, 237, 237);stroke:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-_r_1c7_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-_r_1c7_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-_r_1c7_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-_r_1c7_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-_r_1c7_ .marker{fill:rgb(175, 175, 175);stroke:rgb(175, 175, 175);}#chatgpt-mermaid-_r_1c7_ .marker.cross{stroke:rgb(175, 175, 175);}#chatgpt-mermaid-_r_1c7_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-_r_1c7_ p{margin:0;}#chatgpt-mermaid-_r_1c7_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ .cluster-label text{fill:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ .cluster-label span{color:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-_r_1c7_ .label text,#chatgpt-mermaid-_r_1c7_ span{fill:rgb(237, 237, 237);color:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ .node rect,#chatgpt-mermaid-_r_1c7_ .node circle,#chatgpt-mermaid-_r_1c7_ .node ellipse,#chatgpt-mermaid-_r_1c7_ .node polygon,#chatgpt-mermaid-_r_1c7_ .node path{fill:rgb(9, 23, 44);stroke:rgb(31, 78, 148);stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .rough-node .label text,#chatgpt-mermaid-_r_1c7_ .node .label text,#chatgpt-mermaid-_r_1c7_ .image-shape .label,#chatgpt-mermaid-_r_1c7_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-_r_1c7_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .rough-node .label,#chatgpt-mermaid-_r_1c7_ .node .label,#chatgpt-mermaid-_r_1c7_ .image-shape .label,#chatgpt-mermaid-_r_1c7_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-_r_1c7_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-_r_1c7_ .root .anchor path{fill:rgb(175, 175, 175)!important;stroke-width:0;stroke:rgb(175, 175, 175);}#chatgpt-mermaid-_r_1c7_ .arrowheadPath{fill:rgb(175, 175, 175);}#chatgpt-mermaid-_r_1c7_ .edgePath .path{stroke:rgb(175, 175, 175);stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .flowchart-link{stroke:rgb(175, 175, 175);fill:none;}#chatgpt-mermaid-_r_1c7_ .edgeLabel{background-color:rgb(0, 0, 0);text-align:center;}#chatgpt-mermaid-_r_1c7_ .edgeLabel p{background-color:rgb(0, 0, 0);}#chatgpt-mermaid-_r_1c7_ .edgeLabel rect{opacity:0.5;background-color:rgb(0, 0, 0);fill:rgb(0, 0, 0);}#chatgpt-mermaid-_r_1c7_ .labelBkg{background-color:rgba(0, 0, 0, 0.5);}#chatgpt-mermaid-_r_1c7_ .cluster rect{fill:rgb(48, 48, 48);stroke:rgba(255, 255, 255, 0.15);stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .cluster text{fill:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ .cluster span{color:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(48, 48, 48);border:1px solid rgba(255, 255, 255, 0.15);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-_r_1c7_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(237, 237, 237);}#chatgpt-mermaid-_r_1c7_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-_r_1c7_ .icon-shape,#chatgpt-mermaid-_r_1c7_ .image-shape{background-color:rgb(0, 0, 0);text-align:center;}#chatgpt-mermaid-_r_1c7_ .icon-shape p,#chatgpt-mermaid-_r_1c7_ .image-shape p{background-color:rgb(0, 0, 0);padding:2px;}#chatgpt-mermaid-_r_1c7_ .icon-shape .label rect,#chatgpt-mermaid-_r_1c7_ .image-shape .label rect{opacity:0.5;background-color:rgb(0, 0, 0);fill:rgb(0, 0, 0);}#chatgpt-mermaid-_r_1c7_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-_r_1c7_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-_r_1c7_ .node .neo-node{stroke:rgb(31, 78, 148);}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node rect,#chatgpt-mermaid-_r_1c7_ [data-look="neo"].cluster rect,#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-_r_1c7_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-_r_1c7_-gradient);stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node .neo-line path{stroke:rgb(31, 78, 148);filter:none;}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-_r_1c7_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-_r_1c7_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1c7_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-_r_1c7_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1c7_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(153, 206, 255);}#chatgpt-mermaid-_r_1c7_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(153, 206, 255);}#chatgpt-mermaid-_r_1c7_ .node tspan[font-weight="normal"],#chatgpt-mermaid-_r_1c7_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-_r_1c7_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(0, 14, 26);stroke:rgb(26, 62, 95);stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .node rect,#chatgpt-mermaid-_r_1c7_ .node circle,#chatgpt-mermaid-_r_1c7_ .node ellipse,#chatgpt-mermaid-_r_1c7_ .node polygon,#chatgpt-mermaid-_r_1c7_ .node path{fill:rgb(0, 40, 77);stroke:rgba(255, 255, 255, 0.1);stroke-width:1px;}#chatgpt-mermaid-_r_1c7_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-_r_1c7_ .mermaid-decision .label-container{fill:rgb(0, 14, 26);stroke:rgb(26, 62, 95);stroke-dasharray:2,2;}#chatgpt-mermaid-_r_1c7_ .edgePaths .flowchart-link{stroke:rgb(175, 175, 175);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-_r_1c7_ .marker{fill:rgb(175, 175, 175);stroke:rgb(175, 175, 175);}#chatgpt-mermaid-_r_1c7_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Extract candidateSupported element?ABSTAINTarget identity verified?Exactly one scoped match?Action semantics preserved?Calculate candidate scoreCalibrated threshold andmargin pass?Authorize isolated repairNoYesNoYesNoYesNoYesNoYes
+This is a much safer architecture than relying on a single aggregate score.
+5. The 100-test challenge — statistical validity
+Useful POC expansion, insufficient enterprise proof
+Your proposed allocation:
+Tier
+Number
+Live tests across six applications
+24
+Adversarial mutations across five classes
+50
+Negative controls and seeded defects
+26
+Total
+100
+I would approve this as a preliminary benchmark portfolio, subject to changes.
+I would not approve it as a statistically sufficient enterprise reliability study.
+5.1 The hidden statistical problem
+You have 100 test cases, but they are not necessarily 100 independent observations.
+For example:
+Ten tests might use the same application.
+Multiple mutations might target the same DOM component.
+All six sites might use the same Chromium version.
+Multiple failures might originate from one shared backend.
+The same candidate-scoring logic is reused across every case.
+These observations are correlated.
+This is called clustering.
+If the engine succeeds on ten variations of the same checkout button, you have not demonstrated ten independent forms of locator recovery.
+You have demonstrated good performance on one family of related cases.
+5.2 What does 100% actually mean statistically?
+Suppose you observe zero false repairs.
+The approximate one-sided 95% upper confidence bound on the underlying failure rate is given by the rule of three:
+\[ p_{\text{upper}}\approx\frac{3}{n} \]
+Independent trials
+Observed failures
+Approximate upper 95% failure-rate bound
+6
+0
+50%
+13
+0
+23.1%
+26
+0
+11.5%
+50
+0
+6.0%
+100
+0
+3.0%
+300
+0
+1.0%
+1,000
+0
+0.3%
+These are approximate bounds, not guarantees.
+This is why 100% success over six or thirteen cases should never be presented as proof of 100% reliability.
+And these calculations assume independent, identically distributed trials. Your benchmark needs to account for application and mutation-class clustering.
+5.3 I would change the allocation
+For a fixed 100-scenario POC, I would start with this:
+Category
+Scenarios
+Purpose
+Baseline live tests
+24
+Four per application
+Application/test mutation cases
+40
+Eight per structural class
+Negative controls
+18
+Six failure families, three variants each
+Seeded business defects
+18
+Six distinct defects, three verification variants each
+Total
+100
+The mutation cases should explicitly distinguish:
+Test-side locator corruption.
+Application-side structural drift.
+Application-side semantic drift.
+Do not count these as interchangeable.
+The 18 defect cases should include business-level failures, not merely additional HTTP errors.
+This is a better portfolio structure, but it still does not justify an enterprise reliability claim.
+Repeatability is a separate dimension
+For your 24 baseline scenarios:
+Run each scenario at least 30 times.
+Disable retries for baseline measurement.
+Record individual pass/fail outcomes.
+Preserve the environment fingerprint.
+Calculate per-test flakiness.
+Calculate per-application results.
+That produces 720 baseline executions, not merely 24.
+For mutation scenarios, use multiple independent seeds and run each repair attempt under a controlled, repeatable application version.
+Do not count rerunning the exact same mutation ten times as ten independent mutation classes.
+5.4 Public demo websites — specific risks
+Your six chosen websites are useful for initial compatibility testing.
+But they are uncontrolled environments.
+Public-site benchmark risk register
+Risk
+Impact
+Mitigation
+Rate limiting
+False network failures
+Sequential execution, controlled pacing
+Rotating ads
+Unexpected DOM candidates
+Avoid ad-dependent elements
+Consent banners
+Locator ambiguity
+Dedicated consent handling
+Shared test accounts
+State collisions
+Isolated account/session strategy
+Backend maintenance
+False abstention
+Record availability and retry only benchmark setup
+Dynamic product data
+Assertion instability
+Assert stable business invariants
+Bot detection
+Authentication failures
+Conservative request rates
+Third-party scripts
+Timing races
+Capture and classify external requests
+Website deployments
+Non-reproducible mutations
+Record application build and baseline DOM
+Session expiry
+False repair diagnosis
+Fresh authenticated context per scenario
+One particularly important issue: OrangeHRM and SauceDemo
+Authentication-heavy scenarios are vulnerable to:
+Session persistence.
+Shared account state.
+Password rotation.
+Captcha or bot protection.
+Server-side account lockouts.
+Do not run these scenarios concurrently against the same account.
+Your existing workers: 1 and retries: 0 benchmark configuration is a good starting point.
+Pasted markdown(20261104-182450).md
+I would retain sequential execution for the public benchmark.
+Do not use public websites as your primary defect-injection environment
+This is a critical distinction.
+You cannot reliably seed a business defect into a third-party website that you do not control.
+For Experiment C, use:
+Locally hosted application clones.
+Version-controlled demo application forks.
+Containerized application environments.
+Explicit feature flags that inject known defects.
+For example:
+checkout-app/ versions/ baseline/ mutation-01/ mutation-02/ mutation-03/
+You should be able to reproduce the exact same business defect after six months.
+Public applications establish compatibility.
+Controlled applications establish causal evidence.
+These must be reported separately.
+6. AST refactoring — expanding beyond the three supported patterns
+Good initial scope, but Phase 2 needs a deliberate expansion
+Your current supported patterns are:
+Property initializers.
+Getter methods.
+Constructor assignments.
+This is an appropriate MVP boundary.
+I would not immediately expand into arbitrary TypeScript code rewriting.
+However, enterprise Page Objects frequently use abstractions beyond these three patterns.
+6.1 Additional patterns worth supporting
+Pattern
+Example
+Priority
+Static readonly locator properties
+static readonly submit = ...
+Medium
+Private/protected locator properties
+private readonly submitBtn = ...
+High
+Parameterless locator factory
+submitButton(): Locator
+High
+Locator constants
+const SUBMIT = '[data-test=submit]'
+High
+Imported selector maps
+Selectors.checkout.submit
+Medium
+Inherited Page Objects
+class Checkout extends BasePage
+High
+Component composition
+this.header.menu
+High
+Factory-created components
+new HeaderComponent(page)
+Medium
+Fixture-injected Page Objects
+({ checkoutPage })
+Medium
+Method-chained locators
+page.getByRole(...).filter(...)
+High
+Parameterized locators
+row(id).deleteButton
+Abstain initially
+Notice that I am not recommending all of them for the next release.
+I would prioritize patterns that can be resolved statically and patched unambiguously.
+6.2 Method chaining — how should the engine handle it?
+Consider:
+class CheckoutPage { readonly form = this.page.locator('#checkout'); readonly submitBtn = this.form.getByRole('button', { name: 'Submit' }); }
+This is straightforward.
+The locator is built from a property initializer, so your current architecture can potentially handle it.
+But consider:
+class CheckoutPage { readonly header = new HeaderComponent(this.page); }
+And:
+class HeaderComponent { readonly navMenu = this.page.getByRole('navigation'); readonly accountLink = this.navMenu.getByRole('link', { name: 'Account' }); }
+Test:
+await checkoutPage.header.accountLink.click();
+The failure occurs at:
+checkoutPage.header.accountLink
+But the locator definition is actually inside HeaderComponent.
+The engine needs to resolve the property chain across classes and files.
+My recommended algorithm
+Parse the failing call expression.
+Resolve the root Page Object symbol.
+Follow property declarations using the TypeScript type checker.
+Resolve the component class declaration.
+Locate the leaf locator definition.
+Determine whether the locator is statically patchable.
+Inspect its use sites.
+Preserve the public Page Object API.
+Patch only the leaf locator expression.
+Validate the complete dependency chain.
+Do not rewrite:
+checkoutPage.header.accountLink
+to something else merely because the nested definition is difficult to resolve.
+The objective is to preserve the component abstraction.
+6.3 A difficult case: dynamic method chains
+Consider:
+getRow(id: string) { return this.table .getByRole('row') .filter({ hasText: id }); }
+And:
+await page .getRow('ORD-100') .getByRole('button', { name: 'Delete' }) .click();
+A repair engine must understand that id identifies the business entity.
+Replacing the row locator with a generic row selector could make the test operate on a different order.
+I would classify this as:
+ABSTAIN — dynamic target identity
+Until your engine can prove:
+The same row identity.
+The same filtering semantics.
+The same descendant relationship.
+The same action target.
+This is precisely where conservative abstention is preferable to clever rewriting.
+7. Additional architectural problems not covered by the four questions
+These are issues I would add to the formal architecture review before approving a production release.
+7.1 Archive security needs more than Zip-Slip protection
+Your 500 MB decompression limit is a good starting point.
+But an enterprise archive parser should defend against more than path traversal and oversized archives.
+Attack or failure
+Required protection
+Zip-Slip
+Canonical path validation
+Zip bomb
+Total uncompressed size and compression-ratio limits
+Excessive entries
+Maximum archive entry count
+Huge individual entry
+Per-entry size limit
+Symlink entries
+Reject or strictly validate
+Duplicate archive paths
+Reject ambiguous duplicates
+Unicode path tricks
+Normalize and validate paths
+Nested archives
+Do not recursively unpack without explicit policy
+Corrupted JSONL
+Per-record schema validation
+Oversized JSON records
+Maximum record length
+Missing resource blobs
+Mark snapshot incomplete
+I would also consider avoiding full archive extraction entirely.
+You can read archive entries as streams, selectively parse the required trace records and retrieve resources on demand.
+This reduces filesystem exposure.
+7.2 Your evidence provenance needs cryptographic integrity
+The architecture has an immutable RepairEvidence record containing the original selector, candidate selector, AST location, assertion fingerprint and verification status.
+Pasted markdown(20261104-182450).md
+Pasted markdown(20261104-182450).md
+But an immutable TypeScript object is not necessarily an immutable audit record.
+I would create an evidence package:
+repair-evidence/ manifest.json input/ trace.sha256 repository.sha256 environment.json diagnosis/ failure-classification.json evidence-graph.json candidates.json repair/ source-before.sha256 source-after.sha256 repair.diff verification/ assertion-invariant.json intent-invariant.json baseline-result.json repaired-result.json defect-resistance.json integrity/ manifest.sha256
+The manifest should contain hashes of all evidence artifacts.
+For higher-assurance environments, sign the manifest using a managed signing key.
+This makes the repair auditable independently of the engine.
+7.3 The engine needs a first-class failure state machine
+Your architecture describes a deterministic controller, but the as-built documentation does not show the complete state-transition model.
+I would explicitly define:
+type RepairState = | 'TRACE_RECEIVED' | 'TRACE_VALIDATED' | 'DIAGNOSED' | 'ABSTAINED' | 'CANDIDATES_EXTRACTED' | 'CANDIDATE_AUTHORIZED' | 'WORKTREE_CREATED' | 'PATCH_APPLIED' | 'INVARIANTS_VERIFIED' | 'TEST_EXECUTED' | 'DEFECT_TESTED' | 'VERIFIED' | 'REJECTED' | 'ROLLED_BACK';
+Every transition should have:
+Preconditions.
+Evidence requirements.
+Allowed operations.
+Failure behavior.
+Rollback behavior.
+For example:
+PATCH_APPLIED | v INVARIANTS_VERIFIED | +---- Failure ----> ROLLED_BACK | v TEST_EXECUTED | +---- Failure ----> REJECTED | v DEFECT_TESTED | +---- Failure ----> REJECTED | v VERIFIED
+A failed invariant must make it impossible to proceed to execution approval.
+This is stronger than having separate modules that each implement their own safety checks.
+7.4 Your MCP interface introduces a new security boundary
+Your v2.3 architecture exposes:
+diagnose_trace
+repair_page_object
+generate_playwright_test
+Pasted markdown(20261104-182450).md
+I would specifically examine the repair tool.
+An MCP client can supply a file path and request a repair. That creates risks involving:
+Paths outside the intended repository.
+Malicious workspace contents.
+Untrusted trace archives.
+Arbitrary command execution.
+Unauthorized modification requests.
+Concurrent tool invocations.
+Long-running worktree processes.
+The current MCP specification requires proper message framing and protocol handling. For stdio, stdout must contain valid protocol messages only; logging belongs on stderr. The current specification also describes cancellation and tool invocation safeguards.
+GitHub+2
+I would add these controls:
+Restrict paths to the explicitly authorized workspace.
+Validate tool arguments using strict schemas.
+Keep all process execution on argument arrays, never interpolated shell commands.
+Provide a dry-run repair tool.
+Require human authorization before applying changes.
+Support cancellation of long-running repair jobs.
+Ensure cancellation terminates the complete child process tree.
+Separate diagnostic permissions from repair permissions.
+Also, pin and test against supported MCP protocol versions. JSON-RPC 2.0 alone is not proof of MCP compliance.
+8. Competitive research correction — your differentiation is stronger, but narrower than claimed
+I checked the current official product documentation rather than relying exclusively on the earlier market research report.
+There are three important corrections.
+8.1 BrowserStack AI
+[BrowserStack Company Profile Funding & Investors | YourStory](https://images.openai.com/static-rsc-4/dLFIkkCNc9fsgUcTqhOcjkbmRVurNcpsIn9eQIzEY6DtCDIH68nOI3dFK3llwVgAR5E6uiBSz8XLtRhzszWNQxNIDHLmCFC0bgR29sOnXxeCi0o-AVUMKdCMIlRcIkLXQYxn-KErZU1bi43RaC3FDAHGxGS97QcFTLdjiwt783I?purpose=inline)
+BrowserStack — AI Self-Heal
+Official Playwright self-healing documentation
+[BrowserStack Playwright Self-Healing](https://www.browserstack.com/docs/automate/playwright/self-healing?utm_source=chatgpt.com)
+Your earlier research characterized BrowserStack as having no Git code persistence.
+That is no longer an accurate characterization.
+Its documentation describes:
+Historical element context.
+Alternative locator generation.
+Continuing the test execution after healing.
+Reusing healed locators.
+Applying healed locators through MCP.
+Creating GitHub PRs through its SDK workflow.
+Its Playwright offering is also described as limited-capacity, and its documentation acknowledges that healing may conceal genuine application problems.
+BrowserStack Docs+1
+Implication: Git persistence is not a unique differentiator.
+Your distinction must be independent verification of the source-level repair, especially business-defect resistance and intent invariants.
+8.2 Healenium
+[Healenium](https://images.openai.com/static-rsc-4/l-4Cx-HQ70yQUxIBwsXxgBxt2r6WQMnwmAKvcomm87L22JqSoMRHigtT31OmrNSio7Mfq_SarSBAD43s5ex2qHMRhOVab89nPwYi9psqIQsz7AUoTdOFbYZcDSFFnsZy8PzzELthlMiKJT0AXaYmAzDLgAxRIHFUzLEd5Tf1k4E?purpose=inline)
+Healenium
+[Official Playwright Proxy documentation](https://healenium.io/docs/playwright_proxy?utm_source=chatgpt.com)
+Its official documentation describes a Playwright proxy between the client and Playwright server, with historical locator storage and healing.
+Importantly, it reports approximately 4–13 ms additional overhead per action in its locator-collection performance discussion.
+healenium.io
+This contradicts the earlier blanket characterization of 4–15 seconds of runtime overhead.
+You should remove that claim unless you can produce a reproducible comparison of a specific workload and configuration.
+Your stronger argument is architectural:
+No in-band locator substitution.
+Original execution remains an independent failure record.
+Source changes occur in a controlled worktree.
+Repair verification is an explicit gate.
+8.3 mabl
+[Integrated API Testing | mabl](https://images.openai.com/static-rsc-4/28Hou692hWDQ-UU5rUyqX2qBqq0UCv51BSOLF0NUQtUYlafU1lJwpOxQQ9IId-CYQJ843qR6X00V6vO6tKge4zioz2GX61ewMx1rQ7JVPRILvlUAIenDY0QcU1QmqvhL7SzBETJwNfKxRlhsd6D_Ev0DKjatMNTijBaabeqjNUY?purpose=inline)
+mabl
+[Playwright test migration](https://docs.mabl.com/docs/mabl-cli/migrating-playwright-tests.html?utm_source=chatgpt.com)Also supports Playwright trace imports and Playwright exports.
+mabl's current documentation describes importing Playwright tests from trace.zip, converting supported interactions into its own test model, and exporting tests as Playwright TypeScript.
+It also documents limitations when migrating complex Playwright constructs.
+mabl docs for AI agents+2
+There is an even more important development: on October 21, 2026, mabl announced an agentic testing harness with developer-workflow integration, guardrails, a knowledge graph and independent verification capabilities.
+mabl.com+1
+This means your product cannot position itself simply as:
+"An intelligent post-mortem Playwright testing system."
+The competitive positioning needs to become more precise.
+Differentiator
+Your proposed product's opportunity
+Native trace-driven diagnosis
+Detailed failure evidence and root-cause provenance
+Developer-owned TypeScript code
+Direct, constrained POM refactoring
+Intent invariants
+Stronger source and semantic protection
+Repair isolation
+Detached Git worktree verification
+Defect resistance
+Explicit seeded business-defect testing
+Local/private execution
+Enterprise-controlled diagnostic and repair workflow
+The most defensible differentiator is a verifiable repair transaction with a measurable false-repair rate.
+I would make that the core product thesis.
+9. Revised architectural priority matrix
+Here is what I would change before calling v2.3 production-ready.
+Priority
+Component
+Required change
+P0
+AssertionHasher
+Expand to multi-layer intent invariants
+P0
+FailureClassifier
+Causal network/action correlation
+P0
+AbstentionPolicy
+Correct uniqueness boundary and evidence-completeness checks
+P0
+SelectorScorer
+Empirical calibration and semantic hard gates
+P0
+WorktreeManager
+Dependency isolation guarantees
+P0
+Benchmark harness
+Controlled business-defect injection
+P1
+Trace adapters
+Golden corpus across actual producer versions
+P1
+SnapshotResolver
+Partial/incomplete snapshot semantics
+P1
+AstPatcher
+Type-checker-based symbol resolution
+P1
+RepairEvidence
+Cryptographic evidence manifest
+P1
+MCP server
+Workspace authorization and human approval
+P2
+AST patterns
+Component composition and inherited POMs
+P2
+Dependency adapters
+pnpm and Yarn PnP support
+P2
+Stability ledger
+Semantic reliability history
+P2
+Enterprise interfaces
+CI and IDE integration
+10. Recommended implementation sequence
+I would not expand all the subsystems simultaneously. I would make the following five engineering changes in this order.
+Phase A — Make the current implementation trustworthy
+Priority: Immediate
+Fix the uniqueness boundary.
+Separate candidate score from calibrated probability.
+Add UNSUPPORTED_TRACE_FORMAT and INCOMPLETE_EVIDENCE abstention states.
+Improve network-to-action causal correlation.
+Expand assertion protection to test structure and authorized source diffs.
+Add dependency-environment validation before creating a repair worktree.
+Acceptance: The engine must reject ambiguous or unsupported repairs without attempting source modification.
+Phase B — Establish genuine repair correctness
+Priority: Next
+Build a controlled application repository with reproducible mutations.
+I recommend three distinct experiment families:
+Experiment 1: Locator recovery ├── Test-side selector corruption ├── Application-side ID changes ├── Accessible-name changes ├── Duplicate controls └── Component restructuring Experiment 2: Negative controls ├── Authentication failure ├── Network failure ├── Backend errors ├── Missing test data └── Incomplete trace evidence Experiment 3: Defect resistance ├── Incorrect checkout total ├── Invalid payment accepted ├── Missing mandatory validation ├── Incorrect record updated ├── Unauthorized action permitted └── Incorrect workflow transition
+Acceptance: Every seeded business defect must remain detectable after repair.
+Phase C — Make AST repair enterprise-compatible
+Priority: After semantic verification works
+Add:
+TypeScript TypeChecker-based symbol resolution.
+Cross-file component composition.
+Inheritance support.
+Parameterless locator factories.
+Constant-based locator resolution.
+Strict unsupported-pattern abstention.
+Full AST and diff validation.
+Do not support arbitrary dynamic helpers merely to increase the supported-pattern count.
+Phase D — Make worktree execution portable
+Priority: Before enterprise pilots
+Implement:
+npm dependency strategy.
+pnpm dependency strategy.
+Yarn Classic strategy.
+Explicit Yarn PnP unsupported or separately supported mode.
+Shared-state detection.
+Process-tree lifecycle management.
+Crash recovery.
+Immutable dependency validation.
+Phase E — Establish independent evaluation
+Priority: Before reliability marketing claims
+Run:
+At least 100 distinct benchmark scenarios.
+Repeated baseline executions.
+Independent mutation seeds.
+Held-out scoring evaluation.
+Defect-injection testing.
+P50/P95/P99 performance measurements.
+Resource consumption measurements.
+Reproducibility from clean Git checkouts.
+Publish the denominators and confidence intervals for every metric.
+11. Final architectural verdict
+Proceed with the product
+Do not yet claim enterprise-grade verification
+What I consider architecturally sound
+Deterministic TypeScript controller.
+Post-mortem trace analysis.
+Version-adapter architecture.
+First-class abstention.
+Constrained ts-morph modifications.
+Detached Git worktrees.
+Assertion fingerprinting.
+MCP and CLI interfaces.
+What currently prevents a stronger approval
+Assertion hashing does not establish business intent.
+Network correlation does not necessarily establish causation.
+Scoring weights are not demonstrably calibrated.
+Shared junctions do not guarantee dependency isolation.
+Six live applications do not establish enterprise generalization.
+The seeded business-defect results have not been supplied.
+Competitor differentiation needs updating against current capabilities.
+My answers to your four questions
+Question
+Final answer
+1. Differentiation and defect masking
+Meaningfully differentiated architecture, but SHA-256 assertion fingerprinting alone does not solve defect masking.
+2. Trace and NTFS risks
+Both are viable with strict compatibility adapters and package-manager-specific isolation strategies. Neither is universally safe.
+3. 100-test benchmark
+Good POC portfolio, insufficient as specified for enterprise statistical claims. Separate defects from negative controls and repeat scenarios.
+4. AST refactoring
+Three current patterns are appropriate for MVP. Add symbol-resolved component composition and parameterless factories before supporting dynamic locator methods.
+12. The five questions I would make mandatory in the next review
+These are the questions I would use to determine whether v2.4 is genuinely better than v2.3.
+Can the engine recover from an actual application-side DOM mutation rather than only a corrupted selector in the test source?
+Can it prove that the replacement element represents the same business action and target entity?
+Can it detect a deliberately introduced business defect after the repair?
+Can it reproduce the same repair from a clean checkout without sharing mutable dependency state?
+Can an independent evaluator reproduce every reported benchmark result from the supplied evidence package?
+If all five are answered convincingly, I would be much more comfortable approving a controlled enterprise pilot.
+13. One final recommendation: establish a formal v2.4 architecture contract
+I would freeze feature expansion temporarily and introduce a formal set of invariants.
+There are also two documentation inconsistencies to resolve:
+The earlier roadmap specifies a confidence threshold of 0.75, whereas v2.3 specifies 0.70.
+The earlier research describes trace support using a different version range from the current v2.3 document.
+Maintain one authoritative compatibility and scoring specification rather than allowing these decisions to drift across documents.
+The next architecture version should explicitly define:
+Contract
+Required guarantee
+Diagnostic contract
+Every conclusion has trace-backed evidence
+Abstention contract
+Missing or ambiguous evidence cannot authorize repair
+Candidate contract
+Target identity is independently verified
+AST contract
+Only approved locator expressions may change
+Intent contract
+Business action and target semantics are preserved
+Isolation contract
+No shared mutable execution state
+Verification contract
+Repaired tests retain defect-detection capability
+Audit contract
+Every decision is reproducible from retained evidence
+One distinction about this review: I have audited your architecture and documented implementation claims, not independently inspected the implementation itself. I would need the actual src/, tests/, benchmarks/ and representative trace fixtures to approve the code-level guarantees.
+My recommendation is to make that the next review milestone: a real repository audit of FailureClassifier, SnapshotResolver, SelectorScorer, AssertionHasher, IntentValidator, AstPatcher and WorktreeManager, including adversarial tests.
+Bottom line: You have a credible foundation for a serious developer tool. The next breakthrough will not come from supporting more selectors or adding more AI. It will come from proving that your engine knows when a repair is semantically correct — and refuses to proceed when it cannot prove that.
+That is the engineering standard I would hold this product to.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-11-05T00:02:46+05:30.
+
+The user's current state is as follows:
+Active Document: d:\Work\playwright-intelligence-engine\ARCHITECTURE.md (LANGUAGE_UNSPECIFIED)
+Cursor is on line: 1
+Other open documents:
+- d:\Work\playwright-intelligence-engine\package.json (LANGUAGE_UNSPECIFIED)
+- d:\Work\playwright-intelligence-engine\docs\MARKET_AND_TECHNICAL_RESEARCH.md (LANGUAGE_UNSPECIFIED)
+- d:\Work\playwright-intelligence-engine\benchmarks\runner\benchmark-harness.ts (LANGUAGE_UNSPECIFIED)
+- d:\Work\playwright-intelligence-engine\src\cli\index.ts (LANGUAGE_UNSPECIFIED)
+- d:\Work\playwright-intelligence-engine\src\trace\version-detector.ts (LANGUAGE_UNSPECIFIED)
+
+The user has mentioned some items in the form @[ITEM]. Here is extra information about the items that were mentioned by the user, in the order that they appear:
+
+/goal is a [Slash Command]:
+The user has marked this task with /goal, indicating that this task is intended to run for a long time without user input, e.g. overnight. You should be extra thorough and only stop when you are confident the goal has been completely fulfilled. The system will force you to continue execution, prompting you to audit your work until completion. Once complete, include <!-- GOAL_COMPLETE --> in your response. If the user explicitly asked to stop or cancel this goal, include <!-- GOAL_CANCELLED --> in your response to cancel the goal.
+</ADDITIONAL_METADATA>

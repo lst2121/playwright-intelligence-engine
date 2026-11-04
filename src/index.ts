@@ -8,6 +8,12 @@ export * from './trace/archive-reader.js';
 export * from './trace/version-detector.js';
 export * from './trace/trace-parser.js';
 export * from './trace/snapshot-resolver.js';
+export * from './trace/adapters/trace-adapter.js';
+export * from './trace/adapters/adapter-registry.js';
+export * from './trace/adapters/v8-adapter.js';
+export * from './trace/adapters/v9-adapter.js';
+export * from './trace/adapters/v10-adapter.js';
+export * from './trace/adapters/unknown-adapter.js';
 
 // Diagnostics
 export * from './diagnostics/failure-classifier.js';
@@ -22,10 +28,12 @@ export * from './selector/abstention-policy.js';
 // AST Repair & Verification
 export * from './repair/ast-patcher.js';
 export * from './repair/assertion-hasher.js';
+export * from './repair/diff-allowlist.js';
 export * from './repair/intent-validator.js';
 export * from './repair/repair-planner.js';
 
 // Sandbox & Worktree Management
+export * from './sandbox/dependency-strategy.js';
 export * from './sandbox/worktree-manager.js';
 export * from './sandbox/execution-runner.js';
 

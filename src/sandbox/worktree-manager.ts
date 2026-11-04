@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { WorktreeOperationError } from '../core/errors/engine-errors.js';
+import { DependencyStrategyResolver, IsolationLevel } from './dependency-strategy.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -12,6 +13,8 @@ export interface WorktreeInfo {
   branch: string;
   createdAt: number;
   ownerPid: number;
+  isolationLevel: IsolationLevel;
+  strategy: string;
 }
 
 export interface WorktreeRegistry {
@@ -30,7 +33,7 @@ export class WorktreeManager {
   }
 
   /**
-   * Creates an isolated detached Git worktree with node_modules linked via NTFS junction.
+   * Creates an isolated detached Git worktree using the appropriate DependencyStrategy.
    */
   public async createWorktree(worktreeId?: string): Promise<WorktreeInfo> {
     const id = worktreeId ?? `repair-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
@@ -48,13 +51,14 @@ export class WorktreeManager {
       throw new WorktreeOperationError('create', `Git worktree add failed: ${err.message}`);
     }
 
-    // Step 2: Link node_modules using NTFS junction (Zero-install)
+    // Step 2: Prepare dependencies via DependencyStrategy
+    const strategy = await DependencyStrategyResolver.resolve(this.rootDir);
+    let prepResult;
     try {
-      await this.linkNodeModules(this.rootDir, worktreePath);
+      prepResult = await strategy.prepare(this.rootDir, worktreePath);
     } catch (err: any) {
-      // Cleanup worktree if linking fails
       await this.destroyWorktree(id).catch(() => {});
-      throw new WorktreeOperationError('link-node-modules', err.message);
+      throw new WorktreeOperationError('prepare-dependencies', err.message);
     }
 
     const info: WorktreeInfo = {
@@ -63,6 +67,8 @@ export class WorktreeManager {
       branch,
       createdAt: Date.now(),
       ownerPid: process.pid,
+      isolationLevel: prepResult.isolationLevel,
+      strategy: prepResult.strategy,
     };
 
     await this.registerWorktree(info);
@@ -71,7 +77,7 @@ export class WorktreeManager {
 
   /**
    * Destroys an isolated worktree safely:
-   * 1. Unlinks the node_modules junction FIRST (CRITICAL: prevents wiping root node_modules)
+   * 1. Unlinks the dependency junction/symlink FIRST (CRITICAL: prevents wiping root dependencies)
    * 2. Runs git worktree remove
    * 3. Deletes leftover branch
    * 4. Cleans up registry
@@ -80,17 +86,9 @@ export class WorktreeManager {
     const worktreePath = path.resolve(this.baseWorktreeDir, id);
     const branch = `pw-repair/${id}`;
 
-    // Step 1: Unlink junction safely
-    const worktreeNodeModules = path.resolve(worktreePath, 'node_modules');
-    try {
-      const stats = await fs.lstat(worktreeNodeModules).catch(() => null);
-      if (stats && stats.isSymbolicLink()) {
-        // Calling fs.unlink on a directory junction removes ONLY the mount point
-        await fs.unlink(worktreeNodeModules);
-      }
-    } catch {
-      // Continue cleanup even if already gone
-    }
+    // Step 1: Cleanup dependency links via strategy
+    const strategy = await DependencyStrategyResolver.resolve(this.rootDir);
+    await strategy.cleanup(worktreePath).catch(() => {});
 
     // Step 2: Git worktree remove
     try {
@@ -116,23 +114,18 @@ export class WorktreeManager {
   }
 
   /**
-   * Links node_modules from main repo to worktree.
-   * On Windows, uses NTFS Directory Junctions ('junction') to bypass UAC privilege requirements.
+   * Checks if an owner process ID is currently running on the system.
    */
-  private async linkNodeModules(sourceRepo: string, targetWorktree: string): Promise<void> {
-    const sourceNodeModules = path.resolve(sourceRepo, 'node_modules');
-    const targetNodeModules = path.resolve(targetWorktree, 'node_modules');
-
+  public static isProcessAlive(pid: number): boolean {
     try {
-      await fs.access(sourceNodeModules);
+      process.kill(pid, 0);
+      return true;
     } catch {
-      // Root node_modules not present, nothing to link
-      return;
+      return false;
     }
-
-    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
-    await fs.symlink(sourceNodeModules, targetNodeModules, linkType);
   }
+
+
 
   /**
    * Exponential backoff removal to handle Windows Defender / SearchIndexer transient file locks.

@@ -12,20 +12,69 @@ export interface ResolvedElement {
   accessibleName?: string | undefined;
 }
 
+export type SnapshotCompleteness = 'COMPLETE' | 'PARTIAL' | 'UNAVAILABLE';
+
+export interface ResolvedSnapshot {
+  frameId: string;
+  callId?: string | undefined;
+  phase: 'before' | 'action' | 'after';
+  completeness: SnapshotCompleteness;
+  unresolvedReferences: string[];
+  dom: ResolvedElement[];
+}
+
 export interface FrameSnapshotRecord {
   frameId: string;
-  pageId?: string;
-  callId?: string;
-  snapshotName?: string;
-  node: NodeSnapshot;
+  pageId?: string | undefined;
+  callId?: string | undefined;
+  snapshotName?: string | undefined;
+  phase?: 'before' | 'action' | 'after' | undefined;
+  node?: NodeSnapshot | undefined;
 }
 
 export class SnapshotResolver {
   /**
+   * Reconstructs an in-memory resolved element tree from Playwright's array-based NodeSnapshot,
+   * tracking provenance, snapshot phase, and evidence completeness.
+   */
+  public static resolveSnapshot(record: FrameSnapshotRecord): ResolvedSnapshot {
+    const frameId = record.frameId || 'main-frame';
+    const phase = record.phase ?? 'before';
+    const unresolvedReferences: string[] = [];
+
+    if (!record.node) {
+      return {
+        frameId,
+        callId: record.callId,
+        phase,
+        completeness: 'UNAVAILABLE',
+        unresolvedReferences: ['Missing root node in snapshot record'],
+        dom: [],
+      };
+    }
+
+    const rootElement = SnapshotResolver.resolveNode(record.node, unresolvedReferences);
+    const completeness: SnapshotCompleteness =
+      unresolvedReferences.length > 0 ? 'PARTIAL' : rootElement ? 'COMPLETE' : 'UNAVAILABLE';
+
+    return {
+      frameId,
+      callId: record.callId,
+      phase,
+      completeness,
+      unresolvedReferences,
+      dom: rootElement ? [rootElement] : [],
+    };
+  }
+
+  /**
    * Reconstructs an in-memory resolved element tree from Playwright's array-based NodeSnapshot.
    */
-  public static resolveNode(node: NodeSnapshot): ResolvedElement | null {
+  public static resolveNode(node: NodeSnapshot, unresolvedRefs?: string[]): ResolvedElement | null {
     if (typeof node === 'string' || typeof node === 'number') {
+      if (typeof node === 'string' && node.startsWith('ref:')) {
+        unresolvedRefs?.push(node);
+      }
       return null;
     }
 
@@ -42,9 +91,13 @@ export class SnapshotResolver {
 
     for (const child of rawChildren) {
       if (typeof child === 'string') {
-        textAccumulator += child.trim() + ' ';
+        if (child.startsWith('ref:')) {
+          unresolvedRefs?.push(child);
+        } else {
+          textAccumulator += child.trim() + ' ';
+        }
       } else if (Array.isArray(child)) {
-        const resolvedChild = SnapshotResolver.resolveNode(child);
+        const resolvedChild = SnapshotResolver.resolveNode(child, unresolvedRefs);
         if (resolvedChild) {
           children.push(resolvedChild);
           textAccumulator += resolvedChild.text + ' ';

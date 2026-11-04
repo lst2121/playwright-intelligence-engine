@@ -68,10 +68,12 @@ describe('Phase 3 Intelligence & Stability Tests', () => {
       breakdown: {
         score: 0.81,
         uniqueness: 1.0,
+        matchCount: 1,
         identityMatch: 0.8,
         semanticMatch: 1.0,
         actionability: 1.0,
         historicalReliability: 0.8,
+        historicalExecutionReliability: 0.8,
         volatilePenalty: 0.0,
         explanation: [],
       },
@@ -82,10 +84,12 @@ describe('Phase 3 Intelligence & Stability Tests', () => {
       breakdown: {
         score: 0.80, // Delta is only 0.01 (< AMBIGUITY_DELTA_THRESHOLD 0.08)
         uniqueness: 1.0,
+        matchCount: 1,
         identityMatch: 0.8,
         semanticMatch: 1.0,
         actionability: 1.0,
         historicalReliability: 0.8,
+        historicalExecutionReliability: 0.8,
         volatilePenalty: 0.0,
         explanation: [],
       },

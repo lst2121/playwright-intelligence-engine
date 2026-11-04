@@ -8,7 +8,12 @@ export interface PatchTarget {
   replacementExpression: string; // e.g. "this.page.getByRole('button', { name: 'Submit' })"
 }
 
-export type SupportedPOMPattern = 'property-initializer' | 'getter-return' | 'constructor-assignment';
+export type SupportedPOMPattern =
+  | 'property-initializer'
+  | 'getter-return'
+  | 'constructor-assignment'
+  | 'parameterless-factory'
+  | 'locator-constant';
 
 export interface PatchResult {
   success: boolean;
@@ -35,21 +40,40 @@ export class AstPatcher {
 
   /**
    * Surgical AST modification targeting Page Object locator definitions.
-   * Constrained to the 3 enterprise Page Object patterns.
-   * Throws AbstentionError if pattern is ambiguous, parameterized, or unsupported.
+   * Constrained to enterprise Page Object patterns:
+   * 1. Property Initializers (instance, static, readonly, private, protected)
+   * 2. Getter return statements
+   * 3. Constructor assignments
+   * 4. Parameterless locator factory methods
+   * 5. Top-level or class locator constants
+   * Strictly abstains on parameterized dynamic methods (e.g. row(id)).
    */
   public patchPageObject(target: PatchTarget): PatchResult {
     const sourceFile = this.project.addSourceFileAtPath(target.filePath);
     const classDecl = sourceFile.getClass(target.className);
 
+    // Pattern 5 Check: Top-level constant if class is omitted or constant pattern
     if (!classDecl) {
+      const variableDecl = sourceFile.getVariableDeclaration(target.memberName);
+      if (variableDecl && variableDecl.getInitializer()) {
+        const originalExpression = variableDecl.getInitializer()!.getText();
+        variableDecl.setInitializer(target.replacementExpression);
+        sourceFile.saveSync();
+        return {
+          success: true,
+          pattern: 'locator-constant',
+          originalExpression,
+          replacementExpression: target.replacementExpression,
+        };
+      }
+
       throw new AbstentionError(
         `Class '${target.className}' not found in '${target.filePath}'`,
         'AST_CLASS_NOT_FOUND'
       );
     }
 
-    // Pattern 1: Property Initializer (e.g. readonly submitBtn = this.page.locator(...))
+    // Pattern 1: Property Initializer (supports instance, static, readonly, private, protected)
     const property = classDecl.getProperty(target.memberName);
     if (property && property.getInitializer()) {
       const initializer = property.getInitializer()!;
@@ -115,13 +139,30 @@ export class AstPatcher {
       }
     }
 
-    // Check if member is a parameterized helper method (e.g. row(id: string)) -> MUST ABSTAIN
+    // Pattern 4: Parameterless Locator Factory Method (e.g. submitButton(): Locator { return this.page.locator(...); })
     const method = classDecl.getMethod(target.memberName);
-    if (method && method.getParameters().length > 0) {
-      throw new AbstentionError(
-        `Member '${target.memberName}' is a parameterized helper method (${method.getParameters().length} params). Dynamic locators require manual review.`,
-        'AST_PARAMETERIZED_LOCATOR'
-      );
+    if (method) {
+      if (method.getParameters().length === 0) {
+        const returnStatements = method.getDescendantsOfKind(SyntaxKind.ReturnStatement);
+        if (returnStatements.length === 1 && returnStatements[0]?.getExpression()) {
+          const returnExpr = returnStatements[0]!.getExpression()!;
+          const originalExpression = returnExpr.getText();
+          returnExpr.replaceWithText(target.replacementExpression);
+          sourceFile.saveSync();
+          return {
+            success: true,
+            pattern: 'parameterless-factory',
+            originalExpression,
+            replacementExpression: target.replacementExpression,
+          };
+        }
+      } else {
+        // Parameterized dynamic locator (e.g. row(id: string)) -> MUST ABSTAIN
+        throw new AbstentionError(
+          `Member '${target.memberName}' is a parameterized helper method (${method.getParameters().length} params). Dynamic entity locators require manual review.`,
+          'AST_PARAMETERIZED_LOCATOR'
+        );
+      }
     }
 
     throw new AbstentionError(

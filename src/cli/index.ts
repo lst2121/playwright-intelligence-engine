@@ -13,6 +13,11 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === '--version' || command === '-v') {
+    console.log('0.1.0');
+    return;
+  }
+
   if (command === 'mcp') {
     const server = new McpServer();
     server.start();

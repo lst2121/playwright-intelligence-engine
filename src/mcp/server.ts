@@ -139,24 +139,15 @@ export class McpServer {
         const tracePath = args?.tracePath;
         if (!tracePath) throw new Error('tracePath is required');
 
-        // Extract trace.trace and trace.network entries
-        let traceText = '';
-        let networkText = '';
-        try {
-          traceText = await ArchiveReader.readEntryAsText(tracePath, 'trace.trace');
-        } catch {
-          traceText = await ArchiveReader.readEntryAsText(tracePath, '0.trace');
+        const { traceEntryName, networkEntryName } = ArchiveReader.findTraceFileEntries(tracePath);
+        if (!traceEntryName) {
+          throw new Error(`No .trace event stream found in archive '${tracePath}'`);
         }
 
-        try {
-          networkText = await ArchiveReader.readEntryAsText(tracePath, 'trace.network');
-        } catch {
-          try {
-            networkText = await ArchiveReader.readEntryAsText(tracePath, '0.network');
-          } catch {
-            networkText = '';
-          }
-        }
+        const traceText = await ArchiveReader.readEntryAsText(tracePath, traceEntryName);
+        const networkText = networkEntryName
+          ? await ArchiveReader.readEntryAsText(tracePath, networkEntryName)
+          : '';
 
         const traceLines = traceText.split('\n');
         const networkLines = networkText.split('\n');

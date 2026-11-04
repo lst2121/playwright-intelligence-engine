@@ -101,3 +101,4 @@ export class StabilityLedger {
     await fs.writeFile(this.ledgerPath, JSON.stringify(this.data, null, 2), 'utf8');
   }
 }
+

@@ -22,6 +22,35 @@ export class ArchiveReader {
   private static readonly DEFAULT_MAX_ENTRIES = 10000;
 
   /**
+   * Automatically discovers the primary trace and network JSONL entry names inside a Playwright trace archive.
+   * Supports legacy (trace.trace), multi-worker (0.trace, 1.trace), and modern Playwright (0-trace.trace, 1-trace.trace).
+   */
+  public static findTraceFileEntries(zipPath: string): { traceEntryName?: string | undefined; networkEntryName?: string | undefined } {
+    try {
+      const zip = new AdmZip(zipPath);
+      const entries = zip.getEntries();
+
+      // Trace candidate selection: prioritize larger action streams over metadata streams (test.trace)
+      const traceCandidates = entries
+        .filter((e) => e.entryName.endsWith('.trace'))
+        .sort((a, b) => b.header.size - a.header.size);
+
+      const bestTrace = traceCandidates[0]?.entryName;
+
+      // Network candidate matching the trace prefix if possible
+      const networkCandidates = entries
+        .filter((e) => e.entryName.endsWith('.network'))
+        .sort((a, b) => b.header.size - a.header.size);
+
+      const bestNetwork = networkCandidates[0]?.entryName;
+
+      return { traceEntryName: bestTrace, networkEntryName: bestNetwork };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
    * Reads a single entry as a UTF-8 string directly from a .zip file in memory.
    */
   public static async readEntryAsText(zipPath: string, entryName: string): Promise<string> {

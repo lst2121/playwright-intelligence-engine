@@ -134,3 +134,4 @@ describe('Phase 3 Intelligence & Stability Tests', () => {
     expect(result.specCode).toContain("await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();");
   });
 });
+

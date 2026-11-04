@@ -105,3 +105,4 @@ test('checkout order', async ({ page }) => {
     expect(specAfter).toBe(specContent);
   });
 });
+

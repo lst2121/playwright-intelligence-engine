@@ -60,3 +60,4 @@ describe('Phase 4 Model Context Protocol (MCP) Server Tests', () => {
     expect(res.result.content[0].text).toContain("this.page.getByRole('button', { name: 'Proceed To Checkout' })");
   });
 });
+

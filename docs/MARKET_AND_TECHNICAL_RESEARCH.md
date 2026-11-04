@@ -196,3 +196,4 @@ Using `ts-morph`, the engine can surgically refactor Page Object files without c
 
 * **Rationale:** The problem is highly differentiated from existing runtime proxy tools, and post-mortem trace verification with AST refactoring is technically feasible.
 * **Validation Condition:** The engine must prove 100% defect resistance on seeded business bugs (failing all seeded defects) and 100% appropriate abstention on negative controls before enterprise production rollout.
+

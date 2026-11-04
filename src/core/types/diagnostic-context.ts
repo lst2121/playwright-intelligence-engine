@@ -5,7 +5,7 @@ export const NetworkEventSchema = z.object({
   method: z.string(),
   status: z.number(),
   statusText: z.string().optional(),
-  headers: z.record(z.string()).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   timestamp: z.number(),
   durationMs: z.number().optional(),
   errorText: z.string().optional(),

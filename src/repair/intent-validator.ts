@@ -1,5 +1,5 @@
 import { AssertionHasher } from './assertion-hasher.js';
-import { AssertionTamperedError, AbstentionError } from '../core/errors/engine-errors.js';
+import { AssertionTamperedError } from '../core/errors/engine-errors.js';
 import { ResolvedElement } from '../trace/snapshot-resolver.js';
 
 export interface ValidationTarget {

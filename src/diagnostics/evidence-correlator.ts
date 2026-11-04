@@ -1,6 +1,5 @@
 import {
   DiagnosticContext,
-  FailedAction,
   NetworkEvent,
   ConsoleEvent,
 } from '../core/types/diagnostic-context.js';

@@ -1,4 +1,4 @@
-import { AstPatcher, PatchTarget } from './ast-patcher.js';
+import { AstPatcher } from './ast-patcher.js';
 import { AssertionHasher } from './assertion-hasher.js';
 import { IntentValidator } from './intent-validator.js';
 import { RepairEvidence } from '../core/types/repair-evidence.js';
@@ -60,7 +60,7 @@ export class RepairPlanner {
         filePath: input.pomFilePath,
         className: input.className,
         memberName: input.memberName,
-        nodeKind: patchResult.pattern,
+        nodeKind: patchResult.pattern === 'property-initializer' ? 'property' : patchResult.pattern,
         line: 1,
       },
       targetIdentityEvidence: [

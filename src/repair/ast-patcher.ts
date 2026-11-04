@@ -21,10 +21,16 @@ export class AstPatcher {
   private project: Project;
 
   constructor(tsConfigFilePath?: string) {
-    this.project = new Project({
-      tsConfigFilePath,
-      skipAddingFilesFromTsConfig: !tsConfigFilePath,
-    });
+    if (tsConfigFilePath) {
+      this.project = new Project({
+        tsConfigFilePath,
+        skipAddingFilesFromTsConfig: false,
+      });
+    } else {
+      this.project = new Project({
+        skipAddingFilesFromTsConfig: true,
+      });
+    }
   }
 
   /**

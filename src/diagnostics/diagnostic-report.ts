@@ -1,4 +1,3 @@
-import { DiagnosticContext } from '../core/types/diagnostic-context.js';
 import { CorrelatedEvidence } from './evidence-correlator.js';
 
 export class DiagnosticReportGenerator {

@@ -15,7 +15,6 @@ export class FailureClassifier {
    */
   public static classify(context: DiagnosticContext): ClassificationResult {
     const errorMsg = (context.failedAction.errorMessage ?? '').toLowerCase();
-    const errorStack = (context.failedAction.errorStack ?? '').toLowerCase();
     const network = context.networkEvents;
     const action = context.failedAction.action.toLowerCase();
     const supportingEvidence: string[] = [];

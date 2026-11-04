@@ -8,8 +8,8 @@ export interface ResolvedElement {
   attributes: Record<string, string>;
   text: string;
   children: ResolvedElement[];
-  role?: string;
-  accessibleName?: string;
+  role?: string | undefined;
+  accessibleName?: string | undefined;
 }
 
 export interface FrameSnapshotRecord {

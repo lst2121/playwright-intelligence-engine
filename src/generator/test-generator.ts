@@ -23,7 +23,6 @@ export class TestGenerator {
     baseUrl = 'https://example.com'
   ): GeneratedSuiteOutput {
     const className = `${featureName.replace(/[^a-zA-Z0-9]/g, '')}Page`;
-    const specFileName = `${featureName.toLowerCase().replace(/[^a-z0-9]/g, '-')}.spec.ts`;
 
     // Generate Page Object locators and actions
     const locatorDeclarations: string[] = [];

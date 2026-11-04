@@ -3,7 +3,6 @@ import {
   FailedAction,
   NetworkEvent,
   ConsoleEvent,
-  FailureCategory,
 } from '../core/types/diagnostic-context.js';
 import { VersionDetector } from './version-detector.js';
 
@@ -23,7 +22,7 @@ export interface RawTraceEvent {
 
 export interface ParsedTraceStream {
   actions: Map<string, FailedAction>;
-  failedAction?: FailedAction;
+  failedAction?: FailedAction | undefined;
   consoleEvents: ConsoleEvent[];
 }
 

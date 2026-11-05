@@ -344,3 +344,4 @@ describe('Worktree and Dependency Isolation Suite (30 Tests)', () => {
     expect(m2).toBeDefined();
   });
 });
+

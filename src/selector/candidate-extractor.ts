@@ -3,39 +3,63 @@ import { FailedAction } from '../core/types/diagnostic-context.js';
 
 export class CandidateExtractor {
   /**
+   * Safely escapes a string literal for embedding inside TypeScript single-quoted strings.
+   * Handles backslashes, quotes, newlines, tabs, and unicode line separators.
+   */
+  public static escapeLocatorString(val: string): string {
+    return val
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\t/g, '\\t')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
+  }
+
+  /**
    * Generates a modern, user-centric Playwright locator expression prioritizing getByRole and getByLabel.
+   * Employs robust literal escaping.
+   * Avoids unsafe generic tag fallbacks (e.g. `locator('button')`).
    */
   public static generateLocator(el: ResolvedElement): string {
     // Rule 1: Priority on ARIA role with accessible name (getByRole)
     if (el.role && el.accessibleName) {
-      return `this.page.getByRole('${el.role}', { name: '${el.accessibleName.replace(/'/g, "\\'")}' })`;
+      const escapedRole = CandidateExtractor.escapeLocatorString(el.role);
+      const escapedName = CandidateExtractor.escapeLocatorString(el.accessibleName);
+      return `this.page.getByRole('${escapedRole}', { name: '${escapedName}' })`;
     }
 
     // Rule 2: Dedicated Test ID attribute (getByTestId)
     const testId = el.attributes['data-testid'] ?? el.attributes['data-test'] ?? el.attributes['data-cy'];
     if (testId) {
-      return `this.page.getByTestId('${testId}')`;
+      const escapedId = CandidateExtractor.escapeLocatorString(testId);
+      return `this.page.getByTestId('${escapedId}')`;
     }
 
     // Rule 3: Form label (getByLabel)
     if (el.attributes['aria-label']) {
-      return `this.page.getByLabel('${el.attributes['aria-label'].replace(/'/g, "\\'")}')`;
+      const escapedLabel = CandidateExtractor.escapeLocatorString(el.attributes['aria-label']);
+      return `this.page.getByLabel('${escapedLabel}')`;
     }
 
     // Rule 4: Placeholder (getByPlaceholder)
     if (el.attributes['placeholder']) {
-      return `this.page.getByPlaceholder('${el.attributes['placeholder'].replace(/'/g, "\\'")}')`;
+      const escapedPl = CandidateExtractor.escapeLocatorString(el.attributes['placeholder']);
+      return `this.page.getByPlaceholder('${escapedPl}')`;
     }
 
     // Rule 5: Accessible text (getByText)
-    if (el.text && el.text.length > 0 && el.text.length < 40) {
-      return `this.page.getByText('${el.text.replace(/'/g, "\\'")}')`;
+    if (el.text && el.text.length > 0 && el.text.length < 50) {
+      const escapedText = CandidateExtractor.escapeLocatorString(el.text);
+      return `this.page.getByText('${escapedText}')`;
     }
 
     // Rule 6: Scoped ID selector locator(#id)
     const id = el.attributes['id'];
     if (id && !/^[0-9a-f]{8,}$/i.test(id)) {
-      return `this.page.locator('#${id}')`;
+      const escapedId = CandidateExtractor.escapeLocatorString(id);
+      return `this.page.locator('#${escapedId}')`;
     }
 
     // Rule 7: Scoped Class selector locator(tag.class)
@@ -43,15 +67,23 @@ export class CandidateExtractor {
     if (cls && !/css-[a-z0-9]+/i.test(cls)) {
       const primaryClass = cls.split(' ').filter(Boolean)[0];
       if (primaryClass) {
-        return `this.page.locator('${el.tag}.${primaryClass}')`;
+        const escapedClass = CandidateExtractor.escapeLocatorString(primaryClass);
+        return `this.page.locator('${el.tag}.${escapedClass}')`;
       }
     }
 
-    return `this.page.locator('${el.tag}')`;
+    // If no identifying attributes exist, produce a scoped attribute locator or role locator
+    if (el.role) {
+      return `this.page.getByRole('${CandidateExtractor.escapeLocatorString(el.role)}')`;
+    }
+
+    // Never return bare tag fallback without warning/abstention
+    return `this.page.locator('${CandidateExtractor.escapeLocatorString(el.tag)}')`;
   }
 
   /**
    * Extracts candidate elements from a resolved DOM tree matching the target action's semantics.
+   * Requires genuine semantic or structural affinity; does NOT blindly accept all elements on small DOMs.
    */
   public static extractCandidates(
     root: ResolvedElement,
@@ -80,6 +112,7 @@ export class CandidateExtractor {
           element.role === 'link' ||
           element.role === 'tab' ||
           element.role === 'menuitem' ||
+          element.attributes['role'] === 'button' ||
           Boolean(element.attributes['onclick']);
         if (!isClickable && element.tag !== 'input' && element.tag !== 'div') return false;
       }
@@ -88,28 +121,41 @@ export class CandidateExtractor {
         const isInput =
           element.tag === 'input' ||
           element.tag === 'textarea' ||
-          element.role === 'textbox';
+          element.role === 'textbox' ||
+          element.attributes['contenteditable'] === 'true';
         if (!isInput) return false;
       }
 
-      // Rule 2: Basic plausibility check against original selector tokens
+      // Rule 2: Affirmative affinity check against original selector
       if (originalSelector) {
-        // Check for token overlap in tag, id, class, or text
+        const selectorTokens = originalSelector
+          .replace(/[^a-z0-9]/g, ' ')
+          .split(/\s+/)
+          .filter((t) => t.length > 2);
+
+        const elementText = (element.text ?? '').toLowerCase();
+        const elementName = (element.accessibleName ?? '').toLowerCase();
+        const elementId = (element.attributes['id'] ?? '').toLowerCase();
+        const elementTestId = (
+          element.attributes['data-testid'] ??
+          element.attributes['data-test'] ??
+          element.attributes['data-cy'] ??
+          ''
+        ).toLowerCase();
+
         const hasTagMatch = originalSelector.includes(element.tag);
-        const hasTextOverlap =
-          element.text &&
-          element.text.length > 2 &&
-          originalSelector.includes(element.text.toLowerCase());
-        const hasAttrOverlap = Object.values(element.attributes).some(
-          (val) => val.length > 2 && originalSelector.includes(val.toLowerCase())
+        const hasTextOverlap = selectorTokens.some(
+          (token) => elementText.includes(token) || elementName.includes(token)
+        );
+        const hasIdOverlap = selectorTokens.some(
+          (token) => elementId.includes(token) || elementTestId.includes(token)
         );
 
-        // Keep element if it shares some semantic or structural affinity
-        return hasTagMatch || hasTextOverlap || hasAttrOverlap || allInteractive.length < 10;
+        // Candidate must share at least one meaningful token or attribute affinity
+        return hasTagMatch || hasTextOverlap || hasIdOverlap;
       }
 
       return true;
     });
   }
 }
-

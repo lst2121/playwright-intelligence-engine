@@ -226,13 +226,16 @@ export class FailureClassifier {
         Boolean(context.failedAction.selector))
     ) {
       // Check if DOM evidence is missing when trying to diagnose locator drift
-      if (context.evidenceCompleteness.domAvailable === false && context.snapshots && Object.keys(context.snapshots).length === 0) {
+      // CRITICAL FIX (R-015): When DOM evidence is missing, MUST ABSTAIN with INCOMPLETE_EVIDENCE
+      const hasSnapshots = Boolean(context.snapshots && Object.keys(context.snapshots).length > 0);
+      if (context.evidenceCompleteness.domAvailable === false && !hasSnapshots) {
         return {
-          category: 'LOCATOR_DRIFT', // Primary symptom is locator drift, but can note evidence
-          confidence: 0.93,
-          reason: `Target locator '${context.failedAction.selector}' timed out waiting for matching DOM element`,
-          shouldAbstain: false,
-          supportingEvidence: [`Locator timeout for selector '${context.failedAction.selector ?? 'unknown'}'`],
+          category: 'INCOMPLETE_EVIDENCE',
+          confidence: 0.95,
+          reason: `Target locator '${context.failedAction.selector}' timed out, but DOM snapshots are missing or incomplete in trace`,
+          shouldAbstain: true,
+          abstentionReason: 'Insufficient DOM evidence to diagnose or safely extract replacement candidates.',
+          supportingEvidence: ['DOM snapshot missing from trace archive'],
           causalGraph,
         };
       }
@@ -260,4 +263,3 @@ export class FailureClassifier {
     };
   }
 }
-

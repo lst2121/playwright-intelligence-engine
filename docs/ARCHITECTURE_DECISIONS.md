@@ -203,3 +203,4 @@ Operate strictly post-mortem on standard Playwright trace files (`trace.zip`). N
 ### Consequences
 - 0 ms runtime test execution overhead.
 - Tests run at full native Playwright speed in CI.
+

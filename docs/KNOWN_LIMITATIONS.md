@@ -14,8 +14,10 @@ This document defines the supported vs. unsupported architectural capabilities, 
 | **Parameterless Factory Methods** | **Implemented & Tested** | Rewrites return expression in zero-argument methods. |
 | **Standalone Locator Constants** | **Implemented & Tested** | Rewrites exported locator constant expressions. |
 | **Dynamic Parameterized Methods** | **Unsupported (Abstains)** | Explicitly throws `AST_PARAMETERIZED_LOCATOR`. Dynamic interpolation (`userRow(id)`) cannot be safely rewritten statically without semantic scoping corruption. |
-| **Trace Schemas v5 through v10** | **Implemented & Tested** | Normalized by `V8TraceAdapter`, `V9TraceAdapter`, and `V10TraceAdapter`. |
-| **Trace Schemas > v10 / Future** | **Unsupported (Abstains)** | Explicitly triggers `UNSUPPORTED_TRACE_FORMAT`. Prevents corrupted repairs on unknown schemas. |
+| **Trace Schemas v7 through v10** | **Implemented & Tested** | Normalized by `V7TraceAdapter`, `V8TraceAdapter`, `V9TraceAdapter`, and `V10TraceAdapter`. |
+| **Trace Schemas v5 and v6** | **Omitted / Unsupported** | Omitted pending real Playwright trace fixtures. Routes to `UnknownTraceAdapter` (`1.0.0-unsupported`) and safely abstains. |
+| **Trace Schemas > v10 / Future** | **Unsupported (Abstains)** | Routes to `UnknownTraceAdapter` and triggers `UNSUPPORTED_TRACE_FORMAT`. Prevents corrupted repairs on unknown schemas. |
+| **MCP Workspace Sandboxing** | **Implemented & Tested** | Strict filesystem boundary enforcement (`assertPathInWorkspace`). Traversal outside workspace root is blocked. |
 | **npm Package Manager** | **Implemented & Tested** | Uses `IMMUTABLE_SHARED` strategy with Windows NTFS junctions or POSIX symlinks. |
 | **pnpm Package Manager** | **Partially Supported** | Resolves `SHARED_MUTABLE` strategy. Emits warning regarding virtual store mutation risk in concurrent runs. |
 | **Yarn Plug'n'Play (PnP)** | **Unsupported** | Rejects worktree creation with `UNSUPPORTED`. PnP virtual filesystems (`.pnp.cjs`) do not have physical `node_modules` folders for junction linking. |
@@ -62,3 +64,14 @@ Yarn 2+ in Zero-Install or PnP mode intercepts Node's `require` and `import` via
 On Windows, background processes (such as Windows Defender, search indexers, or spawned child processes that did not exit immediately) can hold locks on open files in `.pw-intelligence/worktrees/*`.
 - The engine mitigates this via process tracking (`isProcessAlive`), pre-unlink of NTFS directory junctions, and exponential retry backoffs.
 - If a worktree directory remains locked after 5 retries, the engine records it in `.pw-intelligence/worktrees/registry.json` as `ORPHANED` and defers final deletion to the next `pw-intel audit` cycle.
+
+---
+
+## 5. MCP Server Boundaries & Security Guardrails
+
+The Model Context Protocol (MCP) server exposes diagnostic and repair capabilities over JSON-RPC 2.0 stdio:
+1. **Workspace Root Confinement**: All file path parameters (`tracePath`, `pageObjectPath`, `specPath`) are strictly verified via `assertPathInWorkspace`. Path traversals attempting to read or patch files outside `workspaceRoot` are immediately blocked with JSON-RPC error `-32000`.
+2. **Tool Parameter Schema Validation**: Missing or malformed parameters are rejected upfront before invoking engine subsystems.
+3. **Restricted Repair Mutation**: The `repair_page_object` tool strictly validates replacement expressions against `validateLocatorGrammar` and the AST Diff Allowlist before applying changes. Arbitrary code, extra statements, semicolons, or helper functions are rejected.
+4. **No Autonomous Direct-to-Main Modification**: In standard operation, repairs must undergo isolated worktree test execution. MCP tools do not permit unverified in-place file rewrites without valid locator grammar and diff allowlist verification.
+

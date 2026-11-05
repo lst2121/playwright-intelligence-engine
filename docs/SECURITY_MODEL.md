@@ -91,3 +91,28 @@ Traces often contain sensitive user session data, auth tokens, passwords, and PI
 - **Human Approval**: Every repair generates a unified diff artifact. Merging the repair into the active codebase requires an explicit human action:
   - Developer runs `pw-intel repair --apply` after reviewing diff.
   - CI pipeline creates a GitHub/GitLab Pull Request with test execution proof attached.
+
+---
+
+## 7. Model Context Protocol (MCP) Security & Hardening
+
+When running the MCP server (`pw-intel mcp`), the engine interfaces with external AI IDEs or agentic frameworks over JSON-RPC 2.0 stdio. Security controls are strictly enforced:
+
+### 7.1. Workspace Boundary Confinement (`assertPathInWorkspace`)
+- **Attack Vector**: Prompt injection or a compromised agent requests tool operations on paths outside the project (e.g. `../../../../etc/shadow` or `C:\Windows\System32\drivers\etc\hosts`).
+- **Mitigation**: Every file path passed to an MCP tool is canonicalized and verified using `assertPathInWorkspace(resolvedPath, workspaceRoot)`. If the target falls outside `workspaceRoot`, the request is immediately rejected with JSON-RPC error code `-32000`.
+
+### 7.2. Runtime Schema & Argument Validation
+- All tool requests validate required parameters and their types before triggering internal engine logic.
+- Omitted or malformed parameters return structured JSON-RPC error `-32000` (`Invalid or missing arguments`) instead of throwing uncaught exceptions.
+
+### 7.3. AST Diff Allowlist & Grammar Enforcement on Tools
+- The `repair_page_object` tool never applies arbitrary string replacements.
+- It parses and validates replacement expressions through `validateLocatorGrammar` (Playwright locator expressions only) and enforces `DiffAllowlistValidator` to guarantee no collateral methods or declarations are modified.
+
+### 7.4. JSON-RPC Protocol Conformance
+- Complies strictly with the JSON-RPC 2.0 specification:
+  - Parse errors return response with `id: null` and error code `-32700`.
+  - Notification messages (messages without an `id` property) are processed without sending responses.
+
+

@@ -47,3 +47,4 @@ export class UnknownTraceAdapter implements TraceAdapter {
     };
   }
 }
+

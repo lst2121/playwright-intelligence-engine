@@ -111,3 +111,4 @@ export interface DiagnosticContext {
 ```
 
 This contract is consumed by both the CLI terminal reporter and the MCP server.
+

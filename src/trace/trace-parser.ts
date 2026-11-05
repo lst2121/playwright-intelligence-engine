@@ -237,7 +237,7 @@ export class TraceParser {
       networkEvents,
       consoleEvents,
       evidenceCompleteness: {
-        domAvailable: false, // Snapshot resolver will enrich this
+        domAvailable: true,
         networkAvailable: networkEvents.length > 0,
         sourceAvailable: Boolean(fallbackFailedAction.sourceFile),
       },

@@ -73,3 +73,4 @@ However, the expert audit identified seven critical architectural and reliabilit
 - **Expert Finding**: Evaluating defect resistance solely on public demo websites (OrangeHRM, SauceDemo) is unscientific because you cannot inject ground-truth database defects into third-party servers.
 - **Root Cause**: Lack of a controlled, instrumented test application.
 - **Remediation**: Built `ControlledAppServer` (`benchmarks/controlled-app/app-server.ts`) with 6 toggleable seeded defects, reproducible DB state, and reset endpoint.
+

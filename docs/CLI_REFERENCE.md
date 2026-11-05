@@ -68,8 +68,18 @@ npx pw-intel repair <tracePath> --target-page <pageObjectPath> [options]
 #### Options:
 - `--target-page <path>`: (Required) Path to the TypeScript Page Object containing the locator.
 - `--spec <path>`: Path to the failing test spec file for Intent Invariant v2 validation.
-- `--dry-run`: Generates candidate scores and unified diff without creating a worktree or running tests.
-- `--apply`: Automatically commits the verified diff to the active working branch after human review.
+- `--dry-run`: Generates candidate scores and unified diff in memory without creating a worktree or executing tests.
+- `--apply`: Explicit human-in-the-loop flag. Atomically writes the verified patch to the active working branch after re-validating the AST baseline and diff allowlist against the current working copy.
+
+#### The `--apply` Execution & Verification Contract:
+To prevent unverified changes or working branch corruption, the engine enforces a strict five-stage verification lifecycle:
+1. **Phase 1: In-Memory Planning & Scoring**: Ingests trace, resolves DOM snapshot, extracts candidates, and scores them using deterministic transformed scores. Zero disk writes occur on the active branch.
+2. **Phase 2: Isolated Worktree Checkout**: Creates a detached Git worktree in `.pw-intelligence/worktrees/*` with shared read-only dependency junctions.
+3. **Phase 3: Worktree Patching & Test Execution**: Applies the candidate patch exclusively within the isolated worktree (`AstPatcher.patchPageObject`). Executes the target test using `execFile` argument arrays.
+4. **Phase 4: Fail-Closed Invariant Validation**: The repair is authorized *only* if the test execution genuinely passes (`executionPassed === true`), exit code is 0, pass count $\ge 1$, and Intent Invariant v2 holds ($V = A \land T \land F \land I \land D \land E$).
+5. **Phase 5: Explicit Human Approval Boundary (`--apply`)**:
+   - Without `--apply`, the engine outputs the verified unified diff for inspection and leaves the active working branch untouched.
+   - When `--apply` is supplied, the engine re-validates the working branch file to ensure the AST baseline has not drifted since planning, checks `validateLocatorGrammar` and `DiffAllowlistValidator`, and atomically writes the patch with immediate rollback protection on I/O error.
 
 #### Example Output:
 ```text
@@ -141,3 +151,4 @@ npx pw-intel audit [--clean-worktrees]
 | `1` | Diagnostic abstention (e.g. `BACKEND_500`, `AUTH_EXPIRED`, `ASSERTION_FAILURE`) | Fail CI, notify developer of application bug |
 | `2` | Security violation (Zip-Slip, Decompression Bomb detected) | Block build, alert security team |
 | `3` | Invalid command line arguments or missing required files | Fix configuration |
+

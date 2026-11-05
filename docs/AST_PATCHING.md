@@ -142,3 +142,4 @@ Every AST modification follows an atomic lifecycle:
 3. TypeScript compiler diagnostics are executed on the modified file (`sourceFile.getPreEmitDiagnostics()`).
 4. If any TypeScript diagnostic errors (e.g. syntax errors, type mismatches, unresolved identifiers) are detected, the transformation is aborted and memory is cleared.
 5. Only upon zero diagnostic errors is the file committed to the isolated worktree directory.
+

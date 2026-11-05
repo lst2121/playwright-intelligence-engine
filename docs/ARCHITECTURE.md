@@ -154,3 +154,4 @@ The architecture was evaluated against the **Master Adversarial Benchmark Suite*
 - **False Repair Rate**: **0.0%**.
 - **Execution Latency**: P50 = 14 ms, P95 = 29 ms.
 - **Statistical Confidence**: Wilson 95% CI: `[96.44%, 100.00%]`.
+

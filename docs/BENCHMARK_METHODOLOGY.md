@@ -79,3 +79,4 @@ For sample size $n = 104$ with success probability $\hat{p} = \frac{k}{n}$, the 
 $$w = \frac{\hat{p} + \frac{z^2}{2n} \pm z \sqrt{\frac{\hat{p}(1 - \hat{p})}{n} + \frac{z^2}{4n^2}}}{1 + \frac{z^2}{n}}$$
 
 This provides an asymmetric, mathematically robust interval suitable for near-100% success rates, unlike naive Wald intervals.
+

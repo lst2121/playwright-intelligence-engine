@@ -196,3 +196,4 @@ See [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md) for full statistical 
 ## License
 
 MIT © 2026 Playwright Intelligence Engine Contributors.
+

@@ -25,3 +25,4 @@ export interface TraceAdapter {
   ): Promise<DiagnosticContext>;
   validate(context: DiagnosticContext): AdapterValidationResult;
 }
+

@@ -156,3 +156,4 @@ The server adheres strictly to JSON-RPC 2.0 specifications:
 - `Invalid Params` (`-32602`): Returned when tool arguments fail validation.
 - `Internal Error` (`-32603`): Returned on unhandled internal exceptions.
 - `Tool Execution Error` (`-32000`): Returned when an engine tool encounters a domain or diagnostic error (e.g. `ZipSlipSecurityError` or `AbstentionError`).
+

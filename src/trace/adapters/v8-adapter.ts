@@ -18,6 +18,7 @@ export class V8TraceAdapter implements TraceAdapter {
     networkLines: string[]
   ): Promise<DiagnosticContext> {
     const context = TraceParser.assembleDiagnosticContext(traceLines, networkLines);
+    context.traceFormatVersion = 8;
     return context;
   }
 

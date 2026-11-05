@@ -28,3 +28,4 @@ test.describe('Controlled App Baseline & Defect Invariant Verification', () => {
     await expect(page.locator('#checkout-result')).toContainText('Checkout Failed');
   });
 });
+

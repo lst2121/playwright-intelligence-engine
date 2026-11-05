@@ -93,3 +93,4 @@ All active worktrees are recorded in `.pw-intelligence/worktrees/registry.json`:
 ```
 
 Upon engine startup or CLI invocation (`pw-intel audit`), any stale worktrees left behind by abnormal system restarts or crashes are detected and safely purged.
+

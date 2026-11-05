@@ -12,6 +12,7 @@ export interface ValidationTarget {
   originalFingerprint: string;
   candidateElement: ResolvedElement;
   intendedAction: string; // e.g. "click", "fill"
+  originalSelector?: string | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
 }
 
@@ -24,7 +25,9 @@ export interface IntentV2ValidationTarget {
   targetMemberName?: string | undefined;
   candidateElement: ResolvedElement;
   intendedAction: string;
+  originalSelector?: string | undefined;
   executionPassed?: boolean | undefined;
+  strict?: boolean | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
 }
 
@@ -49,9 +52,66 @@ export interface IntentV2ValidationResult {
 }
 
 export class IntentValidator {
+  private static readonly CONFLICTING_ACTION_PAIRS = [
+    {
+      positive: ['submit', 'login', 'checkout', 'save', 'confirm', 'proceed', 'pay', 'order', 'continue', 'apply'],
+      negative: ['cancel', 'close', 'reset', 'abort', 'back', 'dismiss', 'exit'],
+    },
+    {
+      positive: ['create', 'add', 'insert', 'new'],
+      negative: ['delete', 'remove', 'destroy', 'clear', 'purge'],
+    },
+  ];
+
+  /**
+   * Validates whether candidate element preserves genuine business identity
+   * without substituting contradictory actions (e.g. replacing 'Submit' with 'Cancel').
+   */
+  public static verifyTargetIdentity(
+    originalSelector: string | undefined,
+    candidate: ResolvedElement
+  ): { isPreserved: boolean; reason?: string } {
+    if (!originalSelector) {
+      return { isPreserved: true };
+    }
+
+    const origTokens = originalSelector.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+    const candidateText = [
+      candidate.accessibleName ?? '',
+      candidate.text ?? '',
+      candidate.attributes['data-testid'] ?? '',
+      candidate.attributes['aria-label'] ?? '',
+      candidate.attributes['id'] ?? '',
+    ].join(' ').toLowerCase();
+    const candidateTokens = candidateText.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
+
+    // 1. Hard Conflict Check: Reject substituting positive action with negative/cancellation action
+    for (const pair of IntentValidator.CONFLICTING_ACTION_PAIRS) {
+      const origHasPositive = pair.positive.some((p) => origTokens.includes(p));
+      const candHasNegative = pair.negative.some((n) => candidateTokens.includes(n));
+      if (origHasPositive && candHasNegative) {
+        return {
+          isPreserved: false,
+          reason: `Identity violation: Target '${originalSelector}' appears to be a confirmation/submission action, but replacement candidate '${candidate.accessibleName ?? candidate.tag}' has contradictory cancellation semantics.`,
+        };
+      }
+
+      const origHasNegative = pair.negative.some((n) => origTokens.includes(n));
+      const candHasPositive = pair.positive.some((p) => candidateTokens.includes(p));
+      if (origHasNegative && candHasPositive) {
+        return {
+          isPreserved: false,
+          reason: `Identity violation: Target '${originalSelector}' appears to be a cancellation action, but replacement candidate has confirmation semantics.`,
+        };
+      }
+    }
+
+    return { isPreserved: true };
+  }
+
   /**
    * Validates that the candidate repair preserves test intent and strictly protects assertions.
-   * Backward-compatible with v1 validation contract.
+   * Fail-closed: Enforces action semantics AND identity preservation.
    */
   public static validate(target: ValidationTarget): IntentValidationResult {
     // Check 1: Assertion AST Immutability Check
@@ -91,7 +151,19 @@ export class IntentValidator {
       }
     }
 
-    // Check 3: Business Oracle contradiction check
+    // Check 3: Independent Target Identity Validation
+    const identityCheck = IntentValidator.verifyTargetIdentity(target.originalSelector, target.candidateElement);
+    if (!identityCheck.isPreserved) {
+      return {
+        isValid: false,
+        assertionPreserved: true,
+        actionSemanticsValid,
+        identityPreserved: false,
+        reason: identityCheck.reason,
+      };
+    }
+
+    // Check 4: Business Oracle contradiction check
     if (target.businessOracleStatus === 'contradicted') {
       return {
         isValid: false,
@@ -103,10 +175,10 @@ export class IntentValidator {
     }
 
     return {
-      isValid: actionSemanticsValid,
+      isValid: actionSemanticsValid && identityCheck.isPreserved,
       assertionPreserved: true,
       actionSemanticsValid,
-      identityPreserved: true,
+      identityPreserved: identityCheck.isPreserved,
     };
   }
 
@@ -122,6 +194,21 @@ export class IntentValidator {
    * E: Independent Execution in Worktree Verified
    */
   public static validateV2(target: IntentV2ValidationTarget): IntentV2ValidationResult {
+    // Fail-closed checks on required inputs
+    if (!target.originalCompositeFingerprint) {
+      return {
+        isValid: false,
+        assertionsPreserved: false,
+        testBodyPreserved: false,
+        fixturesPreserved: false,
+        identityAndActionPreserved: false,
+        diffAllowlistPassed: false,
+        executionVerified: false,
+        reason: 'Missing original composite fingerprint',
+        summary: 'Rejected: Baseline composite fingerprint was not provided',
+      };
+    }
+
     const postPatch = AssertionHasher.computeCompositeFingerprint(target.testFilePath);
 
     // 1. A: Assertion Invariant
@@ -140,7 +227,7 @@ export class IntentValidator {
     if (!testBodyPreserved) {
       throw new IntentInvariantViolationError(
         'TestBodyStructure',
-        'Test statement order, control flow, or test body AST nodes were modified.'
+        'Test statement order, control flow, conditions, or test body AST nodes were modified.'
       );
     }
 
@@ -150,7 +237,7 @@ export class IntentValidator {
     if (!fixturesPreserved) {
       throw new IntentInvariantViolationError(
         'FixtureParameters',
-        'Test fixtures, input parameters, or literal values were altered.'
+        'Test fixtures, input parameters, or literal values were altered or reordered.'
       );
     }
 
@@ -185,6 +272,24 @@ export class IntentValidator {
       }
     }
 
+    // Validate identity preservation (avoiding swap of submit with cancel)
+    const identityCheck = IntentValidator.verifyTargetIdentity(target.originalSelector, target.candidateElement);
+    const identityAndActionPreserved = actionSemanticsValid && identityCheck.isPreserved;
+
+    if (!identityAndActionPreserved) {
+      return {
+        isValid: false,
+        assertionsPreserved,
+        testBodyPreserved,
+        fixturesPreserved,
+        identityAndActionPreserved: false,
+        diffAllowlistPassed: false,
+        executionVerified: false,
+        reason: identityCheck.reason ?? 'Incompatible action semantics',
+        summary: `Rejected: ${identityCheck.reason ?? 'Target action semantics invalid'}`,
+      };
+    }
+
     if (target.businessOracleStatus === 'contradicted') {
       return {
         isValid: false,
@@ -192,14 +297,14 @@ export class IntentValidator {
         testBodyPreserved: true,
         fixturesPreserved: true,
         identityAndActionPreserved: false,
-        diffAllowlistPassed: true,
-        executionVerified: Boolean(target.executionPassed),
+        diffAllowlistPassed: false,
+        executionVerified: false,
         reason: 'Business oracle contradicted the candidate identity',
         summary: 'Rejected: Independent business oracle contradicted target identity',
       };
     }
 
-    // 5. D: Diff Allowlist (Only target locator modified)
+    // 5. D: Diff Allowlist
     let diffAllowlistPassed = true;
     if (
       target.pageObjectOriginalSource &&
@@ -217,16 +322,24 @@ export class IntentValidator {
       if (!diffResult.isAllowed) {
         throw new UnauthorizedAstModificationError(diffResult.reason ?? 'Unknown violation');
       }
+      diffAllowlistPassed = true;
+    } else if (target.strict) {
+      diffAllowlistPassed = false;
     }
 
     // 6. E: Execution Verification
-    const executionVerified = target.executionPassed !== undefined ? target.executionPassed : true;
+    let executionVerified = true;
+    if (target.executionPassed !== undefined) {
+      executionVerified = target.executionPassed;
+    } else if (target.strict) {
+      executionVerified = false;
+    }
 
     const isValid =
       assertionsPreserved &&
       testBodyPreserved &&
       fixturesPreserved &&
-      actionSemanticsValid &&
+      identityAndActionPreserved &&
       diffAllowlistPassed &&
       executionVerified;
 
@@ -235,7 +348,7 @@ export class IntentValidator {
       assertionsPreserved,
       testBodyPreserved,
       fixturesPreserved,
-      identityAndActionPreserved: actionSemanticsValid,
+      identityAndActionPreserved,
       diffAllowlistPassed,
       executionVerified,
       summary: isValid

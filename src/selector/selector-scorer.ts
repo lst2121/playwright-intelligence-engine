@@ -11,7 +11,8 @@ export interface ScorerWeights {
 
 export interface ScoreBreakdown {
   score: number;
-  calibratedProbability?: number;
+  transformedScore: number;
+  calibratedProbability: number; // Retained as alias for transformedScore
   uniqueness: number;
   matchCount: number;
   identityMatch: number;
@@ -34,37 +35,66 @@ export class SelectorScorer {
   };
 
   /**
-   * Scores a candidate element against the multi-factor formula S(L) = w1*U + w2*I + w3*M + w4*A + w5*H - w6*D
-   * Uniqueness is strictly checked: matchCount === 1 yields U = 1.0; matchCount > 1 yields 1 / matchCount.
-   * Differentiates heuristic rawScore from calibrated probability.
+   * Scores a candidate element against the multi-factor formula:
+   * S(L) = w1*U + w2*I + w3*M + w4*A + w5*H - w6*D
+   *
+   * Uniqueness evaluates whether the proposed locator resolves to exactly one element.
+   * Identity requires affirmative token overlap and rejects contradictory semantics.
+   * Actionability verifies enabled state and non-hidden status.
+   * Produces a transformed score (sigmoid scaling), not an overclaimed empirical probability.
    */
   public static score(
     candidate: ResolvedElement,
     allCandidates: ResolvedElement[],
     originalSelector?: string,
-    historicalScore = 0.8,
+    historicalScore?: number,
     weights = SelectorScorer.DEFAULT_WEIGHTS
   ): ScoreBreakdown {
     const explanation: string[] = [];
 
-    // 1. Uniqueness U: 1.0 if strictly unique (matchCount === 1); 1 / matchCount otherwise
-    const matchingCount = allCandidates.filter(
-      (c) =>
-        c.tag === candidate.tag &&
-        c.role === candidate.role &&
-        c.accessibleName === candidate.accessibleName
-    ).length;
+    // 1. Uniqueness U: Evaluated on actual candidate identifying attributes
+    const matchingCount = allCandidates.filter((c) => {
+      // If role + name exists, check match on role + name
+      if (candidate.role && candidate.accessibleName) {
+        return c.role === candidate.role && c.accessibleName === candidate.accessibleName;
+      }
+      // If testid exists, check match on testid
+      const candTestId = candidate.attributes['data-testid'] ?? candidate.attributes['data-test'];
+      if (candTestId) {
+        const cTestId = c.attributes['data-testid'] ?? c.attributes['data-test'];
+        return cTestId === candTestId;
+      }
+      // If id exists, check match on id
+      if (candidate.attributes['id']) {
+        return c.attributes['id'] === candidate.attributes['id'];
+      }
+      return c.tag === candidate.tag && c.role === candidate.role && c.accessibleName === candidate.accessibleName;
+    }).length;
+
     const uniqueness = matchingCount === 1 ? 1.0 : matchingCount > 1 ? parseFloat((1 / matchingCount).toFixed(3)) : 0.0;
     explanation.push(`Uniqueness U: ${uniqueness} (${matchingCount} matching element(s) in scope)`);
 
-    // 2. Identity Match I: Entity identity and parent/name affinity
+    // 2. Identity Match I: Entity identity and affirmative token overlap
     let identityMatch = 0.5;
     if (candidate.accessibleName) {
       identityMatch = 0.8;
       if (originalSelector) {
         const origNorm = originalSelector.toLowerCase().replace(/[-_]/g, ' ');
         const nameNorm = candidate.accessibleName.toLowerCase().replace(/[-_]/g, ' ');
-        if (origNorm.includes(nameNorm) || nameNorm.includes(origNorm)) {
+
+        // Hard check: Contradictory semantics (submit vs cancel)
+        const positiveWords = ['submit', 'login', 'checkout', 'save', 'confirm', 'proceed', 'pay', 'order'];
+        const negativeWords = ['cancel', 'close', 'reset', 'abort', 'back', 'dismiss', 'delete'];
+
+        const origIsPositive = positiveWords.some((t) => origNorm.includes(t));
+        const candIsNegative = negativeWords.some((t) => nameNorm.includes(t));
+        const origIsNegative = negativeWords.some((t) => origNorm.includes(t));
+        const candIsPositive = positiveWords.some((t) => nameNorm.includes(t));
+
+        if ((origIsPositive && candIsNegative) || (origIsNegative && candIsPositive)) {
+          identityMatch = 0.0;
+          explanation.push(`Identity Match I: 0.0 (Hard contradiction: target has opposing confirmation/cancellation semantics)`);
+        } else if (origNorm.includes(nameNorm) || nameNorm.includes(origNorm)) {
           identityMatch = 1.0;
         }
       }
@@ -74,9 +104,9 @@ export class SelectorScorer {
     // 3. Semantic Match M: getByRole / getByLabel priority over raw CSS
     let semanticMatch = 0.4; // Base for raw HTML tag
     if (candidate.role && candidate.accessibleName) {
-      semanticMatch = 1.0; // Perfect: Role + Accessible Name
+      semanticMatch = 1.0; // Priority: Role + Accessible Name
     } else if (candidate.attributes['data-testid'] || candidate.attributes['data-test']) {
-      semanticMatch = 0.9; // High: Dedicated Test ID
+      semanticMatch = 0.9; // Dedicated Test ID
     } else if (candidate.attributes['placeholder'] || candidate.attributes['aria-label']) {
       semanticMatch = 0.85;
     }
@@ -84,11 +114,14 @@ export class SelectorScorer {
 
     // 4. Actionability A: Element is enabled and visible
     const isDisabled = Boolean(candidate.attributes['disabled']) || candidate.attributes['aria-disabled'] === 'true';
-    const actionability = isDisabled ? 0.0 : 1.0;
-    explanation.push(`Actionability A: ${actionability} (Disabled: ${isDisabled})`);
+    const isHidden = candidate.attributes['hidden'] === 'true' || candidate.attributes['aria-hidden'] === 'true';
+    const actionability = isDisabled || isHidden ? 0.0 : 1.0;
+    explanation.push(`Actionability A: ${actionability} (Disabled: ${isDisabled}, Hidden: ${isHidden})`);
 
-    // 5. Historical Execution Reliability H: Time-decayed reliability
-    const historicalReliability = Math.max(0, Math.min(1.0, historicalScore));
+    // 5. Historical Execution Reliability H: Neutral 0.5 baseline if unrecorded
+    const historicalReliability = historicalScore !== undefined
+      ? Math.max(0, Math.min(1.0, historicalScore))
+      : 0.5;
     explanation.push(`Historical Execution Reliability H: ${historicalReliability}`);
 
     // 6. Volatile Implementation Dependence D (Penalizes hashed classes and dynamic IDs)
@@ -120,12 +153,13 @@ export class SelectorScorer {
 
     const finalScore = Math.max(0, Math.min(1.0, parseFloat(rawScore.toFixed(3))));
 
-    // Calibrated probability estimate via sigmoid scaling of raw score margin
-    const calibratedProbability = parseFloat((1 / (1 + Math.exp(-6 * (finalScore - 0.65)))).toFixed(3));
+    // Transformed confidence score via logistic sigmoid scaling
+    const transformedScore = parseFloat((1 / (1 + Math.exp(-6 * (finalScore - 0.65)))).toFixed(3));
 
     return {
       score: finalScore,
-      calibratedProbability,
+      transformedScore,
+      calibratedProbability: transformedScore, // Backward compatibility alias
       uniqueness,
       matchCount: matchingCount,
       identityMatch,
@@ -138,4 +172,3 @@ export class SelectorScorer {
     };
   }
 }
-

@@ -119,3 +119,4 @@ If a trace is truncated (e.g. CI runner was killed during test execution), the e
 - If `action` exists but DOM snapshots are missing: Classifies as `INCOMPLETE_EVIDENCE` and abstains.
 - If network log is truncated: Causal correlation is restricted to available events and flagged as tentative.
 - The engine **never guesses** missing DOM state.
+

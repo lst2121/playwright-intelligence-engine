@@ -1,4 +1,4 @@
-import { Project, Node, SyntaxKind } from 'ts-morph';
+import { Project, Node, SyntaxKind, CallExpression } from 'ts-morph';
 import { UnauthorizedAstModificationError } from '../core/errors/engine-errors.js';
 
 export interface DiffAllowlistTarget {
@@ -261,6 +261,139 @@ export class DiffAllowlistValidator {
     };
   }
 
+  private static readonly APPROVED_OPTION_KEYS = new Set([
+    'name',
+    'exact',
+    'hasText',
+    'hasNotText',
+    'has',
+    'hasNot',
+    'timeout',
+    'checked',
+    'disabled',
+    'expanded',
+    'includeHidden',
+    'level',
+    'pressed',
+    'selected',
+  ]);
+
+  private static isLiteralValue(node: Node): boolean {
+    return (
+      Node.isStringLiteral(node) ||
+      Node.isNumericLiteral(node) ||
+      node.getKind() === SyntaxKind.TrueKeyword ||
+      node.getKind() === SyntaxKind.FalseKeyword ||
+      Node.isRegularExpressionLiteral(node)
+    );
+  }
+
+  /**
+   * Recursively validates an argument node passed into a locator method call.
+   * Strictly disallows identifiers (process.env), arbitrary function calls,
+   * arrow functions, dynamic property accesses, and executable code.
+   */
+  private static validateArgumentNode(arg: Node): { isValid: boolean; reason?: string } {
+    if (DiffAllowlistValidator.isLiteralValue(arg)) {
+      return { isValid: true };
+    }
+
+    if (Node.isObjectLiteralExpression(arg)) {
+      for (const prop of arg.getProperties()) {
+        if (!Node.isPropertyAssignment(prop)) {
+          return {
+            isValid: false,
+            reason: `Disallowed object property structure: only standard key-value assignments are allowed, received ${prop.getKindName()}`,
+          };
+        }
+
+        const keyName = prop.getName();
+        if (!DiffAllowlistValidator.APPROVED_OPTION_KEYS.has(keyName)) {
+          return {
+            isValid: false,
+            reason: `Disallowed option key '${keyName}'. Only approved Playwright locator options are allowed.`,
+          };
+        }
+
+        const val = prop.getInitializer();
+        if (!val) {
+          return { isValid: false, reason: `Missing value for option key '${keyName}'` };
+        }
+
+        if (keyName === 'has' || keyName === 'hasNot') {
+          // Recursive locator call validation for nested locators
+          if (!Node.isCallExpression(val)) {
+            return {
+              isValid: false,
+              reason: `Option '${keyName}' must be a CallExpression resolving to a locator, received ${val.getKindName()}`,
+            };
+          }
+          const nestedCheck = DiffAllowlistValidator.validateLocatorCallChain(val);
+          if (!nestedCheck.isValid) return nestedCheck;
+        } else {
+          // All other options must be literal values
+          if (!DiffAllowlistValidator.isLiteralValue(val)) {
+            return {
+              isValid: false,
+              reason: `Disallowed argument in option '${keyName}': ${val.getKindName()} ('${val.getText()}'). Dynamic expressions, environment variables, and function calls are prohibited.`,
+            };
+          }
+        }
+      }
+      return { isValid: true };
+    }
+
+    return {
+      isValid: false,
+      reason: `Disallowed argument expression: ${arg.getKindName()} ('${arg.getText()}'). Only literals and safe option objects are permitted.`,
+    };
+  }
+
+  /**
+   * Validates a locator call chain expression recursively, including all arguments.
+   */
+  private static validateLocatorCallChain(callExpr: CallExpression): { isValid: boolean; reason?: string } {
+    let current: Node = callExpr;
+    while (Node.isCallExpression(current)) {
+      const expr = current.getExpression();
+      if (Node.isPropertyAccessExpression(expr)) {
+        const methodName = expr.getName();
+        if (!DiffAllowlistValidator.APPROVED_LOCATOR_METHODS.has(methodName)) {
+          return {
+            isValid: false,
+            reason: `Replacement expression contains disallowed statements: disallowed method call '${methodName}'. Only Playwright locator methods are permitted.`,
+          };
+        }
+
+        // Recursively validate every argument passed to this method
+        for (const arg of current.getArguments()) {
+          const argCheck = DiffAllowlistValidator.validateArgumentNode(arg);
+          if (!argCheck.isValid) {
+            return {
+              isValid: false,
+              reason: `Replacement expression contains disallowed statements: ${argCheck.reason}`,
+            };
+          }
+        }
+
+        current = expr.getExpression();
+      } else {
+        break;
+      }
+    }
+
+    const rootText = current.getText().trim();
+    const approvedRoots = new Set(['this.page', 'page', 'this', 'this._page', 'this.browserPage']);
+    if (!approvedRoots.has(rootText)) {
+      return {
+        isValid: false,
+        reason: `Replacement expression contains disallowed statements: locator chain root must be 'this.page' or 'page', received '${rootText}'`,
+      };
+    }
+
+    return { isValid: true };
+  }
+
   /**
    * Validates that a replacement expression is strictly a safe Playwright locator call AST.
    * Rejects arbitrary statements, process calls, functions, or unapproved methods.
@@ -275,7 +408,23 @@ export class DiffAllowlistValidator {
       };
     }
 
-    // 2. Parse into AST expression
+    // 2. Reject obvious dangerous keywords upfront
+    const lower = trimmed.toLowerCase();
+    if (
+      lower.includes('process.') ||
+      lower.includes('require(') ||
+      lower.includes('import(') ||
+      lower.includes('eval(') ||
+      lower.includes('exec(') ||
+      lower.includes('spawn(')
+    ) {
+      return {
+        isValid: false,
+        reason: `Replacement expression contains disallowed statements: arbitrary code execution detected in '${expressionText}'`,
+      };
+    }
+
+    // 3. Parse into AST expression
     const tempProject = new Project({ skipAddingFilesFromTsConfig: true });
     const tempFile = tempProject.createSourceFile('temp_expr.ts', `const _x = ${trimmed};`);
     const varDecl = tempFile.getVariableDeclaration('_x');
@@ -301,34 +450,8 @@ export class DiffAllowlistValidator {
       };
     }
 
-    // Validate the call chain
-    let current: Node = initializer;
-    while (Node.isCallExpression(current)) {
-      const expr = current.getExpression();
-      if (Node.isPropertyAccessExpression(expr)) {
-        const methodName = expr.getName();
-        if (!DiffAllowlistValidator.APPROVED_LOCATOR_METHODS.has(methodName)) {
-          return {
-            isValid: false,
-            reason: `Replacement expression contains disallowed statements: disallowed method call '${methodName}'. Only Playwright locator methods are permitted.`,
-          };
-        }
-        current = expr.getExpression();
-      } else {
-        break;
-      }
-    }
-
-    // Root of chain must be `this.page`, `page`, `this`, or a parameterless locator variable
-    const rootText = current.getText().trim();
-    if (rootText !== 'this.page' && rootText !== 'page' && rootText !== 'this') {
-      return {
-        isValid: false,
-        reason: `Replacement expression contains disallowed statements: locator chain root must be 'this.page' or 'page', received '${rootText}'`,
-      };
-    }
-
-    return { isValid: true };
+    // Validate the call chain and its arguments recursively
+    return DiffAllowlistValidator.validateLocatorCallChain(initializer);
   }
 
   /**

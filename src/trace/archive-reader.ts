@@ -18,31 +18,45 @@ export interface ExtractedTraceArchive {
 }
 
 export class ArchiveReader {
-  private static readonly DEFAULT_MAX_SIZE = 500 * 1024 * 1024; // 500 MB
+  private static readonly DEFAULT_MAX_SIZE = 100 * 1024 * 1024; // 100 MB max uncompressed
   private static readonly DEFAULT_MAX_ENTRIES = 10000;
+  private static readonly MAX_COMPRESSION_RATIO = 10; // 10:1 ratio protection
+  private static readonly MAX_SINGLE_ENTRY_SIZE = 50 * 1024 * 1024; // 50 MB max single entry
 
   /**
    * Automatically discovers the primary trace and network JSONL entry names inside a Playwright trace archive.
-   * Supports legacy (trace.trace), multi-worker (0.trace, 1.trace), and modern Playwright (0-trace.trace, 1-trace.trace).
+   * Matches stream and worker IDs between .trace and .network files to prevent cross-worker mismatch.
    */
   public static findTraceFileEntries(zipPath: string): { traceEntryName?: string | undefined; networkEntryName?: string | undefined } {
     try {
       const zip = new AdmZip(zipPath);
       const entries = zip.getEntries();
 
-      // Trace candidate selection: prioritize larger action streams over metadata streams (test.trace)
+      // Trace candidate selection: prioritize action streams over metadata streams (test.trace)
       const traceCandidates = entries
         .filter((e) => e.entryName.endsWith('.trace'))
         .sort((a, b) => b.header.size - a.header.size);
 
       const bestTrace = traceCandidates[0]?.entryName;
+      if (!bestTrace) {
+        return {};
+      }
 
-      // Network candidate matching the trace prefix if possible
-      const networkCandidates = entries
-        .filter((e) => e.entryName.endsWith('.network'))
-        .sort((a, b) => b.header.size - a.header.size);
+      // Correlate network entry with matching stream / worker prefix if possible
+      const traceBase = path.basename(bestTrace, '.trace');
+      const networkCandidates = entries.filter((e) => e.entryName.endsWith('.network'));
 
-      const bestNetwork = networkCandidates[0]?.entryName;
+      let bestNetwork: string | undefined;
+      // 1. Exact base match (e.g. 0.trace -> 0.network, trace.trace -> trace.network)
+      const exactMatch = networkCandidates.find((e) => path.basename(e.entryName, '.network') === traceBase);
+      if (exactMatch) {
+        bestNetwork = exactMatch.entryName;
+      } else {
+        // 2. Prefix match (e.g. 0-trace.trace -> 0-network.network or 0.network)
+        const workerPrefix = traceBase.split('-')[0] ?? '';
+        const prefixMatch = networkCandidates.find((e) => path.basename(e.entryName, '.network').startsWith(workerPrefix));
+        bestNetwork = prefixMatch ? prefixMatch.entryName : networkCandidates.sort((a, b) => b.header.size - a.header.size)[0]?.entryName;
+      }
 
       return { traceEntryName: bestTrace, networkEntryName: bestNetwork };
     } catch {
@@ -51,7 +65,8 @@ export class ArchiveReader {
   }
 
   /**
-   * Reads a single entry as a UTF-8 string directly from a .zip file in memory.
+   * Reads a single entry as a UTF-8 string directly from a .zip file in memory
+   * with strict per-entry size limits.
    */
   public static async readEntryAsText(zipPath: string, entryName: string): Promise<string> {
     try {
@@ -59,6 +74,12 @@ export class ArchiveReader {
       const entry = zip.getEntry(entryName);
       if (!entry) {
         throw new Error(`Entry '${entryName}' not found in archive '${zipPath}'`);
+      }
+      if (entry.header.size > ArchiveReader.MAX_SINGLE_ENTRY_SIZE) {
+        throw new TraceCorruptedError(
+          zipPath,
+          `Entry '${entryName}' size ${entry.header.size} bytes exceeds single entry limit of ${ArchiveReader.MAX_SINGLE_ENTRY_SIZE} bytes`
+        );
       }
       return entry.getData().toString('utf8');
     } catch (err: any) {
@@ -108,6 +129,17 @@ export class ArchiveReader {
           zipPath,
           `Zip-Bomb suspected: uncompressed size exceeded limit of ${maxSize} bytes`
         );
+      }
+
+      // Check for Zip-Bomb compression ratio anomaly (e.g. 100:1 ratio)
+      if (entry.header.compressedSize > 0 && entry.header.size > 512 * 1024) {
+        const ratio = entry.header.size / entry.header.compressedSize;
+        if (ratio > ArchiveReader.MAX_COMPRESSION_RATIO) {
+          throw new TraceCorruptedError(
+            zipPath,
+            `Zip-Bomb suspected: compression ratio ${ratio.toFixed(1)}:1 exceeds limit of ${ArchiveReader.MAX_COMPRESSION_RATIO}:1 for entry '${entry.entryName}'`
+          );
+        }
       }
 
       // Check for Zip-Slip path traversal vulnerability

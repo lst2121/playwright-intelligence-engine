@@ -38,6 +38,7 @@ export const RepairEvidenceSchema = z.object({
   repairedTestDurationMs: z.number(),
   timestamp: z.number(),
   repairedSuccessfully: z.boolean(),
+  notes: z.string().optional(),
 });
 
 export type RepairEvidence = z.infer<typeof RepairEvidenceSchema>;

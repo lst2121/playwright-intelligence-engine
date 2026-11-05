@@ -2,12 +2,14 @@ import readline from 'node:readline';
 import path from 'node:path';
 import fs from 'node:fs';
 import { ArchiveReader } from '../trace/archive-reader.js';
-import { TraceParser } from '../trace/trace-parser.js';
+import { VersionDetector } from '../trace/version-detector.js';
+import { TraceAdapterRegistry } from '../trace/adapters/adapter-registry.js';
 import { EvidenceCorrelator } from '../diagnostics/evidence-correlator.js';
 import { DiagnosticReportGenerator } from '../diagnostics/diagnostic-report.js';
 import { AstPatcher } from '../repair/ast-patcher.js';
 import { AssertionHasher } from '../repair/assertion-hasher.js';
 import { DiffAllowlistValidator } from '../repair/diff-allowlist.js';
+import { ApprovalService } from '../repair/approval-service.js';
 import { TestGenerator } from '../generator/test-generator.js';
 
 export interface JsonRpcRequest {
@@ -43,16 +45,41 @@ export class McpServer {
 
   /**
    * Asserts that a file path resolves within the authorized workspace boundary.
-   * Prevents arbitrary filesystem traversal or unauthorized host file modification.
+   * Uses canonical filesystem resolution (fs.realpathSync) to prevent symlink,
+   * junction, or reparse point bypasses outside the workspace boundary.
    */
   public assertPathInWorkspace(targetPath: string): string {
     const resolved = path.resolve(this.workspaceRoot, targetPath);
-    if (!resolved.startsWith(this.workspaceRoot + path.sep) && resolved !== this.workspaceRoot) {
+
+    let canonicalWorkspace = this.workspaceRoot;
+    try {
+      if (fs.existsSync(this.workspaceRoot)) {
+        canonicalWorkspace = fs.realpathSync(this.workspaceRoot);
+      }
+    } catch {
+      // fallback
+    }
+
+    let canonicalTarget = resolved;
+    try {
+      if (fs.existsSync(resolved)) {
+        canonicalTarget = fs.realpathSync(resolved);
+      } else {
+        const parent = path.dirname(resolved);
+        if (fs.existsSync(parent)) {
+          canonicalTarget = path.join(fs.realpathSync(parent), path.basename(resolved));
+        }
+      }
+    } catch {
+      // fallback
+    }
+
+    if (!canonicalTarget.startsWith(canonicalWorkspace + path.sep) && canonicalTarget !== canonicalWorkspace) {
       throw new Error(
-        `Workspace Security Violation: Path '${targetPath}' is outside the authorized workspace boundary '${this.workspaceRoot}'.`
+        `Workspace Security Violation: Path '${targetPath}' resolves to '${canonicalTarget}' outside authorized workspace boundary '${canonicalWorkspace}'.`
       );
     }
-    return resolved;
+    return canonicalTarget;
   }
 
   public start(): void {
@@ -208,7 +235,15 @@ export class McpServer {
 
         const traceLines = traceText.split('\n');
         const networkLines = networkText.split('\n');
-        const context = TraceParser.assembleDiagnosticContext(traceLines, networkLines);
+        const versionInfo = VersionDetector.detectFromLines(traceLines);
+        const adapter = TraceAdapterRegistry.getAdapter(versionInfo.traceFormatVersion);
+        const manifest = {
+          archivePath: tracePath,
+          entryNames: [traceEntryName, networkEntryName].filter(Boolean) as string[],
+          traceEntryName,
+          networkEntryName,
+        };
+        const context = await adapter.parse(manifest, traceLines, networkLines);
         const correlated = EvidenceCorrelator.correlate(context);
         const report = DiagnosticReportGenerator.generateTerminalReport(correlated);
 
@@ -223,7 +258,7 @@ export class McpServer {
       }
 
       if (toolName === 'repair_page_object') {
-        const { pomPath: pomRaw, testPath: testRaw, className, memberName, replacementSelector } = args ?? {};
+        const { pomPath: pomRaw, testPath: testRaw, className, memberName, replacementSelector, approvalToken } = args ?? {};
         if (!pomRaw || !testRaw || !className || !memberName || !replacementSelector) {
           return {
             jsonrpc: '2.0',
@@ -241,7 +276,7 @@ export class McpServer {
         if (!fs.existsSync(pomPath)) throw new Error(`Page Object file not found: '${pomPath}'`);
         if (!fs.existsSync(testPath)) throw new Error(`Test spec file not found: '${testPath}'`);
 
-        // Validate locator expression grammar upfront
+        // Validate locator expression grammar upfront recursively
         const grammar = DiffAllowlistValidator.validateLocatorGrammar(replacementSelector);
         if (!grammar.isValid) {
           throw new Error(`Security Violation: Disallowed replacement expression '${replacementSelector}'. ${grammar.reason}`);
@@ -269,16 +304,77 @@ export class McpServer {
           throw new Error(`Diff Allowlist Rejected: ${diffValidation.reason}`);
         }
 
-        // Apply authorized patch
-        const patchResult = patcher.patchPageObject({
-          filePath: pomPath,
-          className,
-          memberName,
-          replacementExpression: replacementSelector,
-        });
+        const patchHash = ApprovalService.hashContent(replacementSelector);
+        const origHash = ApprovalService.hashContent(origPomSource);
 
-        const postFingerprint = AssertionHasher.computeFingerprint(testPath);
-        const assertionIntact = initialFingerprint === postFingerprint;
+        // If an approvalToken is provided, verify it against the central ApprovalService and apply atomically
+        if (approvalToken) {
+          const tokenCheck = ApprovalService.getInstance().verifyAndConsumeToken({
+            tokenId: approvalToken,
+            targetFilePath: pomPath,
+            currentSourceContent: origPomSource,
+            patchHash,
+          });
+
+          if (!tokenCheck.isValid) {
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: `Repair Authorization Denied: ${tokenCheck.reason}`,
+              },
+            };
+          }
+
+          // Apply authorized patch atomically
+          const patchResult = patcher.patchPageObject({
+            filePath: pomPath,
+            className,
+            memberName,
+            replacementExpression: replacementSelector,
+          });
+
+          const postFingerprint = AssertionHasher.computeFingerprint(testPath);
+          const assertionIntact = initialFingerprint === postFingerprint;
+
+          if (!assertionIntact) {
+            // Rollback immediately if assertion fingerprint altered
+            await fs.promises.writeFile(pomPath, origPomSource, 'utf8');
+            return {
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32000,
+                message: 'Safety Invariant Violation: Assertion AST SHA-256 fingerprint altered by repair. Mutation rolled back.',
+              },
+            };
+          }
+
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [
+                {
+                  type: 'text',
+                  text: `Successfully applied authorized repair to ${className}.${memberName} via ${patchResult.pattern}.\nAssertion AST SHA-256 fingerprint verified intact: ${assertionIntact}`,
+                },
+              ],
+              status: 'APPLIED',
+              patchResult,
+              assertionIntact: true,
+            },
+          };
+        }
+
+        // When approvalToken is omitted: generate proposal ONLY. Zero disk mutation.
+        const tokenPayload = ApprovalService.getInstance().generateToken({
+          proposalId: `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+          patchHash,
+          targetFilePath: pomPath,
+          originalSourceHash: origHash,
+        });
 
         return {
           jsonrpc: '2.0',
@@ -287,11 +383,14 @@ export class McpServer {
             content: [
               {
                 type: 'text',
-                text: `Successfully patched ${className}.${memberName} via ${patchResult.pattern}.\nAssertion AST SHA-256 fingerprint verified intact: ${assertionIntact}`,
+                text: `Repair proposal validated in-memory.\nDirect source modification is prohibited without explicit approval.\n\nApproval Token: ${tokenPayload.tokenId}\nExpires: ${new Date(tokenPayload.expiresAt).toISOString()}\n\nTo apply this patch, re-invoke repair_page_object with approvalToken: '${tokenPayload.tokenId}'.`,
               },
             ],
-            patchResult,
-            assertionIntact,
+            status: 'PROPOSAL_READY_FOR_APPROVAL',
+            approvalToken: tokenPayload.tokenId,
+            expiresAt: tokenPayload.expiresAt,
+            pattern: inMemPatch.pattern,
+            target: { className, memberName, replacementSelector },
           },
         };
       }

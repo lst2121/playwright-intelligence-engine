@@ -868,11 +868,18 @@ test('sample', async ({ page }) => {
       children: [],
     };
 
+    const origPom = `export class Pom { readonly proceed = this.page.locator('#old'); }`;
+    const patchedPom = `export class Pom { readonly proceed = this.page.getByRole('button', { name: 'Proceed' }); }`;
+
     const res = IntentValidator.validateV2({
       testFilePath: specPath,
       originalCompositeFingerprint: origComp,
       candidateElement: candidate,
       intendedAction: 'click',
+      pageObjectOriginalSource: origPom,
+      pageObjectPatchedSource: patchedPom,
+      pageObjectClassName: 'Pom',
+      targetMemberName: 'proceed',
       executionPassed: true,
     });
 
@@ -944,6 +951,7 @@ test('sample', async ({ page }) => {
       pageObjectPatchedSource: patchedPom,
       pageObjectClassName: 'Pom',
       targetMemberName: 'pay',
+      executionPassed: true,
     });
 
     expect(res.diffAllowlistPassed).toBe(true);
@@ -987,6 +995,7 @@ test('sample', async ({ page }) => {
       originalCompositeFingerprint: origComp,
       candidateElement: candidate,
       intendedAction: 'fill',
+      mode: 'pre-flight',
     });
 
     expect(res.identityAndActionPreserved).toBe(true);

@@ -16,9 +16,61 @@ export interface ExecutionResult {
 }
 
 export class ExecutionRunner {
+  private static readonly MAX_OUTPUT_BUFFER = 16 * 1024 * 1024; // 16 MB max buffer limit
+
+  private static readonly SAFE_ENV_KEYS = new Set([
+    'PATH',
+    'Path',
+    'PATHEXT',
+    'SYSTEMROOT',
+    'SystemRoot',
+    'SYSTEMDRIVE',
+    'SystemDrive',
+    'TEMP',
+    'TMP',
+    'HOMEDRIVE',
+    'HOMEPATH',
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'LANG',
+    'LC_ALL',
+    'NODE_ENV',
+    'TERM',
+    'SHELL',
+    'PWD',
+    'COMSPEC',
+    'ComSpec',
+  ]);
+
+  /**
+   * Sanitizes inherited environment variables, stripping cloud credentials,
+   * tokens, database URLs, and secrets to protect host environments.
+   */
+  private static getSanitizedEnv(explicitEnv?: Record<string, string | undefined>): Record<string, string> {
+    const sanitized: Record<string, string> = {};
+
+    for (const [key, val] of Object.entries(process.env)) {
+      if (ExecutionRunner.SAFE_ENV_KEYS.has(key) && val !== undefined) {
+        sanitized[key] = val;
+      }
+    }
+
+    if (explicitEnv) {
+      for (const [key, val] of Object.entries(explicitEnv)) {
+        if (val !== undefined) {
+          sanitized[key] = val;
+        }
+      }
+    }
+
+    return sanitized;
+  }
+
   /**
    * Executes a command safely using child_process.spawn with an explicit argument array.
-   * Eliminates shell injection risks and guarantees isolated execution.
+   * Eliminates shell injection risks, sanitizes environment, bounds buffer sizes,
+   * and terminates entire process trees upon timeout.
    */
   public static async run(
     command: string,
@@ -34,7 +86,6 @@ export class ExecutionRunner {
       let timedOut = false;
 
       // On Windows, batch commands (.cmd/.bat) like npm/npx require invoking through cmd.exe
-      // Direct binary executables (git, node) run directly without shell
       const isWindows = process.platform === 'win32';
       let executable = command;
       let finalArgs = args;
@@ -46,27 +97,33 @@ export class ExecutionRunner {
 
       const child = spawn(executable, finalArgs, {
         cwd: options.cwd,
-        env: {
-          ...process.env,
-          ...options.env,
-        },
+        env: ExecutionRunner.getSanitizedEnv(options.env),
         shell: false,
         windowsHide: true,
       });
 
       const timer = setTimeout(() => {
         timedOut = true;
-        child.kill('SIGTERM');
-        // Force kill after 2 seconds if still running
-        setTimeout(() => child.kill('SIGKILL'), 2000);
+        if (child.pid) {
+          if (isWindows) {
+            spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+          } else {
+            child.kill('SIGTERM');
+            setTimeout(() => child.kill('SIGKILL'), 2000);
+          }
+        }
       }, timeoutMs);
 
       child.stdout?.on('data', (data) => {
-        stdoutAccumulator += data.toString();
+        if (stdoutAccumulator.length < ExecutionRunner.MAX_OUTPUT_BUFFER) {
+          stdoutAccumulator += data.toString();
+        }
       });
 
       child.stderr?.on('data', (data) => {
-        stderrAccumulator += data.toString();
+        if (stderrAccumulator.length < ExecutionRunner.MAX_OUTPUT_BUFFER) {
+          stderrAccumulator += data.toString();
+        }
       });
 
       child.on('error', (err) => {
@@ -80,10 +137,22 @@ export class ExecutionRunner {
         });
       });
 
-      child.on('close', (code) => {
+      child.on('close', (code, signal) => {
         clearTimeout(timer);
+        // Correct signal-terminated process handling: never map code === null to 0
+        let exitCode: number;
+        if (code !== null) {
+          exitCode = code;
+        } else if (timedOut) {
+          exitCode = -1;
+        } else if (signal) {
+          exitCode = 128 + 15;
+        } else {
+          exitCode = 1;
+        }
+
         resolve({
-          exitCode: code ?? (timedOut ? -1 : 0),
+          exitCode,
           stdout: stdoutAccumulator,
           stderr: stderrAccumulator,
           durationMs: Date.now() - startTime,

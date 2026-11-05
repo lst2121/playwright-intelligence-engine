@@ -27,6 +27,7 @@ export interface IntentV2ValidationTarget {
   intendedAction: string;
   originalSelector?: string | undefined;
   executionPassed?: boolean | undefined;
+  mode?: 'pre-flight' | 'authorization' | undefined;
   strict?: boolean | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
 }
@@ -304,8 +305,10 @@ export class IntentValidator {
       };
     }
 
-    // 5. D: Diff Allowlist
-    let diffAllowlistPassed = true;
+    const isPreflight = target.mode === 'pre-flight';
+
+    // 5. D: Diff Allowlist (Fail-closed: missing diff inputs strictly fail validation in authorization mode)
+    let diffAllowlistPassed = false;
     if (
       target.pageObjectOriginalSource &&
       target.pageObjectPatchedSource &&
@@ -323,25 +326,34 @@ export class IntentValidator {
         throw new UnauthorizedAstModificationError(diffResult.reason ?? 'Unknown violation');
       }
       diffAllowlistPassed = true;
-    } else if (target.strict) {
+    } else if (isPreflight) {
+      diffAllowlistPassed = true;
+    } else {
       diffAllowlistPassed = false;
     }
 
-    // 6. E: Execution Verification
-    let executionVerified = true;
-    if (target.executionPassed !== undefined) {
-      executionVerified = target.executionPassed;
-    } else if (target.strict) {
+    // 6. E: Execution Verification (Fail-closed: executionPassed must strictly be true in authorization mode)
+    let executionVerified = false;
+    if (target.executionPassed === true) {
+      executionVerified = true;
+    } else if (isPreflight) {
+      executionVerified = false;
+    } else {
       executionVerified = false;
     }
 
-    const isValid =
-      assertionsPreserved &&
-      testBodyPreserved &&
-      fixturesPreserved &&
-      identityAndActionPreserved &&
-      diffAllowlistPassed &&
-      executionVerified;
+    const isValid = isPreflight
+      ? assertionsPreserved &&
+        testBodyPreserved &&
+        fixturesPreserved &&
+        identityAndActionPreserved &&
+        diffAllowlistPassed
+      : assertionsPreserved &&
+        testBodyPreserved &&
+        fixturesPreserved &&
+        identityAndActionPreserved &&
+        diffAllowlistPassed &&
+        executionVerified;
 
     return {
       isValid,
@@ -352,8 +364,12 @@ export class IntentValidator {
       diffAllowlistPassed,
       executionVerified,
       summary: isValid
-        ? 'Intent Invariant v2 satisfied: V = A ∧ T ∧ F ∧ I ∧ D ∧ E (Strict intent preservation proved)'
-        : 'Intent Invariant v2 failed one or more clauses',
+        ? isPreflight
+          ? 'Pre-flight Intent Invariant passed: V_pre = A ∧ T ∧ F ∧ I (Pending isolated worktree execution)'
+          : 'Intent Invariant v2 satisfied: V = A ∧ T ∧ F ∧ I ∧ D ∧ E (Strict intent preservation proved)'
+        : isPreflight
+        ? 'Pre-flight Intent Invariant failed one or more semantic clauses'
+        : 'Intent Invariant v2 failed one or more clauses (Missing execution proof or diff allowlist rejection)',
     };
   }
 }

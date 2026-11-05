@@ -21,6 +21,18 @@ export class TraceAdapterRegistry {
   }
 
   /**
+   * Resolves the matching TraceAdapter for a given trace format version.
+   */
+  public static getAdapter(version: number): TraceAdapter {
+    for (const adapter of TraceAdapterRegistry.adapters) {
+      if (adapter.supportedFormatVersions.includes(version)) {
+        return adapter;
+      }
+    }
+    return TraceAdapterRegistry.fallbackAdapter;
+  }
+
+  /**
    * Resolves the matching TraceAdapter for a given trace archive and sample lines.
    */
   public static resolveAdapter(manifest: ArchiveManifest, sampleLines: string[]): TraceAdapter {

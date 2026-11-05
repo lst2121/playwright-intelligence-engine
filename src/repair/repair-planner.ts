@@ -144,9 +144,17 @@ export class RepairPlanner {
   ): Promise<VerifiedRepairResult> {
     const proposal = input.proposal;
 
-    // Relative path of POM and spec within worktree
+    // Relative path of POM and spec within worktree with canonical containment checks
+    const canonicalWorktree = fs.existsSync(input.worktreePath) ? fs.realpathSync(input.worktreePath) : path.resolve(input.worktreePath);
     const worktreePomPath = path.resolve(input.worktreePath, path.relative(process.cwd(), proposal.pomFilePath));
     const worktreeSpecPath = path.resolve(input.worktreePath, path.relative(process.cwd(), proposal.testFilePath));
+
+    if (!worktreePomPath.startsWith(canonicalWorktree + path.sep)) {
+      throw new Error(`Security Violation: Worktree POM path '${worktreePomPath}' escapes worktree boundary '${canonicalWorktree}'.`);
+    }
+    if (!worktreeSpecPath.startsWith(canonicalWorktree + path.sep)) {
+      throw new Error(`Security Violation: Worktree Spec path '${worktreeSpecPath}' escapes worktree boundary '${canonicalWorktree}'.`);
+    }
 
     // Stage 3: Apply patch ONLY in isolated worktree copy
     await fs.promises.writeFile(worktreePomPath, proposal.proposedPatchedSource, 'utf-8');
@@ -226,20 +234,12 @@ export class RepairPlanner {
   }
 
   /**
-   * Backward-compatible synchronous planAndExecute wrapper.
-   * Validates in-memory patch and Intent Invariant v2 without pretending unexecuted tests passed.
+   * Backward-compatible planAndExecute wrapper.
+   * Generates in-memory repair proposal and validates intent in-memory.
+   * Strictly PROHIBITS direct disk mutation without isolated worktree execution.
    */
   public static planAndExecute(input: RepairPlanInput): RepairEvidence {
     const proposal = RepairPlanner.planRepair(input);
-
-    // Apply patch to requested POM file
-    const patcher = new AstPatcher();
-    const patchResult = patcher.patchPageObject({
-      filePath: input.pomFilePath,
-      className: input.className,
-      memberName: input.memberName,
-      replacementExpression: proposal.replacementSelector,
-    });
 
     // Validate Intent Invariant (assertion immutability & action semantics)
     const validation = IntentValidator.validate({
@@ -248,7 +248,7 @@ export class RepairPlanner {
       candidateElement: input.candidateElement,
       intendedAction: input.intendedAction,
       originalSelector: input.originalSelector,
-      businessOracleStatus: 'unavailable', // Do not hardcode verified
+      businessOracleStatus: 'unavailable',
     });
 
     if (!validation.isValid) {
@@ -264,7 +264,7 @@ export class RepairPlanner {
         filePath: input.pomFilePath,
         className: input.className,
         memberName: input.memberName,
-        nodeKind: patchResult.pattern === 'property-initializer' ? 'property' : patchResult.pattern,
+        nodeKind: proposal.pattern === 'property-initializer' ? 'property' : (proposal.pattern as any),
         line: 1,
       },
       targetIdentityEvidence: [
@@ -274,10 +274,11 @@ export class RepairPlanner {
       ],
       assertionFingerprint: proposal.originalCompositeFingerprint.assertionFingerprint,
       businessOracleStatus: 'unavailable',
-      verificationWorktreeId: input.worktreeId ?? 'local',
+      verificationWorktreeId: input.worktreeId ?? 'unverified-in-memory',
       repairedTestDurationMs: 0,
       timestamp: Date.now(),
-      repairedSuccessfully: validation.isValid,
+      repairedSuccessfully: false, // Direct modification prohibited; requires isolated worktree execution
+      notes: 'Direct disk mutation prohibited. Proposal generated in-memory. Use executeAndVerifyInWorktree() for isolated execution proof.',
     };
   }
 }

@@ -229,15 +229,18 @@ export class TraceParser {
       errorMessage: 'No explicit action failure recorded in trace',
     };
 
+    const snapshots: Record<string, any> = {};
+    const hasSnapshots = Object.keys(snapshots).length > 0;
+
     return {
       playwrightVersion: versionInfo.playwrightVersion ?? 'unknown',
       traceFormatVersion: versionInfo.traceFormatVersion,
       failedAction: fallbackFailedAction,
-      snapshots: {},
+      snapshots,
       networkEvents,
       consoleEvents,
       evidenceCompleteness: {
-        domAvailable: true,
+        domAvailable: hasSnapshots,
         networkAvailable: networkEvents.length > 0,
         sourceAvailable: Boolean(fallbackFailedAction.sourceFile),
       },

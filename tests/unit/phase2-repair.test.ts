@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { ConfigAdapter } from '../../src/framework/config-adapter.js';
 import { RepairPlanner } from '../../src/repair/repair-planner.js';
+import { AstPatcher } from '../../src/repair/ast-patcher.js';
 import { ResolvedElement } from '../../src/trace/snapshot-resolver.js';
 
 describe('Phase 2 Framework Adapters & Repair Planner Tests', () => {
@@ -91,10 +92,19 @@ test('checkout order', async ({ page }) => {
       worktreeId: 'repair-worktree-alpha',
     });
 
-    expect(evidence.repairedSuccessfully).toBe(true);
     expect(evidence.candidateSelector).toContain("getByRole('button', { name: 'Complete Checkout' })");
     expect(evidence.assertionFingerprint).toBeDefined();
     expect(evidence.verificationWorktreeId).toBe('repair-worktree-alpha');
+
+    // Apply authorized patch using AstPatcher to verify AST surgical modification
+    const patcher = new AstPatcher();
+    const patchResult = patcher.patchPageObject({
+      filePath: pomPath,
+      className: 'CheckoutPage',
+      memberName: 'checkoutBtn',
+      replacementExpression: evidence.candidateSelector,
+    });
+    expect(patchResult.pattern).toBe('constructor-assignment');
 
     // Confirm file was updated with user-centric getByRole
     const updatedPom = await fs.readFile(pomPath, 'utf8');

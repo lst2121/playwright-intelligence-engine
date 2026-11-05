@@ -1,4 +1,6 @@
 import { Project, SyntaxKind, Node } from 'ts-morph';
+import fs from 'node:fs';
+import path from 'node:path';
 import { AbstentionError } from '../core/errors/engine-errors.js';
 import { DiffAllowlistValidator } from './diff-allowlist.js';
 
@@ -171,7 +173,8 @@ export class AstPatcher {
 
   /**
    * Surgical AST modification targeting Page Object locator definitions.
-   * Performs in-memory patch validation, then atomically writes to disk.
+   * Performs in-memory patch validation, then atomically writes to disk
+   * using a temporary file and atomic rename to guarantee transactional consistency.
    */
   public patchPageObject(target: PatchTarget): PatchResult {
     const sourceFile = this.project.addSourceFileAtPath(target.filePath);
@@ -184,10 +187,18 @@ export class AstPatcher {
       replacementExpression: target.replacementExpression,
     });
 
-    // Write to file atomically with rollback preservation
+    // Write to a temporary file in the same directory and atomically rename
+    const targetDir = path.dirname(target.filePath);
+    const tempFile = path.join(
+      targetDir,
+      `.${path.basename(target.filePath)}.${Date.now()}.${Math.random().toString(36).substring(2, 6)}.tmp`
+    );
+
     try {
-      sourceFile.replaceWithText(inMem.patchedSource);
-      sourceFile.saveSync();
+      fs.writeFileSync(tempFile, inMem.patchedSource, 'utf8');
+      fs.renameSync(tempFile, target.filePath);
+      sourceFile.refreshFromFileSystemSync();
+
       return {
         success: true,
         pattern: inMem.pattern,
@@ -196,9 +207,13 @@ export class AstPatcher {
         patchedSource: inMem.patchedSource,
       };
     } catch (err: any) {
-      // Rollback file content if save failed
-      sourceFile.replaceWithText(originalText);
-      sourceFile.saveSync();
+      if (fs.existsSync(tempFile)) {
+        try {
+          fs.unlinkSync(tempFile);
+        } catch {
+          // ignore cleanup failure
+        }
+      }
       throw err;
     }
   }

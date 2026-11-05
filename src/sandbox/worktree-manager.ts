@@ -32,12 +32,37 @@ export class WorktreeManager {
     this.registryPath = path.resolve(this.baseWorktreeDir, 'registry.json');
   }
 
+  private static readonly VALID_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+
+  /**
+   * Asserts that a worktree ID is valid and that the resolved path is strictly contained
+   * within the base worktree directory. Prevents path traversal and recursive host deletion.
+   */
+  private assertWorktreeContainment(id: string): string {
+    if (!WorktreeManager.VALID_ID_REGEX.test(id)) {
+      throw new WorktreeOperationError(
+        'validate-id',
+        `Security Violation: Invalid worktree ID '${id}'. Must match /^[a-zA-Z0-9_-]{1,64}$/`
+      );
+    }
+
+    const worktreePath = path.resolve(this.baseWorktreeDir, id);
+    if (!worktreePath.startsWith(this.baseWorktreeDir + path.sep)) {
+      throw new WorktreeOperationError(
+        'containment',
+        `Security Violation: Worktree path '${worktreePath}' escapes base worktree directory '${this.baseWorktreeDir}'.`
+      );
+    }
+
+    return worktreePath;
+  }
+
   /**
    * Creates an isolated detached Git worktree using the appropriate DependencyStrategy.
    */
   public async createWorktree(worktreeId?: string): Promise<WorktreeInfo> {
     const id = worktreeId ?? `repair-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
-    const worktreePath = path.resolve(this.baseWorktreeDir, id);
+    const worktreePath = this.assertWorktreeContainment(id);
     const branch = `pw-repair/${id}`;
 
     await fs.mkdir(this.baseWorktreeDir, { recursive: true });
@@ -56,6 +81,8 @@ export class WorktreeManager {
     let prepResult;
     try {
       prepResult = await strategy.prepare(this.rootDir, worktreePath);
+      // Validate dependency strategy isolation
+      await strategy.validate(worktreePath);
     } catch (err: any) {
       await this.destroyWorktree(id).catch(() => {});
       throw new WorktreeOperationError('prepare-dependencies', err.message);
@@ -83,7 +110,7 @@ export class WorktreeManager {
    * 4. Cleans up registry
    */
   public async destroyWorktree(id: string): Promise<void> {
-    const worktreePath = path.resolve(this.baseWorktreeDir, id);
+    const worktreePath = this.assertWorktreeContainment(id);
     const branch = `pw-repair/${id}`;
 
     // Step 1: Cleanup dependency links via strategy

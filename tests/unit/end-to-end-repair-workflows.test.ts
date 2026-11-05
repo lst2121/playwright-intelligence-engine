@@ -100,6 +100,7 @@ test('user login', async ({ page }) => {
       originalCompositeFingerprint: originalComposite,
       candidateElement: candidateEl,
       intendedAction: 'click',
+      mode: 'pre-flight',
     });
     expect(intentRes.isValid).toBe(true);
 
@@ -114,11 +115,18 @@ test('user login', async ({ page }) => {
     expect(patchResult.pattern).toBe('property-initializer');
 
     // 8. Intent Invariant v2 Post-patch verification
+    const origPomSource = `export class LoginPage {
+  readonly submitButton = this.page.locator('#old-submit-btn');
+}`;
     const postIntentRes = IntentValidator.validateV2({
       testFilePath: specPath,
       originalCompositeFingerprint: originalComposite,
       candidateElement: candidateEl,
       intendedAction: 'click',
+      pageObjectOriginalSource: origPomSource,
+      pageObjectPatchedSource: await fs.readFile(pomPath, 'utf8'),
+      pageObjectClassName: 'LoginPage',
+      targetMemberName: 'submitButton',
       executionPassed: true,
     });
     expect(postIntentRes.isValid).toBe(true);
@@ -338,6 +346,7 @@ test('user login', async ({ page }) => {
       originalCompositeFingerprint: origComposite,
       candidateElement: candidate,
       intendedAction: 'click',
+      mode: 'pre-flight',
     });
     expect(intent.isValid).toBe(true);
   });
@@ -377,6 +386,7 @@ test('user login', async ({ page }) => {
       originalCompositeFingerprint: origComposite,
       candidateElement: candidate,
       intendedAction: 'click',
+      mode: 'pre-flight',
     });
     expect(intent.isValid).toBe(true);
   });
@@ -404,7 +414,8 @@ test('user login', async ({ page }) => {
       worktreeId: 'wt-plan-01',
     });
 
-    expect(evidence.repairedSuccessfully).toBe(true);
+    // In-memory proposal generated without direct host disk mutation
+    expect(evidence.repairedSuccessfully).toBe(false);
     expect(evidence.candidateSelector).toContain('Confirm');
     expect(evidence.assertionFingerprint).toBeDefined();
   });

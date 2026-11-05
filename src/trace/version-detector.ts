@@ -14,9 +14,10 @@ export class VersionDetector {
   /**
    * Detects the trace format version from raw JSONL event lines or an archive entry.
    * Scans the first N events looking for a 'version' event or metadata object.
+   * If no explicit version is found, returns version 0 (unknown/unsupported).
    */
   public static detectFromLines(lines: string[]): TraceVersionInfo {
-    let traceFormatVersion = 6; // Default modern fallback
+    let traceFormatVersion = 0; // Unknown by default
     let playwrightVersion: string | undefined;
     let foundExplicitVersion = false;
 
@@ -54,7 +55,7 @@ export class VersionDetector {
       }
     }
 
-    const isSupported = VersionDetector.SUPPORTED_FORMAT_VERSIONS.includes(traceFormatVersion);
+    const isSupported = foundExplicitVersion && VersionDetector.SUPPORTED_FORMAT_VERSIONS.includes(traceFormatVersion);
 
     return {
       traceFormatVersion,

@@ -405,6 +405,7 @@ describe('Archive Security and Trace Parsing Suite (45 Tests)', () => {
 
   it('PARSE-19: should mark sourceAvailable true when failed action contains sourceFile', () => {
     const traceLines = [
+      JSON.stringify({ type: 'version', version: 8 }),
       JSON.stringify({
         type: 'before',
         callId: 'c14',

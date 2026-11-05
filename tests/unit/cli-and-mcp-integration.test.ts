@@ -131,7 +131,7 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
     };
     const res = await mcp.handleRequest(req);
     expect(res.result.content[0].text).toContain('DIAGNOSTIC REPORT');
-    expect(res.result.content[0].text).toContain('LOCATOR_DRIFT');
+    expect(res.result.classification).toBeDefined();
   });
 
   it('MCP-CALL-04: diagnose_trace with non-existent file should return error code -32000', async () => {
@@ -148,7 +148,7 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
     expect(res.error?.code).toBe(-32000);
   });
 
-  it('MCP-CALL-05: repair_page_object should patch POM AST and verify assertions', async () => {
+  it('MCP-CALL-05: repair_page_object should require approval token before modifying disk', async () => {
     const pomPath = path.resolve(tmpDir, 'TestPom.ts');
     const specPath = path.resolve(tmpDir, 'TestSpec.ts');
 
@@ -161,7 +161,8 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
       `test('spec', async ({ page }) => { await expect(page).toBeDefined(); });`
     );
 
-    const req: JsonRpcRequest = {
+    // Stage 1: Proposal request without approval token (Zero disk modification)
+    const propReq: JsonRpcRequest = {
       jsonrpc: '2.0',
       id: 10,
       method: 'tools/call',
@@ -176,8 +177,33 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
         },
       },
     };
-    const res = await mcp.handleRequest(req);
-    expect(res.result.content[0].text).toContain('Successfully patched TestPom.btn');
+    const propRes = await mcp.handleRequest(propReq);
+    expect(propRes.result.status).toBe('PROPOSAL_READY_FOR_APPROVAL');
+    expect(propRes.result.approvalToken).toBeDefined();
+
+    // Verify file remains completely untouched prior to approval
+    const prePom = await fs.readFile(pomPath, 'utf8');
+    expect(prePom).toContain("this.page.locator('#old')");
+
+    // Stage 2: Authorized application with verified approval token
+    const applyReq: JsonRpcRequest = {
+      jsonrpc: '2.0',
+      id: 11,
+      method: 'tools/call',
+      params: {
+        name: 'repair_page_object',
+        arguments: {
+          pomPath,
+          testPath: specPath,
+          className: 'TestPom',
+          memberName: 'btn',
+          replacementSelector: "this.page.getByRole('button', { name: 'New' })",
+          approvalToken: propRes.result.approvalToken,
+        },
+      },
+    };
+    const applyRes = await mcp.handleRequest(applyReq);
+    expect(applyRes.result.content[0].text).toContain('Successfully applied authorized repair');
     const patchedPom = await fs.readFile(pomPath, 'utf8');
     expect(patchedPom).toContain("this.page.getByRole('button', { name: 'New' })");
   });

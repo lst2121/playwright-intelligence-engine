@@ -102,3 +102,4 @@ The following public contracts will be preserved while closing their internal se
    - `diagnose_trace`: Routes through `TraceAdapterRegistry` with multi-source evidence fallback.
    - `repair_page_object`: Refactored to `propose_page_object_repair` (read-only proposal with approval token). A separate `apply_page_object_repair` requires a valid, unexpired token.
 5. `IntentValidator.validateV2`: Retains signature but is unconditionally fail-closed.
+

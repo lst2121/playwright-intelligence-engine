@@ -114,3 +114,4 @@ describe('EvidenceRedactor Suite', () => {
     expect(redacted.payload.body.creditCard).toBe('[REDACTED]');
   });
 });
+

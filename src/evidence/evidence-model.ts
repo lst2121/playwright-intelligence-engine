@@ -73,3 +73,4 @@ export interface EvidenceScorecard {
   availableSources: EvidenceSource[];
   unavailableSources: EvidenceSource[];
 }
+

@@ -165,3 +165,4 @@ describe('Causal Correlator & Action-Anchored Temporal Windowing Suite', () => {
     expect(mdReport).toContain('| Playwright Trace | ❌ |');
   });
 });
+

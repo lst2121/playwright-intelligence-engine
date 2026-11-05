@@ -100,3 +100,4 @@ export class EnvironmentCollector implements EvidenceCollector<EnvironmentInput>
     ];
   }
 }
+

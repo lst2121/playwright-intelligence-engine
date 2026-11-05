@@ -1,6 +1,6 @@
 # Playwright Intelligence Engine — Master Empirical Benchmark Report
 
-**Generated:** 2026-11-05T03:22:48.804Z  
+**Generated:** 2026-11-05T03:37:48.774Z  
 **Total Evaluated Scenarios:** 104  
 **Wilson 95% Confidence Interval:** [96.44%, 100%]  
 
@@ -15,7 +15,7 @@
 | Defect Detection Rate (Exp C) | 100.0% | 100.0% | ✅ PASS |
 | Defect Masking Rate | 0.0% | 0.0% | ✅ PASS |
 | Regression Rate | 0.0% | 0.0% | ✅ PASS |
-| Latency P50 / P95 | 0.69 ms / 29.7 ms | < 500 ms | ✅ PASS |
+| Latency P50 / P95 | 0.75 ms / 27.54 ms | < 500 ms | ✅ PASS |
 
 ## Tier Breakdown
 - **Tier 1 (Clean Baselines):** 24 scenarios executed live against `ControlledAppServer`.

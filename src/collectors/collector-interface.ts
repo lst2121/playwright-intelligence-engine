@@ -5,3 +5,4 @@ export interface EvidenceCollector<TInput = any> {
   readonly source: EvidenceSource;
   collect(input: TInput): Promise<UnifiedEvidenceRecord[]>;
 }
+

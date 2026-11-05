@@ -291,3 +291,4 @@ export class LiveBrowserCollector implements EvidenceCollector<void> {
     return dumped;
   }
 }
+

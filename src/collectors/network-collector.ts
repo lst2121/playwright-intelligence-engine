@@ -87,3 +87,4 @@ export class NetworkCollector implements EvidenceCollector<NetworkCollectorInput
     return records;
   }
 }
+

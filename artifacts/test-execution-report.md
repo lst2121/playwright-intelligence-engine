@@ -58,3 +58,4 @@
 - **Bundle File:** `dist/index.js` (194.13 KB)
 - **Declaration Output:** `dist/index.d.ts` (Clean type definitions generated)
 - **Exit Code:** `0`
+

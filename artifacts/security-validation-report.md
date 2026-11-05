@@ -55,3 +55,4 @@ Client / Agent                     Engine Core                       Working Tre
 
 1. **Yarn PnP Environments**: As documented in `docs/KNOWN_LIMITATIONS.md`, Yarn PnP virtual filesystems do not support physical directory junctions for worktrees. We recommend using npm, pnpm, or running in dry-run mode.
 2. **Headless Execution Environment**: Diagnostic reproduction rerun (`pw-intel reproduce`) requires that Playwright browser binaries are installed on the machine (`npx playwright install`).
+

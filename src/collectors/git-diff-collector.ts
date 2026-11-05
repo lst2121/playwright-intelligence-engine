@@ -130,3 +130,4 @@ export class GitDiffCollector implements EvidenceCollector<GitDiffInput> {
     }
   }
 }
+

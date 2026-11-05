@@ -1,5 +1,5 @@
 {
-  "timestamp": 1793848968804,
+  "timestamp": 1793849868774,
   "totalScenarios": 104,
   "tier1BaselineCount": 24,
   "tier2MutationCount": 50,
@@ -15,8 +15,8 @@
   "defectMaskingRate": 0,
   "tier2RepairedCount": 40,
   "tier2AbstainedCount": 10,
-  "latencyP50Ms": 0.69,
-  "latencyP95Ms": 29.7,
+  "latencyP50Ms": 0.75,
+  "latencyP95Ms": 27.54,
   "confidenceInterval95": {
     "lower": 96.44,
     "upper": 100
@@ -32,9 +32,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 14.12,
+      "executionDurationMs": 13.6,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET / -> 200 in 14.12ms"
+      "notes": "Live HTTP GET / -> 200 in 13.6ms"
     },
     {
       "id": "T1-BASE-02",
@@ -45,9 +45,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 1.28,
+      "executionDurationMs": 1.1,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /login -> 200 in 1.28ms"
+      "notes": "Live HTTP GET /login -> 200 in 1.1ms"
     },
     {
       "id": "T1-BASE-03",
@@ -58,9 +58,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 1.63,
+      "executionDurationMs": 1.25,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/login -> 200 in 1.63ms"
+      "notes": "Live HTTP POST /api/login -> 200 in 1.25ms"
     },
     {
       "id": "T1-BASE-04",
@@ -71,9 +71,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.92,
+      "executionDurationMs": 0.75,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/login -> 200 in 0.92ms"
+      "notes": "Live HTTP POST /api/login -> 200 in 0.75ms"
     },
     {
       "id": "T1-BASE-05",
@@ -84,9 +84,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.79,
+      "executionDurationMs": 0.85,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/products -> 200 in 0.79ms"
+      "notes": "Live HTTP GET /api/products -> 200 in 0.85ms"
     },
     {
       "id": "T1-BASE-06",
@@ -97,9 +97,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.69,
+      "executionDurationMs": 1.17,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/products?category=Software -> 200 in 0.69ms"
+      "notes": "Live HTTP GET /api/products?category=Software -> 200 in 1.17ms"
     },
     {
       "id": "T1-BASE-07",
@@ -110,9 +110,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.77,
+      "executionDurationMs": 0.75,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/cart -> 200 in 0.77ms"
+      "notes": "Live HTTP GET /api/cart -> 200 in 0.75ms"
     },
     {
       "id": "T1-BASE-08",
@@ -123,9 +123,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.63,
+      "executionDurationMs": 0.85,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/cart/add -> 200 in 0.63ms"
+      "notes": "Live HTTP POST /api/cart/add -> 200 in 0.85ms"
     },
     {
       "id": "T1-BASE-09",
@@ -136,9 +136,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.61,
+      "executionDurationMs": 0.76,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/cart/update -> 200 in 0.61ms"
+      "notes": "Live HTTP POST /api/cart/update -> 200 in 0.76ms"
     },
     {
       "id": "T1-BASE-10",
@@ -149,9 +149,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.68,
+      "executionDurationMs": 0.69,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /checkout -> 200 in 0.68ms"
+      "notes": "Live HTTP GET /checkout -> 200 in 0.69ms"
     },
     {
       "id": "T1-BASE-11",
@@ -162,9 +162,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.96,
+      "executionDurationMs": 0.59,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/checkout/summary -> 200 in 0.96ms"
+      "notes": "Live HTTP GET /api/checkout/summary -> 200 in 0.59ms"
     },
     {
       "id": "T1-BASE-12",
@@ -175,9 +175,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.69,
+      "executionDurationMs": 0.51,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/checkout/pay -> 200 in 0.69ms"
+      "notes": "Live HTTP POST /api/checkout/pay -> 200 in 0.51ms"
     },
     {
       "id": "T1-BASE-13",
@@ -188,9 +188,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.73,
+      "executionDurationMs": 0.37,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/orders -> 200 in 0.73ms"
+      "notes": "Live HTTP GET /api/orders -> 200 in 0.37ms"
     },
     {
       "id": "T1-BASE-14",
@@ -201,9 +201,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.75,
+      "executionDurationMs": 0.33,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/orders/ORD-101 -> 200 in 0.75ms"
+      "notes": "Live HTTP GET /api/orders/ORD-101 -> 200 in 0.33ms"
     },
     {
       "id": "T1-BASE-15",
@@ -214,9 +214,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.56,
+      "executionDurationMs": 0.34,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/profile -> 200 in 0.56ms"
+      "notes": "Live HTTP GET /api/profile -> 200 in 0.34ms"
     },
     {
       "id": "T1-BASE-16",
@@ -227,9 +227,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.57,
+      "executionDurationMs": 0.33,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/admin/users -> 200 in 0.57ms"
+      "notes": "Live HTTP GET /api/admin/users -> 200 in 0.33ms"
     },
     {
       "id": "T1-BASE-17",
@@ -240,9 +240,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.69,
+      "executionDurationMs": 0.36,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /health -> 200 in 0.69ms"
+      "notes": "Live HTTP GET /health -> 200 in 0.36ms"
     },
     {
       "id": "T1-BASE-18",
@@ -253,9 +253,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.53,
+      "executionDurationMs": 0.39,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/session/verify -> 200 in 0.53ms"
+      "notes": "Live HTTP GET /api/session/verify -> 200 in 0.39ms"
     },
     {
       "id": "T1-BASE-19",
@@ -266,9 +266,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.5,
+      "executionDurationMs": 0.47,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP GET /api/inventory/prod-1 -> 200 in 0.5ms"
+      "notes": "Live HTTP GET /api/inventory/prod-1 -> 200 in 0.47ms"
     },
     {
       "id": "T1-BASE-20",
@@ -279,9 +279,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.56,
+      "executionDurationMs": 0.49,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/shipping/calculate -> 200 in 0.56ms"
+      "notes": "Live HTTP POST /api/shipping/calculate -> 200 in 0.49ms"
     },
     {
       "id": "T1-BASE-21",
@@ -292,9 +292,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.45,
+      "executionDurationMs": 0.79,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/promo/apply -> 200 in 0.45ms"
+      "notes": "Live HTTP POST /api/promo/apply -> 200 in 0.79ms"
     },
     {
       "id": "T1-BASE-22",
@@ -305,9 +305,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.55,
+      "executionDurationMs": 0.88,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/orders/ORD-101/cancel -> 200 in 0.55ms"
+      "notes": "Live HTTP POST /api/orders/ORD-101/cancel -> 200 in 0.88ms"
     },
     {
       "id": "T1-BASE-23",
@@ -318,9 +318,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.44,
+      "executionDurationMs": 0.64,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/support/ticket -> 200 in 0.44ms"
+      "notes": "Live HTTP POST /api/support/ticket -> 200 in 0.64ms"
     },
     {
       "id": "T1-BASE-24",
@@ -331,9 +331,9 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 0.4,
+      "executionDurationMs": 0.43,
       "intentInvariantPassed": true,
-      "notes": "Live HTTP POST /api/logout -> 200 in 0.4ms"
+      "notes": "Live HTTP POST /api/logout -> 200 in 0.43ms"
     },
     {
       "id": "T2-MUT-01",
@@ -344,7 +344,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.9,
+      "executionDurationMs": 0.81,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
@@ -357,7 +357,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.16,
+      "executionDurationMs": 0.19,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
@@ -370,7 +370,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 76.61,
+      "executionDurationMs": 78.32,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -383,7 +383,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 32.66,
+      "executionDurationMs": 30.81,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -396,7 +396,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 24.38,
+      "executionDurationMs": 22.4,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -409,7 +409,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 27.34,
+      "executionDurationMs": 27.27,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -422,7 +422,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 21.83,
+      "executionDurationMs": 20.68,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -435,7 +435,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 22.43,
+      "executionDurationMs": 21.57,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -448,7 +448,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 26.82,
+      "executionDurationMs": 25.77,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -461,7 +461,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 22.44,
+      "executionDurationMs": 21.65,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -474,7 +474,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.14,
+      "executionDurationMs": 0.16,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: Target identity mismatch: candidate accessible name 'Continue Shopping' does not align with original selector intent."
     },
@@ -500,7 +500,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 19.44,
+      "executionDurationMs": 19.86,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -513,7 +513,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29.7,
+      "executionDurationMs": 23.29,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -526,7 +526,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 22.75,
+      "executionDurationMs": 19.72,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -539,7 +539,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20.61,
+      "executionDurationMs": 19.69,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -552,7 +552,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 31.23,
+      "executionDurationMs": 18.21,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -565,7 +565,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 62.76,
+      "executionDurationMs": 29.92,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -578,7 +578,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 24.33,
+      "executionDurationMs": 19.81,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -591,7 +591,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 25.58,
+      "executionDurationMs": 18.9,
       "intentInvariantPassed": true,
       "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -604,7 +604,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.28,
+      "executionDurationMs": 0.23,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
@@ -630,7 +630,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 25.76,
+      "executionDurationMs": 20.63,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -643,7 +643,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 30.84,
+      "executionDurationMs": 24.91,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -656,7 +656,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 21.17,
+      "executionDurationMs": 18.07,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -669,7 +669,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 18.25,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -682,7 +682,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17.11,
+      "executionDurationMs": 20.07,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -695,7 +695,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17.03,
+      "executionDurationMs": 19.45,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -708,7 +708,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 18.22,
+      "executionDurationMs": 21.88,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -721,7 +721,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 18.19,
+      "executionDurationMs": 20.42,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -734,7 +734,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.14,
+      "executionDurationMs": 0.21,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
@@ -747,7 +747,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.02,
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
@@ -760,7 +760,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29.21,
+      "executionDurationMs": 32.08,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -773,7 +773,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 18.28,
+      "executionDurationMs": 17.86,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -786,7 +786,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17.9,
+      "executionDurationMs": 18.19,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -799,7 +799,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 22.3,
+      "executionDurationMs": 18.03,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -812,7 +812,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 21.64,
+      "executionDurationMs": 20.73,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -825,7 +825,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20.72,
+      "executionDurationMs": 23.6,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -838,7 +838,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20.73,
+      "executionDurationMs": 22.96,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -851,7 +851,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29.04,
+      "executionDurationMs": 31.03,
       "intentInvariantPassed": true,
       "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -864,7 +864,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 0.15,
+      "executionDurationMs": 0.16,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
@@ -890,7 +890,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 16.66,
+      "executionDurationMs": 17.65,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -903,7 +903,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17.41,
+      "executionDurationMs": 17.67,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -916,7 +916,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 18.95,
+      "executionDurationMs": 23.97,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -929,7 +929,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 15.94,
+      "executionDurationMs": 18.05,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -942,7 +942,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 18.04,
+      "executionDurationMs": 18.16,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -955,7 +955,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14.82,
+      "executionDurationMs": 16.89,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -968,7 +968,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23.66,
+      "executionDurationMs": 27.54,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -981,7 +981,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 16.07,
+      "executionDurationMs": 17.72,
       "intentInvariantPassed": true,
       "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
@@ -994,7 +994,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 0.65,
+      "executionDurationMs": 0.54,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (500 on https://app.test/api/checkout/pay). Modifying UI locators is prohibited."
     },
@@ -1007,7 +1007,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 0.16,
+      "executionDurationMs": 0.17,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (502 on https://app.test/api/inventory). Modifying UI locators is prohibited."
     },
@@ -1020,7 +1020,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 0.03,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (503 on https://app.test/api/users). Modifying UI locators is prohibited."
     },
@@ -1046,7 +1046,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 0.05,
+      "executionDurationMs": 0.04,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (500 on https://app.test/api/orders/submit). Modifying UI locators is prohibited."
     },
@@ -1059,7 +1059,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 0.07,
+      "executionDurationMs": 0.06,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (502 on https://app.test/api/billing). Modifying UI locators is prohibited."
     },
@@ -1124,7 +1124,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNKNOWN_ERROR",
-      "executionDurationMs": 0.07,
+      "executionDurationMs": 0.05,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1137,7 +1137,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNKNOWN_ERROR",
-      "executionDurationMs": 0.06,
+      "executionDurationMs": 0.04,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1150,7 +1150,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNKNOWN_ERROR",
-      "executionDurationMs": 0.02,
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1254,7 +1254,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 0.01,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
@@ -1345,7 +1345,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AMBIGUOUS_MATCH",
-      "executionDurationMs": 0,
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
       "notes": "Engine strictly abstained under guardrail: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },

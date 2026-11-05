@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+import { spawn } from 'node:child_process';
 import { ArchiveReader } from '../trace/archive-reader.js';
 import { TraceParser } from '../trace/trace-parser.js';
 import { EvidenceCorrelator } from '../diagnostics/evidence-correlator.js';
@@ -82,6 +84,25 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'benchmark') {
+    const isWindows = process.platform === 'win32';
+    const benchmarkScript = path.resolve(process.cwd(), 'benchmarks', 'runner', 'master-benchmark-runner.ts');
+    const executable = isWindows ? 'cmd.exe' : 'npx';
+    const finalArgs = isWindows
+      ? ['/d', '/s', '/c', 'npx', 'tsx', benchmarkScript, ...argv.slice(3)]
+      : ['tsx', benchmarkScript, ...argv.slice(3)];
+
+    const child = spawn(executable, finalArgs, {
+      cwd: process.cwd(),
+      stdio: 'inherit',
+    });
+
+    child.on('close', (code) => {
+      process.exit(code ?? 0);
+    });
+    return;
+  }
+
   if (command === 'generate') {
     const featureName = argv[3] ?? 'Dashboard';
     const suite = TestGenerator.generateSuite(featureName, [
@@ -110,9 +131,15 @@ Playwright Intelligence Engine CLI (pw-intel)
 Usage:
   pw-intel diagnose <trace.zip>     Diagnoses a Playwright trace archive and outputs root cause
   pw-intel reproduce <spec.ts>      Reruns a failing test with live multi-source diagnostic instrumentation
+  pw-intel benchmark [options]      Executes the 104-scenario empirical benchmark against Controlled App Server
   pw-intel mcp                      Starts the Model Context Protocol (MCP) JSON-RPC server on stdio
   pw-intel generate <featureName>   Generates verified Page Object and Spec scaffolding
   pw-intel --help                   Shows this help message
+
+Benchmark Options:
+  --family <name>                   Filter mutation scenarios by family name (e.g. "Dynamic IDs")
+  --scenario <id>                   Filter negative control scenarios by category or name
+  --browser <browser>               Target browser (default: chromium)
 `);
 }
 

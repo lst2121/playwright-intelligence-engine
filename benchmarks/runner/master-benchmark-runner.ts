@@ -52,9 +52,20 @@ export interface MasterBenchmarkReport {
   scenarios: BenchmarkScenarioRecord[];
 }
 
+export interface RunnerOptions {
+  familyFilter?: string | undefined;
+  scenarioFilter?: string | undefined;
+  browser?: string | undefined;
+}
+
 export class MasterBenchmarkRunner {
   private app = new ControlledAppServer();
   private records: BenchmarkScenarioRecord[] = [];
+  private options: RunnerOptions;
+
+  constructor(options: RunnerOptions = {}) {
+    this.options = options;
+  }
 
   public async runAll(): Promise<MasterBenchmarkReport> {
     console.log('\n========================================================================');
@@ -282,7 +293,11 @@ export class MasterBenchmarkRunner {
     ];
 
     let idCounter = 1;
-    for (const fam of families) {
+    const activeFamilies = this.options.familyFilter
+      ? families.filter((f) => f.name.toLowerCase().includes(this.options.familyFilter!.toLowerCase()))
+      : families;
+
+    for (const fam of activeFamilies) {
       for (let i = 0; i < 10; i++) {
         const t0 = performance.now();
         const isAmbiguous = i < 2; // Exactly 2 ambiguous, 8 unique per family (40 unique, 10 ambiguous total)
@@ -432,8 +447,15 @@ export class MasterBenchmarkRunner {
       { name: 'Identical Icons Without Distinct Accessible Names', cat: 'AMBIGUOUS_MATCH', error: 'strict mode violation: resolved to 4 elements' },
     ];
 
-    for (let i = 0; i < negativeControls.length; i++) {
-      const nc = negativeControls[i];
+    const activeControls = this.options.scenarioFilter
+      ? negativeControls.filter((nc) =>
+          nc.name.toLowerCase().includes(this.options.scenarioFilter!.toLowerCase()) ||
+          nc.cat.toLowerCase().includes(this.options.scenarioFilter!.toLowerCase())
+        )
+      : negativeControls;
+
+    for (let i = 0; i < activeControls.length; i++) {
+      const nc = activeControls[i]!;
       const t0 = performance.now();
 
       const context: DiagnosticContext = {
@@ -641,6 +663,24 @@ export class MasterBenchmarkRunner {
 }
 
 if (process.argv[1]?.includes('master-benchmark-runner')) {
-  const runner = new MasterBenchmarkRunner();
+  const args = process.argv.slice(2);
+  let familyFilter: string | undefined;
+  let scenarioFilter: string | undefined;
+  let browser: string | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--family' && args[i + 1]) {
+      familyFilter = args[i + 1];
+      i++;
+    } else if (args[i] === '--scenario' && args[i + 1]) {
+      scenarioFilter = args[i + 1];
+      i++;
+    } else if (args[i] === '--browser' && args[i + 1]) {
+      browser = args[i + 1];
+      i++;
+    }
+  }
+
+  const runner = new MasterBenchmarkRunner({ familyFilter, scenarioFilter, browser });
   runner.runAll().catch(console.error);
 }

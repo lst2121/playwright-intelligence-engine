@@ -1,8 +1,8 @@
-# Playwright Intelligence Engine — Architecture Specification (v2.5 Enterprise As-Built)
+# Playwright Intelligence Engine — Architecture Specification (v2.6 Enterprise As-Built)
 
-**Version:** 2.5 Enterprise Architecture Baseline  
-**Language & Runtime:** TypeScript 5.9 / Node.js 20+ (ESM, strict NodeNext)  
-**Verification Baseline:** 365 Passed Tests | 104 Empirical Scenarios | 100% Defect Resistance | 0.0% False Repairs  
+**Version:** 2.6 Enterprise Architecture Baseline  
+**Language & Runtime:** TypeScript 7.0 / Node.js 20+ (ESM, strict NodeNext)  
+**Verification Baseline:** 382 Passed Tests (24 Suites) | 9 Real Empirical Browser Scenarios | 100% Defect Resistance | 0.0% False Repairs | 0.0% Regressions  
 
 ---
 
@@ -26,8 +26,8 @@
 6. **Unconditionally Fail-Closed Intent Invariant v2 ($V = A \land T \land F \land I \land D \land E$)**:  
    Code modifications are formally verified across six dimensions before being proposed: Assertion Fingerprinting ($A$), Structural Control Flow ($T$), Critical Fixtures ($F$), Target Identity & Action Semantics ($I$), Diff Allowlist ($D$), and Worktree Execution ($E$). In-memory planning uses explicit pre-flight verification ($V_{\text{pre}} = A \land T \land F \land I$), while production application strictly requires affirmative worktree execution evidence ($E$).
 
-7. **Centralized Cryptographic Approval Service & Hardened Worktrees**:  
-   Direct disk modifications on working branches are strictly prohibited. Applying a verified patch requires a single-use cryptographic token (`ApprovalService`) bound to the canonical file path, original source hash, and patch hash. All verification executes within detached Git worktrees protected by canonical filesystem containment (`fs.realpathSync`), sanitized environments, bounded process buffers (16 MB), and Windows process tree termination (`taskkill`).
+7. **Centralized Cryptographic Approval Service & Hardened Worktrees with CAS Atomic Promotion**:  
+   Direct disk modifications on working branches are strictly prohibited. Applying a verified patch requires a single-use cryptographic token (`ApprovalService`) bound to the canonical file path, original source hash, and patch hash. Promotions to active workspace files execute through `WorkspacePromoter` using cooperative locking, Compare-And-Swap (CAS) hash verification, temporary file staging, and atomic rename (`fs.renameSync`). All verification executes within detached Git worktrees protected by canonical filesystem containment (`fs.realpathSync`), sanitized environments, bounded process buffers (16 MB), and Windows process tree termination (`taskkill`).
 
 ---
 

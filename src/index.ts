@@ -31,6 +31,13 @@ export * from './repair/assertion-hasher.js';
 export * from './repair/diff-allowlist.js';
 export * from './repair/intent-validator.js';
 export * from './repair/repair-planner.js';
+export * from './repair/approval-service.js';
+export * from './repair/workspace-promoter.js';
+
+// Selector Verification & Live Reproduction
+export * from './selector/live-locator-verifier.js';
+export * from './reproduce/direct-browser-investigator.js';
+export * from './reproduce/diagnostic-rerunner.js';
 
 // Sandbox & Worktree Management
 export * from './sandbox/dependency-strategy.js';

@@ -2,6 +2,9 @@ node_modules/
 dist/
 coverage/
 .pw-intelligence/
+.pie/
+test-results/
+*.tgz
 *.log
 .DS_Store
 Thumbs.db

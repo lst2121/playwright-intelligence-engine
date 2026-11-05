@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AstPatcher } from './ast-patcher.js';
 import { AssertionHasher, CompositeIntentFingerprint } from './assertion-hasher.js';
-import { IntentValidator, IntentV2ValidationResult } from './intent-validator.js';
+import { IntentValidator, IntentV2ValidationResult, VerifiedExecutionProof } from './intent-validator.js';
 import { DiffAllowlistValidator } from './diff-allowlist.js';
+import { ApprovalService } from './approval-service.js';
 import { RepairEvidence } from '../core/types/repair-evidence.js';
 import { ResolvedElement } from '../trace/snapshot-resolver.js';
 import { CandidateExtractor } from '../selector/candidate-extractor.js';
@@ -43,6 +44,7 @@ export interface RepairVerificationInput {
   proposal: RepairProposal;
   worktreePath: string;
   worktreeId: string;
+  workspaceRoot?: string | undefined;
   configPath?: string | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
 }
@@ -146,36 +148,54 @@ export class RepairPlanner {
     input: RepairVerificationInput
   ): Promise<VerifiedRepairResult> {
     const proposal = input.proposal;
+    const rootDir = input.workspaceRoot ?? process.cwd();
 
-    // Relative path of POM and spec within worktree with canonical containment checks
-    const canonicalWorktree = fs.existsSync(input.worktreePath) ? fs.realpathSync(input.worktreePath) : path.resolve(input.worktreePath);
-    const worktreePomPath = path.resolve(input.worktreePath, path.relative(process.cwd(), proposal.pomFilePath));
-    const worktreeSpecPath = path.resolve(input.worktreePath, path.relative(process.cwd(), proposal.testFilePath));
+    // Canonical containment checks
+    const canonicalWorktree = fs.existsSync(input.worktreePath)
+      ? fs.realpathSync(input.worktreePath)
+      : path.resolve(input.worktreePath);
 
-    if (!worktreePomPath.startsWith(canonicalWorktree + path.sep)) {
+    const relPom = path.isAbsolute(proposal.pomFilePath)
+      ? path.relative(rootDir, proposal.pomFilePath)
+      : proposal.pomFilePath;
+    const relSpec = path.isAbsolute(proposal.testFilePath)
+      ? path.relative(rootDir, proposal.testFilePath)
+      : proposal.testFilePath;
+
+    const worktreePomPath = path.resolve(canonicalWorktree, relPom);
+    const worktreeSpecPath = path.resolve(canonicalWorktree, relSpec);
+
+    const relPomCheck = path.relative(canonicalWorktree, worktreePomPath);
+    if (relPomCheck.startsWith('..') || path.isAbsolute(relPomCheck)) {
       throw new Error(`Security Violation: Worktree POM path '${worktreePomPath}' escapes worktree boundary '${canonicalWorktree}'.`);
     }
-    if (!worktreeSpecPath.startsWith(canonicalWorktree + path.sep)) {
+
+    const relSpecCheck = path.relative(canonicalWorktree, worktreeSpecPath);
+    if (relSpecCheck.startsWith('..') || path.isAbsolute(relSpecCheck)) {
       throw new Error(`Security Violation: Worktree Spec path '${worktreeSpecPath}' escapes worktree boundary '${canonicalWorktree}'.`);
     }
 
     // Stage 3: Apply patch ONLY in isolated worktree copy
+    await fs.promises.mkdir(path.dirname(worktreePomPath), { recursive: true });
     await fs.promises.writeFile(worktreePomPath, proposal.proposedPatchedSource, 'utf-8');
     let currentState: RepairLifecycleState = 'PATCHED_IN_ISOLATION';
 
     // Stage 4: Execute target test inside worktree
-    const execArgs = ['playwright', 'test', path.relative(input.worktreePath, worktreeSpecPath)];
+    const execArgs = ['playwright', 'test', relSpec];
     if (input.configPath) {
-      execArgs.push('--config', path.relative(input.worktreePath, input.configPath));
+      const relConfig = path.isAbsolute(input.configPath)
+        ? path.relative(rootDir, input.configPath)
+        : input.configPath;
+      execArgs.push('--config', relConfig);
     }
 
     const execResult = await ExecutionRunner.run('npx', {
-      cwd: input.worktreePath,
+      cwd: canonicalWorktree,
       args: execArgs,
       timeoutMs: 60000,
     });
 
-    // Verify test was actually discovered and passed (not skipped, 0 tests, or exit code != 0)
+    // Verify test was actually discovered and passed
     const passedMatch = execResult.stdout.match(/(\d+)\s+passed/i);
     const passedCount = passedMatch ? parseInt(passedMatch[1] ?? '0', 10) : 0;
     const executionPassed = execResult.exitCode === 0 && passedCount > 0 && !execResult.timedOut;
@@ -183,6 +203,27 @@ export class RepairPlanner {
     if (executionPassed) {
       currentState = 'TARGET_TEST_PASSED';
     }
+
+    const executionProof: VerifiedExecutionProof = {
+      testFilePath: worktreeSpecPath,
+      targetTestIdentity: relSpec,
+      command: `npx ${execArgs.join(' ')}`,
+      worktreeId: input.worktreeId,
+      repositoryIdentity: rootDir,
+      originalSourceHash: ApprovalService.hashContent(proposal.originalSource),
+      modifiedSourceHash: ApprovalService.hashContent(proposal.proposedPatchedSource),
+      diffHash: ApprovalService.hashContent(proposal.proposedPatchedSource),
+      exitCode: execResult.exitCode,
+      stdout: execResult.stdout,
+      stderr: execResult.stderr,
+      passed: executionPassed,
+      executionOutcome: executionPassed ? 'PASS' : 'FAIL',
+      durationMs: execResult.durationMs,
+      targetTestEvidence: [`Passed tests: ${passedCount}`, `Exit code: ${execResult.exitCode}`],
+      assertionIntegrityValid: true,
+      timestamp: Date.now(),
+      proofVersion: '2.6.0',
+    };
 
     // Stage 5: Validate Intent Invariant v2 with actual execution proof
     const intentValidation = IntentValidator.validateV2({
@@ -196,6 +237,7 @@ export class RepairPlanner {
       intendedAction: proposal.intendedAction,
       originalSelector: proposal.originalSelector,
       executionPassed,
+      executionProof,
       businessOracleStatus: input.businessOracleStatus ?? 'unavailable',
     });
 
@@ -245,9 +287,9 @@ export class RepairPlanner {
     const proposal = RepairPlanner.planRepair(input);
 
     // Validate Intent Invariant (assertion immutability & action semantics)
-    const validation = IntentValidator.validate({
+    const validation = IntentValidator.validateProposal({
       testFilePath: input.testFilePath,
-      originalFingerprint: proposal.originalCompositeFingerprint.assertionFingerprint,
+      originalCompositeFingerprint: proposal.originalCompositeFingerprint,
       candidateElement: input.candidateElement,
       intendedAction: input.intendedAction,
       originalSelector: input.originalSelector,

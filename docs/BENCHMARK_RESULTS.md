@@ -1,42 +1,42 @@
-# Benchmark Results & Empirical Evaluation (v2.5)
+# Benchmark Results & Empirical Evaluation (v2.6)
 
-This document presents the empirical execution results obtained from evaluating the **Playwright Intelligence Engine** against the **Master Empirical Benchmark Suite** (`benchmarks/runner/master-benchmark-runner.ts`).
+This document presents the empirical execution results obtained from evaluating the **Playwright Intelligence Engine v2.6** against the **Empirical Browser Benchmark Suite** (`benchmarks/runner/master-benchmark-runner.ts`).
 
 **Evaluation Timestamp:** November 2026  
-**Artifact Source:** `benchmarks/reports/master-benchmark-results.json` and `artifacts/benchmark-report.json`  
-**Execution Environment:** Node.js v20.18.0, Windows 11, Local In-Memory `ControlledAppServer` (Port 4173)  
-**Scenarios Evaluated:** 104 total empirical trials  
+**Artifact Sources:** `benchmarks/reports/master-benchmark-results.json` and `artifacts/benchmark-report.json` / `artifacts/benchmark-report.md`  
+**Execution Environment:** Node.js v24.19.0, Windows, Headless Chromium, Local In-Memory `ControlledAppServer` (Port 4173)  
+**Scenarios Evaluated:** 9 real end-to-end browser executions in headless Chromium  
 
 ---
 
 ## 1. Executive Summary Table & Disaggregated Metrics
 
-Every scenario is executed against the live in-memory server, scored by `SelectorScorer`, evaluated through `AbstentionPolicy`, verified through `DiffAllowlistValidator` and `IntentValidator`, or classified through `FailureClassifier`:
+Every scenario is executed in a real headless browser against the live in-memory server, capturing live failure evidence (`LiveBrowserCollector`), scoring candidates, verifying candidate locators live on the page (`LiveLocatorVerifier`), validating Intent Invariants ($V = A \land T \land F \land I \land D \land E$), re-executing repaired actions in Chromium, and running regression checks on baseline clean tests:
 
 ```
 ========================================================================
- MASTER EMPIRICAL BENCHMARK SUITE — EMPIRICAL RESULTS
+ MASTER EMPIRICAL BROWSER BENCHMARK SUITE — REAL PLAYWRIGHT EXECUTION
+ Evaluating Playwright Intelligence Engine Enterprise Reliability
 ========================================================================
- Total Scenarios Evaluated          : 104
- • Tier 1: Live Baseline Scenarios  : 24 / 24 Passed (Pass Rate: 100.0%)
- • Tier 2: Structural Mutations     : 50 Scenarios (40 Repaired, 10 Safely Abstained)
-   - Repair Precision               : 100.0% (Genuinely correct repairs / proposed repairs)
-   - Repair Recall                  : 100.0% (Eligible mutations recovered / repairable failures)
-   - Repair Coverage                : 80.0%  (Eligible failure population / total mutations)
- • Tier 3: Negative Controls        : 30 / 30 Abstained (Safe Abstention Rate: 100.0%)
+ TOTAL EMPIRICAL BENCHMARK SCENARIOS EVALUATED: 9
+ • Tier 1 Baseline Scenarios       : 2 / 2 Passed (Pass Rate: 100.0%)
+ • Tier 2 Structural Mutations     : 4 / 4 Repaired in Browser (100.0%)
+   - Repair Precision              : 100.0% (Genuinely correct repairs / proposed repairs)
+   - Repair Recall                 : 100.0% (Eligible mutations recovered / repairable failures)
+   - Repair Coverage               : 100.0% (Mutation population handled)
+ • Tier 3 Negative Controls        : 3 / 3 Abstained (Safe Abstention Rate: 100.0%)
  
  RELIABILITY & DEFECT RESISTANCE METRICS:
- • Seeded Defect Detection Rate     : 100.0% (6 / 6 Defect Families)
- • Defect Masking Rate              : 0.0%   (Zero defects concealed by repairs)
- • False Repair Rate                : 0.0%   (Zero incorrect repairs accepted)
- • Regression Rate                  : 0.0%   (Zero regressions introduced)
- • Diagnostic Latency P50 / P95     : 0.62 ms / 33.43 ms
- • Wilson 95% Confidence Interval   : [96.44%, 100.00%]*
+ • Seeded Defect Detection Rate    : 100.0% (Business defect detected & blocked)
+ • Defect Masking Rate             : 0.0%   (Zero defects concealed by repairs)
+ • False Repair Rate               : 0.0%   (Zero incorrect repairs accepted)
+ • Regression Rate                 : 0.0%   (Zero regressions across 4 baseline re-runs)
+ • Latency P50 / P95               : 1268.08 ms / 2069.84 ms
+ • Wilson 95% Confidence Interval  : [70.08%, 100.00%]*
 ========================================================================
  * Note on Statistical Interpretation: The Wilson 95% confidence interval describes
-   the binomial sampling confidence over the 104 evaluated benchmark scenario trials
-   under controlled distributions. It does not represent an unconstrained universal
-   production reliability guarantee across arbitrary unseen enterprise applications.
+   the binomial sampling confidence over real empirical trials under controlled
+   distributions. It does not represent an unconstrained universal production guarantee.
 ```
 
 ---
@@ -45,57 +45,30 @@ Every scenario is executed against the live in-memory server, scored by `Selecto
 
 | Metric | Definition | Benchmark Result | Interpretation |
 | :--- | :--- | :--- | :--- |
-| **Repair Precision** | $\frac{\text{Correct Repairs}}{\text{Total Proposed Repairs}}$ | **100.0%** (40 / 40) | Every repair proposed by the engine was verified and correct; zero false repairs. |
-| **Repair Recall** | $\frac{\text{Successful Repairs}}{\text{Eligible Repairable Failures}}$ | **100.0%** (40 / 40) | All unambiguous structural locator drift failures were successfully recovered. |
-| **Repair Coverage** | $\frac{\text{Repairable Mutations}}{\text{Total Mutations}}$ | **80.0%** (40 / 50) | 40 scenarios had unique locator targets; 10 ambiguous duplicate scenarios were safely rejected. |
-| **Safe Abstention Rate**| $\frac{\text{Correctly Abstained Non-Repairable Cases}}{\text{Total Non-Repairable Cases}}$ | **100.0%** (40 / 40) | 10 ambiguous Tier 2 cases + 30 Tier 3 negative controls were all correctly rejected without modification. |
-| **False Repair Rate** | $\frac{\text{Incorrect Repairs Accepted}}{\text{Total Negative Controls}}$ | **0.0%** (0 / 30) | Zero repairs accepted for backend errors, auth expiration, or business defects. |
-| **Defect Masking Rate** | $\frac{\text{Defects Weakened by Repair}}{\text{Total Seeded Defects}}$ | **0.0%** (0 / 6) | Zero business logic defects masked by assertion or locator alteration. |
-| **Regression Rate** | $\frac{\text{Passing Tests Broken by Repair}}{\text{Total Passing Baseline Tests}}$ | **0.0%** (0 / 24) | Repaired Page Objects introduced zero regressions into existing passing test suites. |
+| **Baseline Pass Rate** | $\frac{\text{Passing Clean Baselines}}{\text{Total Baselines}}$ | **100.0%** (2 / 2) | Clean user journeys (login, checkout) execute and pass in headless Chromium. |
+| **Repair Precision** | $\frac{\text{Correct Repairs}}{\text{Total Proposed Repairs}}$ | **100.0%** (4 / 4) | Every repair proposed was verified in browser; zero false repairs. |
+| **Repair Recall** | $\frac{\text{Successful Repairs}}{\text{Eligible Repairable Failures}}$ | **100.0%** (4 / 4) | All 4 DOM drift mutations successfully healed in browser. |
+| **Repair Coverage** | $\frac{\text{Repairable Mutations}}{\text{Total Mutations}}$ | **100.0%** (4 / 4) | 100% of tested mutation families healed. |
+| **Safe Abstention Rate**| $\frac{\text{Correctly Abstained Non-Repairable Cases}}{\text{Total Non-Repairable Cases}}$ | **100.0%** (3 / 3) | 500 crash, business defect, and duplicate controls safely rejected. |
+| **False Repair Rate** | $\frac{\text{Incorrect Repairs Accepted}}{\text{Total Negative Controls}}$ | **0.0%** (0 / 3) | Zero repairs accepted for backend errors or business defects. |
+| **Defect Masking Rate** | $\frac{\text{Defects Weakened by Repair}}{\text{Total Seeded Defects}}$ | **0.0%** (0 / 1) | Zero business logic defects masked by assertion or locator alteration. |
+| **Regression Rate** | $\frac{\text{Passing Tests Broken by Repair}}{\text{Total Regression Re-runs}}$ | **0.0%** (0 / 4) | Clean baselines re-verified after every repair with zero regressions. |
 
 ---
 
 ## 3. Tier-by-Tier Empirical Breakdown
 
-### Tier 1: Live Clean Baselines (24 / 24 Passed — 100.0%)
-Executed live against `ControlledAppServer` endpoints on port 4173 covering:
-1. Root dashboard view (`GET /`)
-2. Login form view (`GET /login`)
-3. Admin user authentication (`POST /api/login`)
-4. Customer user authentication (`POST /api/login`)
-5. Product catalog ingestion (`GET /api/products`)
-6. Product filtering by category (`GET /api/products?category=Software`)
-7. Shopping cart retrieval (`GET /api/cart`)
-8. Cart item addition (`POST /api/cart/add`)
-9. Cart quantity update (`POST /api/cart/update`)
-10. Checkout page render (`GET /checkout`)
-11. Order subtotal summary (`GET /api/checkout/summary`)
-12. Credit card payment processing (`POST /api/checkout/pay`)
-13. Order history ingestion (`GET /api/orders`)
-14. Order status lifecycle check (`GET /api/orders/ORD-101`)
-15. User profile metadata (`GET /api/profile`)
-16. Admin user management table (`GET /api/admin/users`)
-17. System health probe (`GET /health`)
-18. Session token validation (`GET /api/session/verify`)
-19. Inventory availability check (`GET /api/inventory/prod-1`)
-20. Shipping rate calculation (`POST /api/shipping/calculate`)
-21. Promo code validation (`POST /api/promo/apply`)
-22. Order cancellation workflow (`POST /api/orders/ORD-101/cancel`)
-23. Customer support inquiry (`POST /api/support/ticket`)
-24. Deterministic session logout (`POST /api/logout`)
+### Tier 1: Real Headless Chromium Baselines (2 / 2 Passed — 100.0%)
+1. `T1-BASE-01`: Baseline User Authentication Journey — Headless Chromium fills credentials, submits login form, verifies "Login Successful" status message (1268ms).
+2. `T1-BASE-02`: Baseline E-Commerce Checkout Journey — Verifies $99.00 subtotal, fills payment form, verifies order dispatch and receipt (234ms).
 
-### Tier 2: Empirical Structural Mutations (50 Scenarios: 40 Repaired, 10 Safely Abstained)
-Evaluated across 5 mutation families (10 scenarios per family):
-- **Family A (Dynamic IDs & Hashed Suffixes):** 8 unique dynamic ID drift scenarios repaired; 2 duplicate ID scenarios safely abstained under uniqueness gate.
-- **Family B (Accessible Name Drift):** 8 unique accessible name drift scenarios repaired; 2 conflicting target action scenarios (`Continue Shopping` vs `Continue Checkout`) safely abstained.
-- **Family C (DOM Container Restructuring):** 8 nested container restructuring scenarios repaired via resilient `data-testid` and role locators; 2 duplicate card scenarios safely abstained.
-- **Family D (Utility Class Volatility):** 8 volatile CSS utility class mutations repaired; 2 identical styled button scenarios safely abstained.
-- **Family E (Duplicate Controls & Strict-Mode Boundaries):** 8 modal dialog scoped actions repaired; 2 ambiguous page-vs-modal duplicate controls safely abstained.
+### Tier 2: Real DOM Drift Browser Repairs (4 / 4 Repaired — 100.0%)
+1. `T2-MUT-01`: Dynamic Button ID Hash Shift on Login — Button ID changes to `#btn-login-hash-8f4b2`. Engine captures failure snapshot, extracts candidate `getByRole('button', { name: 'Sign In' })`, verifies `count === 1` live in Chromium, patches Page Object, confirms test turns green, verifies clean baseline has zero regressions (2070ms).
+2. `T2-MUT-02`: Accessible Name Drift on Login Submit — Button label drifts to `"Log In To Account"`. Engine captures failure DOM, extracts `getByRole('button', { name: 'Log In To Account' })`, verifies live in Chromium, patches Page Object, verifies green pass and zero regressions (2020ms).
+3. `T2-MUT-03`: Container Slot Restructure & Test-ID Removal — Button wrapped in `.checkout-actions-v2` and `data-testid` removed. Engine heals via `getByRole('button', { name: 'Place Order' })`, verifies live, re-runs successfully in Chromium with zero regressions (2003ms).
+4. `T2-MUT-04`: CSS Class Volatility on Checkout Button — Class changes from `.btn-checkout-primary` to `.btn-checkout-v2-active`. Engine heals via `getByRole('button', { name: 'Place Order' })`, verifies live, re-runs in Chromium with zero regressions (2005ms).
 
-### Tier 3: Negative Controls & Business-Defect Resistance (30 / 30 Abstained — 100.0%)
-- **Backend 500 Server Errors (Scenarios 1–6):** HTTP 500, 502, 503, 504 on application endpoints. Classified as `BACKEND_500` with 100% safe abstention.
-- **Authentication Expired (Scenarios 7–10):** HTTP 401 and 403 on protected routes. Classified as `AUTH_EXPIRED` with 100% safe abstention.
-- **Incomplete Evidence (Scenarios 11–14):** Missing or empty DOM snapshots. Classified as `INCOMPLETE_EVIDENCE` with 100% safe abstention.
-- **Timing Races (Scenarios 15–16):** Detached DOM nodes and destroyed execution contexts. Classified as `TIMING_RACE` with 100% safe abstention.
-- **Seeded Business Defects (Scenarios 17–22 - Experiment C):** 6 business logic defects (wrong total, invalid payment accepted, missing validation, wrong record updated, unauthorized action, incorrect workflow). Assertion failures trigger `ASSERTION_FAILURE` classification with 100% safe abstention and 0.0% bug masking.
-- **Network Offline & Strict Boundaries (Scenarios 23–30):** Network offline (`ERR_INTERNET_DISCONNECTED`), DNS lookup failures (`ENOTFOUND`), and strict mode violations. 100% safe abstention.
+### Tier 3: Real Negative Controls & Defect Resistance (3 / 3 Abstained — 100.0%)
+1. `T3-NEG-01`: In-Domain Payment Gateway HTTP 500 Crash — Live network collector captures HTTP 500 on `/api/checkout` in action-anchored window. Engine classifies as `BACKEND_500` and strictly abstains with 0 repairs (705ms).
+2. `T3-NEG-02`: Seeded Business Defect: Incorrect Order Total ($199 vs $99) — Assertion `expect(total).toHaveText('$99.00')` fails because app calculated $199.00. Classified as `ASSERTION_FAILURE`. Intent Invariant v2 strictly protects assertions from alteration, preventing defect masking (147ms).
+3. `T3-NEG-03`: Strict Mode Boundary: Duplicate Identical Buttons — Server renders 2 identical Place Order buttons without distinctive attributes. `LiveLocatorVerifier` verifies `count === 2`. `AbstentionPolicy` triggers `NON_UNIQUE_CANDIDATE` abstention with 0 repairs (130ms).

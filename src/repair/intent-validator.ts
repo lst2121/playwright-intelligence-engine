@@ -16,6 +16,74 @@ export interface ValidationTarget {
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
 }
 
+export interface VerifiedExecutionProof {
+  proposalId?: string | undefined;
+  worktreeId: string;
+  repositoryIdentity?: string | undefined;
+  originalSourceHash?: string | undefined;
+  modifiedSourceHash?: string | undefined;
+  diffHash?: string | undefined;
+  targetTestIdentity?: string | undefined;
+  testFilePath: string;
+  command: string;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  passed: boolean;
+  executionOutcome?: 'PASS' | 'FAIL' | undefined;
+  durationMs: number;
+  targetTestEvidence?: string[] | undefined;
+  regressionEvidence?: string[] | undefined;
+  assertionIntegrityValid?: boolean | undefined;
+  timestamp: number;
+  proofVersion?: string | undefined;
+}
+
+export interface PreflightProposalTarget {
+  testFilePath: string;
+  originalCompositeFingerprint: CompositeIntentFingerprint;
+  candidateElement: ResolvedElement;
+  intendedAction: string;
+  originalSelector?: string | undefined;
+  businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
+}
+
+export interface PreflightProposalResult {
+  isValid: boolean;
+  assertionsPreserved: boolean; // A
+  testBodyPreserved: boolean; // T
+  fixturesPreserved: boolean; // F
+  identityAndActionPreserved: boolean; // I
+  summary: string;
+  reason?: string | undefined;
+}
+
+export interface VerifiedAuthorizationTarget {
+  testFilePath: string;
+  originalCompositeFingerprint: CompositeIntentFingerprint;
+  pageObjectOriginalSource: string;
+  pageObjectPatchedSource: string;
+  pageObjectClassName: string;
+  targetMemberName: string;
+  candidateElement: ResolvedElement;
+  intendedAction: string;
+  originalSelector?: string | undefined;
+  executionProof: VerifiedExecutionProof;
+  businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
+}
+
+export interface VerifiedAuthorizationResult {
+  isAuthorized: boolean;
+  assertionsPreserved: boolean; // A
+  testBodyPreserved: boolean; // T
+  fixturesPreserved: boolean; // F
+  identityAndActionPreserved: boolean; // I
+  diffAllowlistPassed: boolean; // D
+  executionVerified: boolean; // E
+  summary: string;
+  reason?: string | undefined;
+}
+
 export interface IntentV2ValidationTarget {
   testFilePath: string;
   originalCompositeFingerprint: CompositeIntentFingerprint;
@@ -27,6 +95,7 @@ export interface IntentV2ValidationTarget {
   intendedAction: string;
   originalSelector?: string | undefined;
   executionPassed?: boolean | undefined;
+  executionProof?: VerifiedExecutionProof | undefined;
   mode?: 'pre-flight' | 'authorization' | undefined;
   strict?: boolean | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
@@ -42,12 +111,12 @@ export interface IntentValidationResult {
 
 export interface IntentV2ValidationResult {
   isValid: boolean;
-  assertionsPreserved: boolean;     // A
-  testBodyPreserved: boolean;       // T
-  fixturesPreserved: boolean;       // F
+  assertionsPreserved: boolean; // A
+  testBodyPreserved: boolean; // T
+  fixturesPreserved: boolean; // F
   identityAndActionPreserved: boolean; // I
-  diffAllowlistPassed: boolean;     // D
-  executionVerified: boolean;       // E
+  diffAllowlistPassed: boolean; // D
+  executionVerified: boolean; // E
   reason?: string | undefined;
   summary: string;
 }
@@ -86,7 +155,7 @@ export class IntentValidator {
     ].join(' ').toLowerCase();
     const candidateTokens = candidateText.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean);
 
-    // 1. Hard Conflict Check: Reject substituting positive action with negative/cancellation action
+    // Hard Conflict Check: Reject substituting positive action with negative/cancellation action
     for (const pair of IntentValidator.CONFLICTING_ACTION_PAIRS) {
       const origHasPositive = pair.positive.some((p) => origTokens.includes(p));
       const candHasNegative = pair.negative.some((n) => candidateTokens.includes(n));
@@ -102,7 +171,7 @@ export class IntentValidator {
       if (origHasNegative && candHasPositive) {
         return {
           isPreserved: false,
-          reason: `Identity violation: Target '${originalSelector}' appears to be a cancellation action, but replacement candidate has confirmation semantics.`,
+          reason: `Identity violation: Target '${originalSelector}' appears to be a cancellation action, but replacement candidate '${candidate.accessibleName ?? candidate.tag}' has contradictory submission semantics.`,
         };
       }
     }
@@ -111,91 +180,164 @@ export class IntentValidator {
   }
 
   /**
-   * Validates that the candidate repair preserves test intent and strictly protects assertions.
-   * Fail-closed: Enforces action semantics AND identity preservation.
+   * Backward-compatible validation for simple assertion and identity checks.
    */
   public static validate(target: ValidationTarget): IntentValidationResult {
-    // Check 1: Assertion AST Immutability Check
     const postPatchFingerprint = AssertionHasher.computeFingerprint(target.testFilePath);
     if (postPatchFingerprint !== target.originalFingerprint) {
       throw new AssertionTamperedError(target.originalFingerprint, postPatchFingerprint);
     }
 
-    // Check 2: Action Semantics Validation (element must support the intended user action)
-    const el = target.candidateElement;
-    const action = target.intendedAction.toLowerCase();
-    let actionSemanticsValid = true;
-
-    if (action.includes('click')) {
-      const isClickable =
-        el.tag === 'button' ||
-        el.tag === 'a' ||
-        el.role === 'button' ||
-        el.role === 'link' ||
-        el.role === 'menuitem' ||
-        el.role === 'tab' ||
-        Boolean(el.attributes['onclick']) ||
-        Boolean(el.attributes['href']);
-
-      if (!isClickable && el.tag !== 'div' && el.tag !== 'span' && el.tag !== 'td') {
-        actionSemanticsValid = false;
-      }
-    } else if (action.includes('fill') || action.includes('type')) {
-      const isInput =
-        el.tag === 'input' ||
-        el.tag === 'textarea' ||
-        el.role === 'textbox' ||
-        el.attributes['contenteditable'] === 'true';
-
-      if (!isInput) {
-        actionSemanticsValid = false;
-      }
-    }
-
-    // Check 3: Independent Target Identity Validation
+    const actionSemanticsValid = IntentValidator.checkActionSemantics(target.intendedAction, target.candidateElement);
     const identityCheck = IntentValidator.verifyTargetIdentity(target.originalSelector, target.candidateElement);
-    if (!identityCheck.isPreserved) {
-      return {
-        isValid: false,
-        assertionPreserved: true,
-        actionSemanticsValid,
-        identityPreserved: false,
-        reason: identityCheck.reason,
-      };
-    }
-
-    // Check 4: Business Oracle contradiction check
-    if (target.businessOracleStatus === 'contradicted') {
-      return {
-        isValid: false,
-        assertionPreserved: true,
-        actionSemanticsValid,
-        identityPreserved: false,
-        reason: 'Independent business oracle contradicted the candidate outcome',
-      };
-    }
 
     return {
       isValid: actionSemanticsValid && identityCheck.isPreserved,
       assertionPreserved: true,
       actionSemanticsValid,
       identityPreserved: identityCheck.isPreserved,
+      reason: identityCheck.reason,
     };
   }
 
   /**
-   * Validates the formal Intent Invariant v2 Contract:
-   * V = A ∧ T ∧ F ∧ I ∧ D ∧ E
-   *
-   * A: Assertion Fingerprint Unchanged
-   * T: Test-Body Structural Fingerprint Unchanged
-   * F: Fixture & Input Parameters Unchanged
-   * I: Target Identity & Action Semantics Preserved
-   * D: Diff Allowlist Verified (Only designated locator AST expression altered)
-   * E: Independent Execution in Worktree Verified
+   * Evaluates proposal pre-flight invariant: V_pre = A ∧ T ∧ F ∧ I
+   * Used strictly for in-memory planning without claiming mutation authorization.
+   */
+  public static validateProposal(target: PreflightProposalTarget): PreflightProposalResult {
+    const postPatch = AssertionHasher.computeCompositeFingerprint(target.testFilePath);
+
+    const assertionsPreserved =
+      postPatch.assertionFingerprint === target.originalCompositeFingerprint.assertionFingerprint;
+    if (!assertionsPreserved) {
+      throw new AssertionTamperedError(
+        target.originalCompositeFingerprint.assertionFingerprint,
+        postPatch.assertionFingerprint
+      );
+    }
+
+    const testBodyPreserved =
+      postPatch.testBodyFingerprint === target.originalCompositeFingerprint.testBodyFingerprint;
+    if (!testBodyPreserved) {
+      throw new IntentInvariantViolationError(
+        'TestBodyStructure',
+        'Test statement order, control flow, conditions, or test body AST nodes were modified.'
+      );
+    }
+
+    const fixturesPreserved =
+      postPatch.fixtureFingerprint === target.originalCompositeFingerprint.fixtureFingerprint;
+    if (!fixturesPreserved) {
+      throw new IntentInvariantViolationError(
+        'FixtureParameters',
+        'Test fixtures, input parameters, or literal values were altered or reordered.'
+      );
+    }
+
+    const identityCheck = IntentValidator.verifyTargetIdentity(target.originalSelector, target.candidateElement);
+    const actionSemanticsValid = IntentValidator.checkActionSemantics(target.intendedAction, target.candidateElement);
+    const identityAndActionPreserved = actionSemanticsValid && identityCheck.isPreserved;
+
+    if (target.businessOracleStatus === 'contradicted') {
+      return {
+        isValid: false,
+        assertionsPreserved,
+        testBodyPreserved,
+        fixturesPreserved,
+        identityAndActionPreserved: false,
+        summary: 'Rejected: Independent business oracle contradicted target identity',
+        reason: 'Business oracle contradicted the candidate identity',
+      };
+    }
+
+    const isValid = assertionsPreserved && testBodyPreserved && fixturesPreserved && identityAndActionPreserved;
+
+    return {
+      isValid,
+      assertionsPreserved,
+      testBodyPreserved,
+      fixturesPreserved,
+      identityAndActionPreserved,
+      summary: isValid
+        ? 'Pre-flight Intent Invariant passed: V_pre = A ∧ T ∧ F ∧ I'
+        : `Pre-flight Intent Invariant failed: ${identityCheck.reason ?? 'Action semantics invalid'}`,
+      reason: identityCheck.reason,
+    };
+  }
+
+  /**
+   * Evaluates strict production authorization invariant: V = A ∧ T ∧ F ∧ I ∧ D ∧ E
+   * Unconditionally fails closed if any evidence is missing or execution proof fails.
+   */
+  public static authorizeVerifiedRepair(target: VerifiedAuthorizationTarget): VerifiedAuthorizationResult {
+    const preflight = IntentValidator.validateProposal({
+      testFilePath: target.testFilePath,
+      originalCompositeFingerprint: target.originalCompositeFingerprint,
+      candidateElement: target.candidateElement,
+      intendedAction: target.intendedAction,
+      originalSelector: target.originalSelector,
+      businessOracleStatus: target.businessOracleStatus,
+    });
+
+    if (!preflight.isValid) {
+      return {
+        isAuthorized: false,
+        assertionsPreserved: preflight.assertionsPreserved,
+        testBodyPreserved: preflight.testBodyPreserved,
+        fixturesPreserved: preflight.fixturesPreserved,
+        identityAndActionPreserved: preflight.identityAndActionPreserved,
+        diffAllowlistPassed: false,
+        executionVerified: false,
+        summary: `Authorization Rejected: Pre-flight clauses failed (${preflight.summary})`,
+        reason: preflight.reason,
+      };
+    }
+
+    // 5. D: Diff Allowlist
+    const diffResult = DiffAllowlistValidator.validate({
+      originalSource: target.pageObjectOriginalSource,
+      patchedSource: target.pageObjectPatchedSource,
+      targetClassName: target.pageObjectClassName,
+      targetMemberName: target.targetMemberName,
+    });
+
+    if (!diffResult.isAllowed) {
+      throw new UnauthorizedAstModificationError(diffResult.reason ?? 'Unknown violation');
+    }
+
+    // 6. E: Execution Verification
+    const proof = target.executionProof;
+    if (!proof || !proof.passed || proof.exitCode !== 0) {
+      return {
+        isAuthorized: false,
+        assertionsPreserved: preflight.assertionsPreserved,
+        testBodyPreserved: preflight.testBodyPreserved,
+        fixturesPreserved: preflight.fixturesPreserved,
+        identityAndActionPreserved: preflight.identityAndActionPreserved,
+        diffAllowlistPassed: true,
+        executionVerified: false,
+        summary: `Authorization Rejected: Target test execution did not pass (exitCode=${proof?.exitCode ?? 'missing'})`,
+        reason: 'Worktree test execution failed or execution proof was missing',
+      };
+    }
+
+    return {
+      isAuthorized: true,
+      assertionsPreserved: true,
+      testBodyPreserved: true,
+      fixturesPreserved: true,
+      identityAndActionPreserved: true,
+      diffAllowlistPassed: true,
+      executionVerified: true,
+      summary: 'Intent Invariant v2 satisfied: V = A ∧ T ∧ F ∧ I ∧ D ∧ E (Authorized for workspace promotion)',
+    };
+  }
+
+  /**
+   * Unified v2 entry point. Preserves backward compatibility while enforcing fail-closed
+   * authorization when mode !== 'pre-flight'.
    */
   public static validateV2(target: IntentV2ValidationTarget): IntentV2ValidationResult {
-    // Fail-closed checks on required inputs
     if (!target.originalCompositeFingerprint) {
       return {
         isValid: false,
@@ -210,104 +352,32 @@ export class IntentValidator {
       };
     }
 
-    const postPatch = AssertionHasher.computeCompositeFingerprint(target.testFilePath);
-
-    // 1. A: Assertion Invariant
-    const assertionsPreserved =
-      postPatch.assertionFingerprint === target.originalCompositeFingerprint.assertionFingerprint;
-    if (!assertionsPreserved) {
-      throw new AssertionTamperedError(
-        target.originalCompositeFingerprint.assertionFingerprint,
-        postPatch.assertionFingerprint
-      );
-    }
-
-    // 2. T: Test Body Structural Invariant
-    const testBodyPreserved =
-      postPatch.testBodyFingerprint === target.originalCompositeFingerprint.testBodyFingerprint;
-    if (!testBodyPreserved) {
-      throw new IntentInvariantViolationError(
-        'TestBodyStructure',
-        'Test statement order, control flow, conditions, or test body AST nodes were modified.'
-      );
-    }
-
-    // 3. F: Fixture & Parameter Invariant
-    const fixturesPreserved =
-      postPatch.fixtureFingerprint === target.originalCompositeFingerprint.fixtureFingerprint;
-    if (!fixturesPreserved) {
-      throw new IntentInvariantViolationError(
-        'FixtureParameters',
-        'Test fixtures, input parameters, or literal values were altered or reordered.'
-      );
-    }
-
-    // 4. I: Target Identity & Action Semantics
-    const el = target.candidateElement;
-    const action = target.intendedAction.toLowerCase();
-    let actionSemanticsValid = true;
-
-    if (action.includes('click')) {
-      const isClickable =
-        el.tag === 'button' ||
-        el.tag === 'a' ||
-        el.role === 'button' ||
-        el.role === 'link' ||
-        el.role === 'menuitem' ||
-        el.role === 'tab' ||
-        Boolean(el.attributes['onclick']) ||
-        Boolean(el.attributes['href']);
-
-      if (!isClickable && el.tag !== 'div' && el.tag !== 'span' && el.tag !== 'td') {
-        actionSemanticsValid = false;
-      }
-    } else if (action.includes('fill') || action.includes('type')) {
-      const isInput =
-        el.tag === 'input' ||
-        el.tag === 'textarea' ||
-        el.role === 'textbox' ||
-        el.attributes['contenteditable'] === 'true';
-
-      if (!isInput) {
-        actionSemanticsValid = false;
-      }
-    }
-
-    // Validate identity preservation (avoiding swap of submit with cancel)
-    const identityCheck = IntentValidator.verifyTargetIdentity(target.originalSelector, target.candidateElement);
-    const identityAndActionPreserved = actionSemanticsValid && identityCheck.isPreserved;
-
-    if (!identityAndActionPreserved) {
-      return {
-        isValid: false,
-        assertionsPreserved,
-        testBodyPreserved,
-        fixturesPreserved,
-        identityAndActionPreserved: false,
-        diffAllowlistPassed: false,
-        executionVerified: false,
-        reason: identityCheck.reason ?? 'Incompatible action semantics',
-        summary: `Rejected: ${identityCheck.reason ?? 'Target action semantics invalid'}`,
-      };
-    }
-
-    if (target.businessOracleStatus === 'contradicted') {
-      return {
-        isValid: false,
-        assertionsPreserved: true,
-        testBodyPreserved: true,
-        fixturesPreserved: true,
-        identityAndActionPreserved: false,
-        diffAllowlistPassed: false,
-        executionVerified: false,
-        reason: 'Business oracle contradicted the candidate identity',
-        summary: 'Rejected: Independent business oracle contradicted target identity',
-      };
-    }
-
     const isPreflight = target.mode === 'pre-flight';
 
-    // 5. D: Diff Allowlist (Fail-closed: missing diff inputs strictly fail validation in authorization mode)
+    const preflight = IntentValidator.validateProposal({
+      testFilePath: target.testFilePath,
+      originalCompositeFingerprint: target.originalCompositeFingerprint,
+      candidateElement: target.candidateElement,
+      intendedAction: target.intendedAction,
+      originalSelector: target.originalSelector,
+      businessOracleStatus: target.businessOracleStatus,
+    });
+
+    if (!preflight.isValid) {
+      return {
+        isValid: false,
+        assertionsPreserved: preflight.assertionsPreserved,
+        testBodyPreserved: preflight.testBodyPreserved,
+        fixturesPreserved: preflight.fixturesPreserved,
+        identityAndActionPreserved: preflight.identityAndActionPreserved,
+        diffAllowlistPassed: false,
+        executionVerified: false,
+        reason: preflight.reason,
+        summary: preflight.summary,
+      };
+    }
+
+    // 5. D: Diff Allowlist
     let diffAllowlistPassed = false;
     if (
       target.pageObjectOriginalSource &&
@@ -332,44 +402,67 @@ export class IntentValidator {
       diffAllowlistPassed = false;
     }
 
-    // 6. E: Execution Verification (Fail-closed: executionPassed must strictly be true in authorization mode)
+    // 6. E: Execution Verification (P0: Requires genuine, validated execution proof - no boolean shortcuts)
     let executionVerified = false;
-    if (target.executionPassed === true) {
+    if (
+      target.executionProof &&
+      target.executionProof.passed === true &&
+      target.executionProof.exitCode === 0 &&
+      (target.executionProof.executionOutcome === 'PASS' || target.executionProof.executionOutcome === undefined) &&
+      target.executionProof.assertionIntegrityValid !== false
+    ) {
       executionVerified = true;
-    } else if (isPreflight) {
-      executionVerified = false;
     } else {
       executionVerified = false;
     }
 
     const isValid = isPreflight
-      ? assertionsPreserved &&
-        testBodyPreserved &&
-        fixturesPreserved &&
-        identityAndActionPreserved &&
-        diffAllowlistPassed
-      : assertionsPreserved &&
-        testBodyPreserved &&
-        fixturesPreserved &&
-        identityAndActionPreserved &&
-        diffAllowlistPassed &&
-        executionVerified;
+      ? preflight.isValid && diffAllowlistPassed
+      : preflight.isValid && diffAllowlistPassed && executionVerified;
 
     return {
       isValid,
-      assertionsPreserved,
-      testBodyPreserved,
-      fixturesPreserved,
-      identityAndActionPreserved,
+      assertionsPreserved: preflight.assertionsPreserved,
+      testBodyPreserved: preflight.testBodyPreserved,
+      fixturesPreserved: preflight.fixturesPreserved,
+      identityAndActionPreserved: preflight.identityAndActionPreserved,
       diffAllowlistPassed,
       executionVerified,
       summary: isValid
         ? isPreflight
-          ? 'Pre-flight Intent Invariant passed: V_pre = A ∧ T ∧ F ∧ I (Pending isolated worktree execution)'
+          ? 'Pre-flight Intent Invariant passed: V_pre = A ∧ T ∧ F ∧ I'
           : 'Intent Invariant v2 satisfied: V = A ∧ T ∧ F ∧ I ∧ D ∧ E (Strict intent preservation proved)'
         : isPreflight
         ? 'Pre-flight Intent Invariant failed one or more semantic clauses'
         : 'Intent Invariant v2 failed one or more clauses (Missing execution proof or diff allowlist rejection)',
     };
+  }
+
+  private static checkActionSemantics(intendedAction: string, el: ResolvedElement): boolean {
+    const action = intendedAction.toLowerCase();
+    if (action.includes('click')) {
+      return (
+        el.tag === 'button' ||
+        el.tag === 'a' ||
+        el.role === 'button' ||
+        el.role === 'link' ||
+        el.role === 'menuitem' ||
+        el.role === 'tab' ||
+        Boolean(el.attributes?.['onclick']) ||
+        Boolean(el.attributes?.['href']) ||
+        el.tag === 'div' ||
+        el.tag === 'span' ||
+        el.tag === 'td'
+      );
+    }
+    if (action.includes('fill') || action.includes('type')) {
+      return (
+        el.tag === 'input' ||
+        el.tag === 'textarea' ||
+        el.role === 'textbox' ||
+        el.attributes['contenteditable'] === 'true'
+      );
+    }
+    return true;
   }
 }

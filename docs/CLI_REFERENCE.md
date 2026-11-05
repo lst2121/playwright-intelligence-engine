@@ -69,7 +69,28 @@ npx pw-intel mcp
 
 ---
 
-### 2.4. `pw-intel generate`
+### 2.4. `pw-intel benchmark`
+Executes the empirical real-browser benchmark suite against the in-memory `ControlledAppServer` using headless Chromium (or specified engine).
+
+```bash
+npx pw-intel benchmark [options]
+```
+
+#### Options:
+- `--family <name>`: Filter Tier 2 mutation scenarios by family name (e.g. `--family "Dynamic IDs"`).
+- `--scenario <id|name>`: Filter Tier 3 negative control scenarios by category or ID (e.g. `--scenario "500"`).
+- `--browser <browser>`: Select browser engine (`chromium` [default], `firefox`, `webkit`).
+- `--include-classifier-unit`: Include supplementary fast in-memory classifier test cases.
+
+#### What It Evaluates:
+- **Tier 1 (2 Real Baselines):** Full user login and checkout flows executed live in headless Chromium.
+- **Tier 2 (4 Real DOM Drift Mutations):** Real DOM mutations (dynamic hashed IDs, accessible name drift, container restructuring, CSS class volatility) executed in Chromium $\to$ caught at browser failure $\to$ live DOM/ariaSnapshot captured $\to$ candidate verified live via `LiveLocatorVerifier` (`count === 1`, `visible`, `enabled`) $\to$ AST patched $\to$ test re-run in Chromium $\to$ green pass confirmed $\to$ zero regressions verified across clean baselines.
+- **Tier 3 (3 Real Negative Controls):** Real HTTP 500 server crash, seeded business logic calculation defect ($199 vs $99), and strict-mode duplicate buttons. Verifies 100% safe abstentions, 0% false repairs, and 0% defect masking.
+- Outputs detailed reports to `benchmarks/reports/master-benchmark-results.json`, `artifacts/benchmark-report.json`, and `artifacts/benchmark-report.md`.
+
+---
+
+### 2.5. `pw-intel generate`
 Generates modern, resilient Page Object Model (POM) and test spec scaffolding for a target application feature.
 
 ```bash
@@ -83,18 +104,3 @@ npx pw-intel generate Checkout
 Produces:
 - `CheckoutPage.ts`: strongly typed Playwright Page Object utilizing `getByRole` and `getByTestId`.
 - `checkout.spec.ts`: verified test suite boilerplate importing the Page Object.
-
----
-
-### 2.5. `npm run benchmark`
-Runs the comprehensive 104-scenario empirical benchmark against the in-memory `ControlledAppServer`.
-
-```bash
-npm run benchmark
-```
-
-#### What It Evaluates:
-- **Tier 1 (24 Clean Baselines):** Live HTTP workflows against `ControlledAppServer` port 4173.
-- **Tier 2 (50 Structural Mutations):** 5 mutation families (Dynamic IDs, Name Drift, Container Restructure, Utility Classes, Duplicate Controls). Evaluates candidate extraction, calibrated scoring, AST patching, and Intent Invariant v2 pre-flight proof.
-- **Tier 3 (30 Negative Controls):** Backend 500s, 401/403 expirations, incomplete traces, timing races, and 6 seeded business defects. Verifies 100% safe abstention and 0% false repairs.
-- Outputs detailed reports to `artifacts/benchmark-report.json` and `artifacts/benchmark-report.md`.

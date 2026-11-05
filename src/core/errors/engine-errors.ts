@@ -77,3 +77,14 @@ export class IntentInvariantViolationError extends PlaywrightIntelligenceError {
   }
 }
 
+export class InsufficientIdentifiersError extends PlaywrightIntelligenceError {
+  constructor(tag: string, details?: string) {
+    super(
+      `Element <${tag}> lacks distinctive identifying attributes: ${details ?? 'Bare tag fallbacks are strictly prohibited.'}`,
+      'INSUFFICIENT_IDENTIFIERS'
+    );
+    this.name = 'InsufficientIdentifiersError';
+  }
+}
+
+

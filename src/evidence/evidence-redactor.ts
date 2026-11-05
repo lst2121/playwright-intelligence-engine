@@ -168,10 +168,33 @@ export class EvidenceRedactor {
   }
 
   /**
+   * Sanitizes DOM HTML strings, scrubbing passwords, secret inputs, tokens, and PII.
+   */
+  public static redactDomContent(html: string): string {
+    if (!html || typeof html !== 'string') return '';
+    let clean = html;
+    // 1. Password input values
+    clean = clean.replace(/(<input[^>]*type=["']password["'][^>]*value=["'])([^"']*)(["'])/gi, '$1[REDACTED]$3');
+    // 2. Hidden input tokens
+    clean = clean.replace(/(<input[^>]*name=["'](?:csrf|token|secret|auth|apikey|api_key)["'][^>]*value=["'])([^"']*)(["'])/gi, '$1[REDACTED]$3');
+    // 3. General pattern redaction (Bearer, JWT, CC, SSN)
+    clean = EvidenceRedactor.redactText(clean).redactedText;
+    return clean;
+  }
+
+  /**
    * Enforces complete redaction across a UnifiedEvidenceRecord.
    */
   public static redactRecord(record: UnifiedEvidenceRecord): UnifiedEvidenceRecord {
-    const { redactedPayload, redactedFields, rulesApplied } = EvidenceRedactor.redactPayload(record.payload);
+    let rawPayload = record.payload;
+    if (record.evidenceType === 'dom-snapshot' && rawPayload?.html) {
+      rawPayload = {
+        ...rawPayload,
+        html: EvidenceRedactor.redactDomContent(rawPayload.html),
+      };
+    }
+
+    const { redactedPayload, redactedFields, rulesApplied } = EvidenceRedactor.redactPayload(rawPayload);
 
     const existingFields = record.redactionStatus.redactedFields ?? [];
     const existingRules = record.redactionStatus.redactionRulesApplied ?? [];

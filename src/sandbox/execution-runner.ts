@@ -1,4 +1,6 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs';
 
 export interface ExecutionOptions {
   cwd: string;
@@ -13,10 +15,11 @@ export interface ExecutionResult {
   stderr: string;
   durationMs: number;
   timedOut: boolean;
+  truncated: boolean;
 }
 
 export class ExecutionRunner {
-  private static readonly MAX_OUTPUT_BUFFER = 16 * 1024 * 1024; // 16 MB max buffer limit
+  public static readonly MAX_OUTPUT_BYTES = 16 * 1024 * 1024; // 16 MB max byte buffer limit
 
   private static readonly SAFE_ENV_KEYS = new Set([
     'PATH',
@@ -41,13 +44,48 @@ export class ExecutionRunner {
     'PWD',
     'COMSPEC',
     'ComSpec',
+    'CI',
+    'PW_INTELLIGENCE_REPRODUCE',
+    'PLAYWRIGHT_BROWSERS_PATH',
   ]);
 
+  private static readonly DANGEROUS_ENV_KEYS = new Set([
+    'NODE_OPTIONS',
+    'LD_PRELOAD',
+    'LD_LIBRARY_PATH',
+    'DYLD_INSERT_LIBRARIES',
+    'DYLD_LIBRARY_PATH',
+    'PERL5OPT',
+    'PYTHONPATH',
+    'RUBYOPT',
+    'BASH_ENV',
+    'ENV',
+  ]);
+
+  private static readonly SIGNAL_MAP: Record<string, number> = {
+    SIGHUP: 1,
+    SIGINT: 2,
+    SIGQUIT: 3,
+    SIGILL: 4,
+    SIGTRAP: 5,
+    SIGABRT: 6,
+    SIGBUS: 7,
+    SIGFPE: 8,
+    SIGKILL: 9,
+    SIGUSR1: 10,
+    SIGSEGV: 11,
+    SIGUSR2: 12,
+    SIGPIPE: 13,
+    SIGALRM: 14,
+    SIGTERM: 15,
+  };
+
   /**
-   * Sanitizes inherited environment variables, stripping cloud credentials,
-   * tokens, database URLs, and secrets to protect host environments.
+   * Sanitizes inherited and explicit environment variables (AUDIT-15).
+   * Strictly filters against SAFE_ENV_KEYS and explicitly blocks dangerous
+   * interpreter-injection keys like NODE_OPTIONS.
    */
-  private static getSanitizedEnv(explicitEnv?: Record<string, string | undefined>): Record<string, string> {
+  public static getSanitizedEnv(explicitEnv?: Record<string, string | undefined>): Record<string, string> {
     const sanitized: Record<string, string> = {};
 
     for (const [key, val] of Object.entries(process.env)) {
@@ -59,7 +97,22 @@ export class ExecutionRunner {
     if (explicitEnv) {
       for (const [key, val] of Object.entries(explicitEnv)) {
         if (val !== undefined) {
-          sanitized[key] = val;
+          const upperKey = key.toUpperCase();
+          if (ExecutionRunner.DANGEROUS_ENV_KEYS.has(upperKey)) {
+            // Reject dangerous interpreter override keys
+            continue;
+          }
+          // Allow explicit test variables matching safe prefixes or safe allowlist
+          if (
+            ExecutionRunner.SAFE_ENV_KEYS.has(key) ||
+            key.startsWith('PLAYWRIGHT_') ||
+            key.startsWith('TEST_') ||
+            key.startsWith('PW_') ||
+            key === 'DEBUG' ||
+            key === 'PORT'
+          ) {
+            sanitized[key] = val;
+          }
         }
       }
     }
@@ -69,8 +122,8 @@ export class ExecutionRunner {
 
   /**
    * Executes a command safely using child_process.spawn with an explicit argument array.
-   * Eliminates shell injection risks, sanitizes environment, bounds buffer sizes,
-   * and terminates entire process trees upon timeout.
+   * Eliminates shell injection risks, sanitizes environment, bounds buffer sizes strictly by bytes,
+   * preserves signal exit codes, and terminates entire process trees upon timeout.
    */
   public static async run(
     command: string,
@@ -81,18 +134,28 @@ export class ExecutionRunner {
     const startTime = Date.now();
 
     return new Promise((resolve) => {
-      let stdoutAccumulator = '';
-      let stderrAccumulator = '';
+      let stdoutBytes = 0;
+      let stderrBytes = 0;
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
       let timedOut = false;
+      let truncated = false;
 
-      // On Windows, batch commands (.cmd/.bat) like npm/npx require invoking through cmd.exe
+      // On Windows, resolve npx/npm directly via node.exe with bundled CLI scripts to avoid cmd.exe shell injection
       const isWindows = process.platform === 'win32';
       let executable = command;
       let finalArgs = args;
 
       if (isWindows && (command === 'npx' || command === 'npm')) {
-        executable = 'cmd.exe';
-        finalArgs = ['/d', '/s', '/c', command, ...args];
+        const cliName = command === 'npx' ? 'npx-cli.js' : 'npm-cli.js';
+        const bundledCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', cliName);
+        if (fs.existsSync(bundledCli)) {
+          executable = process.execPath;
+          finalArgs = [bundledCli, ...args];
+        } else {
+          executable = 'cmd.exe';
+          finalArgs = ['/d', '/s', '/c', command, ...args];
+        }
       }
 
       const child = spawn(executable, finalArgs, {
@@ -106,57 +169,93 @@ export class ExecutionRunner {
         timedOut = true;
         if (child.pid) {
           if (isWindows) {
-            spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+            try {
+              spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+            } catch {
+              child.kill();
+            }
           } else {
             child.kill('SIGTERM');
-            setTimeout(() => child.kill('SIGKILL'), 2000);
+            setTimeout(() => {
+              try {
+                child.kill('SIGKILL');
+              } catch {
+                // process already dead
+              }
+            }, 2000);
           }
         }
       }, timeoutMs);
 
-      child.stdout?.on('data', (data) => {
-        if (stdoutAccumulator.length < ExecutionRunner.MAX_OUTPUT_BUFFER) {
-          stdoutAccumulator += data.toString();
+      child.stdout?.on('data', (chunk: Buffer | string) => {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf-8');
+        if (stdoutBytes + buf.length <= ExecutionRunner.MAX_OUTPUT_BYTES) {
+          stdoutChunks.push(buf);
+          stdoutBytes += buf.length;
+        } else {
+          const remaining = ExecutionRunner.MAX_OUTPUT_BYTES - stdoutBytes;
+          if (remaining > 0) {
+            stdoutChunks.push(buf.subarray(0, remaining));
+            stdoutBytes += remaining;
+          }
+          truncated = true;
         }
       });
 
-      child.stderr?.on('data', (data) => {
-        if (stderrAccumulator.length < ExecutionRunner.MAX_OUTPUT_BUFFER) {
-          stderrAccumulator += data.toString();
+      child.stderr?.on('data', (chunk: Buffer | string) => {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf-8');
+        if (stderrBytes + buf.length <= ExecutionRunner.MAX_OUTPUT_BYTES) {
+          stderrChunks.push(buf);
+          stderrBytes += buf.length;
+        } else {
+          const remaining = ExecutionRunner.MAX_OUTPUT_BYTES - stderrBytes;
+          if (remaining > 0) {
+            stderrChunks.push(buf.subarray(0, remaining));
+            stderrBytes += remaining;
+          }
+          truncated = true;
         }
       });
 
       child.on('error', (err) => {
         clearTimeout(timer);
+        const stdoutStr = Buffer.concat(stdoutChunks).toString('utf-8');
+        const stderrStr = Buffer.concat(stderrChunks).toString('utf-8');
         resolve({
           exitCode: -1,
-          stdout: stdoutAccumulator,
-          stderr: stderrAccumulator + `\nProcess error: ${err.message}`,
+          stdout: stdoutStr,
+          stderr: stderrStr + `\nProcess error: ${err.message}`,
           durationMs: Date.now() - startTime,
           timedOut,
+          truncated,
         });
       });
 
       child.on('close', (code, signal) => {
         clearTimeout(timer);
-        // Correct signal-terminated process handling: never map code === null to 0
+        // Correct signal-terminated process handling (AUDIT-08): never map code === null to 0
         let exitCode: number;
         if (code !== null) {
           exitCode = code;
         } else if (timedOut) {
           exitCode = -1;
         } else if (signal) {
-          exitCode = 128 + 15;
+          const sigNum = ExecutionRunner.SIGNAL_MAP[signal] ?? 15;
+          exitCode = 128 + sigNum;
         } else {
           exitCode = 1;
         }
 
+        const stdoutStr = Buffer.concat(stdoutChunks).toString('utf-8');
+        const stderrStr = Buffer.concat(stderrChunks).toString('utf-8');
+
         resolve({
           exitCode,
-          stdout: stdoutAccumulator,
-          stderr: stderrAccumulator,
+          stdout: stdoutStr,
+          stderr: stderrStr,
           durationMs: Date.now() - startTime,
           timedOut,
+          truncated,
         });
       });
     });

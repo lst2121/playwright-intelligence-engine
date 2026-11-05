@@ -42,6 +42,21 @@ export class AstPatcher {
     }
   }
 
+  public static generateDiff(originalText: string, patchedText: string, fileName = 'target.ts'): string {
+    const origLines = originalText.split('\n');
+    const patchedLines = patchedText.split('\n');
+    const diffLines: string[] = [`--- a/${fileName}`, `+++ b/${fileName}`];
+    for (let i = 0; i < Math.max(origLines.length, patchedLines.length); i++) {
+      const orig = origLines[i];
+      const patch = patchedLines[i];
+      if (orig !== patch) {
+        if (orig !== undefined) diffLines.push(`- ${orig}`);
+        if (patch !== undefined) diffLines.push(`+ ${patch}`);
+      }
+    }
+    return diffLines.join('\n');
+  }
+
   /**
    * Surgical AST modification targeting Page Object locator definitions in-memory.
    * Does NOT write to disk, enabling sandboxed validation and atomic diff checking.
@@ -50,6 +65,7 @@ export class AstPatcher {
     patchedSource: string;
     pattern: SupportedPOMPattern;
     originalExpression: string;
+    diff: string;
   } {
     // 1. Validate locator expression grammar upfront
     const grammarCheck = DiffAllowlistValidator.validateLocatorGrammar(target.replacementExpression);
@@ -64,17 +80,20 @@ export class AstPatcher {
     const sourceFile = tempProject.createSourceFile('memory.ts', sourceText);
     const classDecl = sourceFile.getClass(target.className);
 
+    const createResult = (patchedSource: string, pattern: SupportedPOMPattern, originalExpression: string) => ({
+      patchedSource,
+      pattern,
+      originalExpression,
+      diff: AstPatcher.generateDiff(sourceText, patchedSource),
+    });
+
     // Pattern 5: Top-level constant
     if (!classDecl) {
       const variableDecl = sourceFile.getVariableDeclaration(target.memberName);
       if (variableDecl && variableDecl.getInitializer()) {
         const originalExpression = variableDecl.getInitializer()!.getText();
         variableDecl.setInitializer(target.replacementExpression);
-        return {
-          patchedSource: sourceFile.getFullText(),
-          pattern: 'locator-constant',
-          originalExpression,
-        };
+        return createResult(sourceFile.getFullText(), 'locator-constant', originalExpression);
       }
 
       throw new AbstentionError(
@@ -88,11 +107,7 @@ export class AstPatcher {
     if (property && property.getInitializer()) {
       const originalExpression = property.getInitializer()!.getText();
       property.setInitializer(target.replacementExpression);
-      return {
-        patchedSource: sourceFile.getFullText(),
-        pattern: 'property-initializer',
-        originalExpression,
-      };
+      return createResult(sourceFile.getFullText(), 'property-initializer', originalExpression);
     }
 
     // Pattern 2: Getter Method
@@ -114,11 +129,7 @@ export class AstPatcher {
       }
       const originalExpression = returnExpr.getText();
       returnExpr.replaceWithText(target.replacementExpression);
-      return {
-        patchedSource: sourceFile.getFullText(),
-        pattern: 'getter-return',
-        originalExpression,
-      };
+      return createResult(sourceFile.getFullText(), 'getter-return', originalExpression);
     }
 
     // Pattern 3: Constructor Assignment
@@ -131,11 +142,7 @@ export class AstPatcher {
             if (leftText === `this.${target.memberName}`) {
               const originalExpression = expr.getRight().getText();
               expr.getRight().replaceWithText(target.replacementExpression);
-              return {
-                patchedSource: sourceFile.getFullText(),
-                pattern: 'constructor-assignment',
-                originalExpression,
-              };
+              return createResult(sourceFile.getFullText(), 'constructor-assignment', originalExpression);
             }
           }
         }
@@ -151,11 +158,7 @@ export class AstPatcher {
           const returnExpr = returnStatements[0]!.getExpression()!;
           const originalExpression = returnExpr.getText();
           returnExpr.replaceWithText(target.replacementExpression);
-          return {
-            patchedSource: sourceFile.getFullText(),
-            pattern: 'parameterless-factory',
-            originalExpression,
-          };
+          return createResult(sourceFile.getFullText(), 'parameterless-factory', originalExpression);
         }
       } else {
         throw new AbstentionError(

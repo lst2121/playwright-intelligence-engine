@@ -1,27 +1,28 @@
-# Playwright Intelligence Engine (pw-intel)
+# Playwright Intelligence Engine (pw-intel) v2.6
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
-[![Playwright](https://img.shields.io/badge/Playwright-1.42+-green.svg)](https://playwright.dev/)
-[![Tests](https://img.shields.io/badge/Tests-329%20Passed-brightgreen.svg)]()
-[![Benchmark](https://img.shields.io/badge/Benchmark-104%20Scenarios%20(100%25%20Verified)-success.svg)]()
-[![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7.0-blue.svg)](https://www.typescriptlang.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-1.64+-green.svg)](https://playwright.dev/)
+[![Tests](https://img.shields.io/badge/Tests-382%20Passed%20(0%20Failed)-brightgreen.svg)]()
+[![Benchmark](https://img.shields.io/badge/Benchmark-Empirical%20Browser%20(9%20Scenarios%20Verified)-success.svg)]()
+[![License](https://img.shields.io/badge/License-Apache--2.0-purple.svg)](LICENSE)
 
-An enterprise-grade, deterministic intelligence and self-healing engine for Microsoft Playwright suites. Operates with zero in-band runtime browser latency by ingesting post-mortem trace artifacts (`trace.zip`), performing causal graph diagnostic classification, scoring locators via calibrated probabilistic models, validating intent through six-dimensional invariants, and executing repairs in isolated Git worktrees with human approval gates.
+An enterprise-grade, deterministic intelligence, diagnosis, and self-healing engine for Microsoft Playwright suites. Operates with zero mandatory cloud backend, zero forced LLM dependencies, and zero unsolicited file mutations. Ingests post-mortem trace archives (`trace.zip`), performs multi-source live browser reproductions (`pw-intel reproduce`), classifies failures via action-anchored causal graphs, scores candidates via probabilistic models, enforces strict intent invariants ($V = A \land T \land F \land I \land D \land E$), and promotes verified repairs via cryptographic token authorization and atomic Compare-And-Swap (CAS) file operations.
 
 ---
 
 ## Key Differentiators
 
-| Capability | Playwright Intelligence Engine | Generic Auto-Healers | LLM Code Agents |
+| Capability | Playwright Intelligence Engine v2.6 | Generic Auto-Healers | LLM Code Agents |
 | :--- | :--- | :--- | :--- |
-| **Runtime Overhead** | **0 ms** (Post-mortem trace ingestion) | High (In-browser DOM mutation proxies) | None (Post-mortem, but non-deterministic) |
-| **Diagnostic Model** | **Causal Evidence Graph** (Filters telemetry) | Shallow string matching (`TimeoutError`) | Unstructured prompt reasoning |
-| **Candidate Scoring** | Calibrated Sigmoid Probability $P(\text{valid})$ | Ad-hoc priority lists / CSS string heuristics | Unconstrained token generation |
-| **Negative Control Gate** | **Strict Abstention** on $matchCount \neq 1$, backend 500, or auth errors | Blindly repairs or clicks first DOM match | Hallucinates locators for broken apps |
-| **Defect Resistance** | **100% Detection** (0% False Repairs on Seeded Defects) | Masks application bugs by altering assertions | Weakens assertions to force tests green |
-| **Intent Verification** | **$V = A \land T \land F \land I \land D \land E$** (AST-level) | None | Non-deterministic code changes |
-| **Branch Safety** | **Isolated Git Worktree** (Human approval gate) | In-place file modification | Directly overwrites active workspace files |
-| **Trace Compatibility** | Versioned Adapters (v5–v10) with provenance | Assumes static schema | Untracked schema handling |
+| **Execution Model** | **Local-First & Deterministic** (Node.js ESM) | In-browser DOM mutation proxies | Non-deterministic prompt completions |
+| **Diagnostic Model** | **Action-Anchored Causal Graph** ($T_{\text{action}}$ window) | Shallow string matching (`TimeoutError`) | Unstructured prompt reasoning |
+| **Reproduction** | **Live Multi-Source Collectors** (DOM, ariaSnapshot, net) | None | Re-runs full suite blindly |
+| **Candidate Scoring** | Calibrated Sigmoid Probability $P(\text{valid})$ | Ad-hoc priority lists / CSS heuristics | Unconstrained token generation |
+| **Negative Control Gate** | **Strict Safe Abstention** on $count \neq 1$, 5xx, 401/403, assertion bugs | Blindly repairs or clicks first DOM match | Hallucinates locators for broken apps |
+| **Defect Resistance** | **100% Detection** (0.0% False Repairs, 0.0% Bug Masking) | Masks application bugs by altering assertions | Weakens assertions to force tests green |
+| **Intent Verification** | **$V = A \land T \land F \land I \land D \land E$** (AST-level) | None | Arbitrary unstructured diffs |
+| **Mutation Safety** | **Isolated Git Worktree + CAS Atomic Promotion** | In-place file modification | Overwrites active branch directly |
+| **Authorization** | **Cryptographic Single-Use Approval Token** (SHA-256 bound) | Auto-commits without human review | Uncontrolled workspace mutation |
 
 ---
 
@@ -29,36 +30,38 @@ An enterprise-grade, deterministic intelligence and self-healing engine for Micr
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion["1. Trace Ingestion & Provenance"]
-        TraceZip["playwright-trace.zip"] --> ArchiveSec["ArchiveReader\n(Zip-Slip & Bomb Guards)"]
-        ArchiveSec --> TraceReg["TraceAdapterRegistry\n(v8, v9, v10)"]
-        TraceReg --> SnapResolver["SnapshotResolver\n(Complete / Partial / Provenance)"]
+    subgraph MultiSource["1. Multi-Source Evidence Capture"]
+        TraceZip["Trace Archive\n(trace.zip)"] --> TraceColl["TraceCollector\n(v8-v10 Adapters)"]
+        LiveBrowser["Live Browser\n(Playwright Page)"] --> LiveColl["LiveBrowserCollector\n(DOM, ariaSnapshot, Network, Console)"]
+        StaticCode["Source AST"] --> StaticColl["StaticAstCollector\n(ts-morph POM & Spec Analysis)"]
+        GitTree["Git Workspace"] --> GitColl["GitDiffCollector\n(Drift & Commit Attribution)"]
     end
 
-    subgraph Diagnostics["2. Causal Evidence Graph"]
-        SnapResolver --> EvidenceGraph["EvidenceCorrelator\n(Filters Telemetry & Analytics)"]
-        EvidenceGraph --> Classifier["FailureClassifier\n(LOCATOR_DRIFT, BACKEND_500, AUTH, etc.)"]
+    subgraph Diagnostics["2. Action-Anchored Causal Analysis"]
+        TraceColl & LiveColl & StaticColl & GitColl --> Redactor["EvidenceRedactor\n(Central Scrubbing of PII, Tokens, PANs)"]
+        Redactor --> Correlator["EvidenceCorrelator\n(T_action - 5000ms .. T_action + 1000ms Window)"]
+        Correlator --> Classifier["FailureClassifier\n(LOCATOR_DRIFT, BACKEND_500, AUTH, ASSERTION)"]
     end
 
-    subgraph Intelligence["3. Probabilistic Multi-Factor Scoring"]
-        Classifier -->|LOCATOR_DRIFT| Scorer["SelectorScorer\n(Role, Attr, Struct, Loc, Vis, Stability)"]
-        Scorer --> CalibratedSigmoid["Calibrated Probability Sigmoid\nP(valid) & Ambiguity Delta"]
-        CalibratedSigmoid --> AbstentionGate["AbstentionPolicy\n(Strict Uniqueness: matchCount == 1)"]
+    subgraph Intelligence["3. Empirical Candidate Verification"]
+        Classifier -->|LOCATOR_DRIFT| Extractor["CandidateExtractor\n(Role, TestId, Label, Placeholder, Text)"]
+        Extractor --> LiveVerifier["LiveLocatorVerifier\n(Empirical verify: count === 1, visible, enabled)"]
+        LiveVerifier --> Scorer["SelectorScorer & AbstentionPolicy\n(Strict Uniqueness: count == 1)"]
     end
 
-    subgraph Repair["4. Sandboxed AST Repair & Verification"]
-        AbstentionGate -->|Valid Candidate| Worktree["WorktreeManager\n(Isolated Git Worktree + NTFS Junction)"]
-        Worktree --> ASTPatcher["AstPatcher (ts-morph)\n(5 Page Object Patterns)"]
-        ASTPatcher --> DiffAllowlist["DiffAllowlistValidator\n(Zero Collateral Modifications)"]
-        DiffAllowlist --> IntentV2["IntentValidator (V = A ∧ T ∧ F ∧ I ∧ D ∧ E)\nCanonical AST Expectation Invariant"]
-        IntentV2 --> ExecutionVerification["Worktree Execution Verification\n(npx playwright test)"]
+    subgraph Isolation["4. Sandboxed AST Repair & Invariant Proof"]
+        Scorer -->|Valid Plan| Worktree["WorktreeManager\n(Isolated Git Worktree + Canonical Realpath)"]
+        Worktree --> ASTPatcher["AstPatcher (ts-morph)\n(Property, Constructor, Method Patterns)"]
+        ASTPatcher --> DiffAllowlist["DiffAllowlistValidator\n(Zero Collateral Mutations, Recursive AST Grammar)"]
+        DiffAllowlist --> IntentV2["IntentValidator (V = A ∧ T ∧ F ∧ I ∧ D ∧ E)\nPre-flight Proposal V_pre"]
+        IntentV2 --> ExecutionVerification["Worktree Test Execution Proof\n(VerifiedExecutionProof exitCode === 0)"]
     end
 
-    subgraph Approval["5. Enterprise Governance Gate"]
-        ExecutionVerification --> SignedArtifact["Signed Repair Artifact\n(Unified Git Diff + Verification Ledger)"]
-        SignedArtifact --> HumanReview{"Human Approval Gate\nCLI / PR Review"}
-        HumanReview -->|Approved| ActiveBranch["Active Branch Integration"]
-        HumanReview -->|Rejected| Discard["Discard Worktree"]
+    subgraph Governance["5. Cryptographic CAS Promotion Gate"]
+        ExecutionVerification --> Approval["ApprovalService\n(Cryptographic SHA-256 Single-Use Token)"]
+        Approval --> HumanGate{"Human Authorization Gate\n(CLI Prompt / MCP Token)"}
+        HumanGate -->|Approved| Promoter["WorkspacePromoter\n(Cooperative Lock + CAS Hash Check + Atomic Rename)"]
+        HumanGate -->|Rejected| Discard["Discard Sandbox Worktree"]
     end
 ```
 
@@ -67,7 +70,7 @@ flowchart TD
 ## Quickstart & Installation
 
 ### Prerequisites
-- Node.js >= 18.0.0
+- Node.js >= 20.0.0
 - Git >= 2.30.0
 - Playwright >= 1.40.0
 
@@ -83,8 +86,11 @@ npm install
 npm run typecheck
 npm run build
 
-# Run complete test suite (329 tests)
+# Run complete test suite (382 tests across 24 test files)
 npm test
+
+# Run empirical real browser benchmark suite
+npm run benchmark
 ```
 
 ---
@@ -94,106 +100,60 @@ npm test
 The engine provides a standalone binary `pw-intel`:
 
 ```bash
-# Diagnose a failing Playwright trace
+# 1. Diagnose a failing Playwright trace archive
 npx pw-intel diagnose ./playwright-traces/trace.zip
 
-# Plan a repair without modifying active files
-npx pw-intel repair ./playwright-traces/trace.zip --target-page src/pages/login.page.ts --dry-run
+# 2. Reproduce a failing spec with live multi-source diagnostic collectors
+npx pw-intel reproduce ./e2e/login.spec.ts
 
-# Execute full repair pipeline inside an isolated Git worktree
-npx pw-intel repair ./playwright-traces/trace.zip --target-page src/pages/login.page.ts
+# 3. Execute the empirical browser benchmark suite in headless Chromium
+npx pw-intel benchmark
 
-# Apply verified repair to the active working branch (requires human confirmation)
-npx pw-intel repair ./playwright-traces/trace.zip --target-page src/pages/login.page.ts --apply
+# Benchmark options:
+npx pw-intel benchmark --family "Dynamic IDs"      # Filter Tier 2 mutations by family
+npx pw-intel benchmark --scenario "500"            # Filter Tier 3 negative controls
+npx pw-intel benchmark --browser firefox           # Target alternative browser engine
 
-# Run security and health audit on the repository
-npx pw-intel audit
+# 4. Start the Model Context Protocol (MCP) JSON-RPC server on stdio
+npx pw-intel mcp
+
+# 5. Generate verified Page Object and Spec scaffolding
+npx pw-intel generate UserDashboard
 ```
 
 ---
 
-## Model Context Protocol (MCP) Server
+## Empirical Benchmark Suite (Gate C)
 
-Connect Playwright Intelligence Engine natively to **Cursor**, **Claude Desktop**, or any MCP-compliant AI client.
+The benchmark runner (`benchmarks/runner/master-benchmark-runner.ts`) executes **9 real end-to-end browser scenarios** in headless Chromium against an in-memory `ControlledAppServer`. Outcomes, latencies, regressions, and defect masking rates are measured dynamically with **zero synthetic assignments and zero hardcoded rates**:
 
-Add to your `cursor.json` or `claude_desktop_config.json`:
+- **Tier 1 (2 Real Baselines):** Authentication journey and e-commerce checkout journey executed in headless Chromium (100% pass rate).
+- **Tier 2 (4 Real DOM Drift Mutations):** Real DOM mutations (dynamic hashed IDs, accessible name drift, container restructuring, CSS utility class volatility). The engine executes original spec $\to$ catches browser failure $\to$ captures failure-point DOM & ariaSnapshot $\to$ extracts typed `LocatorPlan` $\to$ empirically verifies candidate live in Chromium (`count === 1`, `visible`, `enabled`) $\to$ patches Page Object $\to$ re-runs test in Chromium $\to$ confirms green pass $\to$ runs regression tests on clean baselines (100% repair precision, 100% recall, 0.0% regressions).
+- **Tier 3 (3 Real Negative Controls):** In-domain HTTP 500 server crash, seeded business defect (wrong total calculated), and strict-mode duplicate controls (100% safe abstention rate, 0.0% false repairs, 0.0% bug masking).
+- **Wilson 95% Confidence Interval:** `[70.08%, 100.00%]` computed from empirical trial outcomes.
 
-```json
-{
-  "mcpServers": {
-    "playwright-intelligence": {
-      "command": "node",
-      "args": ["d:/Work/playwright-intelligence-engine/dist/index.js", "--mcp"]
-    }
-  }
-}
-```
-
-### Supported MCP Tools:
-- `diagnose_trace`: Ingests a trace, outputs failure classification with causal graph evidence.
-- `score_candidates`: Extracts DOM candidates and computes calibrated probability scores.
-- `plan_repair`: Generates AST diff and evaluates Intent Invariant v2.
-- `execute_isolated_repair`: Manages end-to-end repair inside a sandboxed Git worktree.
+Reports are saved to `artifacts/benchmark-report.json` and `artifacts/benchmark-report.md`.
 
 ---
 
-## Enterprise Intent Invariants ($V = A \land T \land F \land I \land D \land E$)
+## Model Context Protocol (MCP) Integration
 
-To prevent autonomous agents from weakening assertions or bypassing test logic, all repairs must satisfy the formal 6-dimensional invariant:
+The MCP server runs on `stdio` with fail-closed security:
 
-1. **$A$ (Assertion Invariant)**: Canonical AST hash of all `expect(...)` statements in the test file must match the original byte-for-byte (ignoring formatting and whitespace).
-2. **$T$ (Structural Test Body Invariant)**: Statement order and control flow statements cannot be altered, added, or removed.
-3. **$F$ (Fixture Literal Invariant)**: Test arguments and input data literals must remain intact.
-4. **$I$ (Target Identity Invariant)**: The semantic role and intent of the replaced locator must match the target action.
-5. **$D$ (Diff Allowlist Invariant)**: Only the target locator declaration in the specified Page Object can be changed. No modifications to imports, constructor logic, or helper methods are permitted.
-6. **$E$ (Execution Invariant)**: The repaired test must pass cleanly when executed in an isolated worktree.
-
----
-
-## Empirical Benchmark Performance
-
-Evaluated against the **Master Adversarial Benchmark Suite** consisting of **104 distinct scenarios** across 3 tiers:
-
-```
-========================================================================
- MASTER ADVERSARIAL BENCHMARK SUITE — 100+ REAL SCENARIOS
-========================================================================
- TOTAL BENCHMARK SCENARIOS EVALUATED: 104
- • Tier 1 Baseline Scenarios       : 24 (Pass Rate: 100.0%)
- • Tier 2 Structural Mutations     : 50 (Recovery Rate: 100.0%)
- • Tier 3 Negative Controls        : 30 (Abstention Rate: 100.0%)
- • Seeded Defect Detection Rate    : 100.0% (Masking Rate: 0.0%)
- • False Repair Rate               : 0.0%
- • Latency P50 / P95               : 14 ms / 29 ms
- • Wilson 95% Confidence Interval  : [96.44%, 100.00%]
-========================================================================
-```
-
-See [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md) for full statistical breakdowns and raw logs.
+1. `diagnose_trace`: Diagnoses a Playwright trace archive, returning causal classification, confidence, and recommended repairs.
+2. `reproduce_and_diagnose`: Executes a test spec inside an isolated worktree with live collectors attached.
+3. `repair_page_object`: Two-stage workflow:
+   - Calling without `approvalToken` stages the proposal in `ApprovalService` and returns `proposalId`, proposed diff, and cryptographic proposal metadata.
+   - Calling with `approvalToken` validates token binding (target file, AST hash, diff hash, TTL) and promotes the patch atomically to the workspace using `WorkspacePromoter`.
 
 ---
 
-## Documentation Index
+## Security Model
 
-- [Architecture Specification (v2.4 Contract)](docs/ARCHITECTURE.md)
-- [Architecture Decision Records (ADRs)](docs/ARCHITECTURE_DECISIONS.md)
-- [Diagnostic Taxonomy & Causal Evidence](docs/DIAGNOSTIC_TAXONOMY.md)
-- [Intent Invariants v2 Specification](docs/INTENT_INVARIANTS.md)
-- [AST Patching & Page Object Patterns](docs/AST_PATCHING.md)
-- [Trace Compatibility & Adapters (v5–v10)](docs/TRACE_COMPATIBILITY.md)
-- [Git Worktree & Dependency Isolation](docs/WORKTREE_ISOLATION.md)
-- [Security Model & Defenses](docs/SECURITY_MODEL.md)
-- [MCP Integration Guide](docs/MCP_INTEGRATION.md)
-- [CLI Reference Guide](docs/CLI_REFERENCE.md)
-- [Test Coverage Matrix (329 Tests)](docs/TEST_COVERAGE_MATRIX.md)
-- [Benchmark Methodology](docs/BENCHMARK_METHODOLOGY.md)
-- [Benchmark Results & Statistical Proof](docs/BENCHMARK_RESULTS.md)
-- [Known Limitations & Monorepo Boundaries](docs/KNOWN_LIMITATIONS.md)
-- [Release Gates Implementation Status](docs/IMPLEMENTATION_STATUS.md)
-
----
-
-## License
-
-MIT © 2026 Playwright Intelligence Engine Contributors.
-
+1. **Worktree-First Isolation:** All investigations, mutations, and exploratory re-runs execute in isolated Git worktrees (`.worktrees/`).
+2. **Fail-Closed Intent Invariant v2:** Authorizing any repair requires satisfying:
+   $$V = A \land T \land F \land I \land D \land E$$
+   where $A$ = assertions preserved, $T$ = test body preserved, $F$ = fixtures preserved, $I$ = target identity preserved, $D$ = diff allowlist passed, $E$ = execution proof verified.
+3. **Compare-And-Swap (CAS) Atomic Promotion:** `WorkspacePromoter` verifies canonical realpath containment, acquires cooperative file locks, verifies source hash against approved hash, writes to a temporary file, atomically replaces via `fs.renameSync`, and validates post-write SHA-256 hash.
+4. **Subprocess Sanitization:** `ExecutionRunner` strips cloud keys and developer tokens, bounds output buffers to 16 MB, maps signals to `128 + signal`, and terminates process trees on timeout.
+5. **Central Redaction:** `EvidenceRedactor` scrubs Bearer tokens, JWTs, credit card numbers, SSNs, and Basic Auth across all collectors prior to analysis.

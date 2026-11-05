@@ -155,6 +155,13 @@ export class FailureClassifier {
             relation: 'TEMPORALLY_PRECEDES',
             description: `Network event completed ${context.failedAction.timestamp - net.timestamp}ms before action`,
           });
+        } else if (net.timestamp > context.failedAction.timestamp && net.timestamp <= context.failedAction.timestamp + 2000) {
+          edges.push({
+            fromNodeId: actionNodeId,
+            toNodeId: netNodeId,
+            relation: 'INITIATED_BY',
+            description: `Action initiated network request to ${net.url} (${net.timestamp - context.failedAction.timestamp}ms after action start)`,
+          });
         }
       }
 
@@ -177,6 +184,12 @@ export class FailureClassifier {
           toNodeId: actionNodeId,
           relation: 'SUPPORTS',
           description: `HTTP ${net.status} directly explains failure of action`,
+        });
+        edges.push({
+          fromNodeId: netNodeId,
+          toNodeId: 'hypothesis:locator-drift',
+          relation: 'CONTRADICTS',
+          description: `HTTP ${net.status} on application endpoint contradicts UI locator drift as root cause`,
         });
       }
     }

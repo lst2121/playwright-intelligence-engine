@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -35,8 +36,21 @@ export class WorktreeManager {
   private static readonly VALID_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
 
   /**
+   * Checks whether a given process ID is currently alive on the host system.
+   */
+  public static isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Asserts that a worktree ID is valid and that the resolved path is strictly contained
-   * within the base worktree directory. Prevents path traversal and recursive host deletion.
+   * within the base worktree directory using canonical real paths (AUDIT-05 / AUDIT-06).
+   * Prevents symlink/junction escape, directory traversal, and recursive host deletion.
    */
   private assertWorktreeContainment(id: string): string {
     if (!WorktreeManager.VALID_ID_REGEX.test(id)) {
@@ -46,12 +60,45 @@ export class WorktreeManager {
       );
     }
 
-    const worktreePath = path.resolve(this.baseWorktreeDir, id);
-    if (!worktreePath.startsWith(this.baseWorktreeDir + path.sep)) {
+    fsSync.mkdirSync(this.baseWorktreeDir, { recursive: true });
+    let canonicalBase: string;
+    try {
+      canonicalBase = fsSync.realpathSync(this.baseWorktreeDir);
+    } catch (err: any) {
       throw new WorktreeOperationError(
         'containment',
-        `Security Violation: Worktree path '${worktreePath}' escapes base worktree directory '${this.baseWorktreeDir}'.`
+        `Security Violation: Failed to resolve canonical realpath of base worktree directory '${this.baseWorktreeDir}': ${err.message}`
       );
+    }
+
+    const worktreePath = path.resolve(canonicalBase, id);
+    const rel = path.relative(canonicalBase, worktreePath);
+
+    if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') {
+      throw new WorktreeOperationError(
+        'containment',
+        `Security Violation: Worktree path '${worktreePath}' escapes base worktree directory '${canonicalBase}'.`
+      );
+    }
+
+    if (fsSync.existsSync(worktreePath)) {
+      try {
+        const canonicalWorktree = fsSync.realpathSync(worktreePath);
+        const relWorktree = path.relative(canonicalBase, canonicalWorktree);
+        if (relWorktree.startsWith('..') || path.isAbsolute(relWorktree)) {
+          throw new WorktreeOperationError(
+            'containment',
+            `Security Violation: Canonical worktree '${canonicalWorktree}' escapes base worktree directory '${canonicalBase}'.`
+          );
+        }
+        return canonicalWorktree;
+      } catch (err: any) {
+        if (err instanceof WorktreeOperationError) throw err;
+        throw new WorktreeOperationError(
+          'containment',
+          `Security Violation: Failed to resolve canonical realpath of worktree '${worktreePath}': ${err.message}`
+        );
+      }
     }
 
     return worktreePath;
@@ -59,6 +106,7 @@ export class WorktreeManager {
 
   /**
    * Creates an isolated detached Git worktree using the appropriate DependencyStrategy.
+   * Enforces fail-closed dependency validation (AUDIT-16).
    */
   public async createWorktree(worktreeId?: string): Promise<WorktreeInfo> {
     const id = worktreeId ?? `repair-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
@@ -67,22 +115,66 @@ export class WorktreeManager {
 
     await fs.mkdir(this.baseWorktreeDir, { recursive: true });
 
-    // Step 1: Create Git worktree
+    // Step 1: Detect dirty workspace state and create snapshot if uncommitted changes exist
+    let baseRef = 'HEAD';
+    let untrackedFiles: string[] = [];
+
     try {
-      await execFileAsync('git', ['worktree', 'add', '-b', branch, worktreePath, 'HEAD'], {
+      const { stdout: statusOut } = await execFileAsync('git', ['status', '--porcelain'], { cwd: this.rootDir });
+      const isDirty = statusOut.trim().length > 0;
+
+      if (isDirty) {
+        // Create an in-memory commit representing the exact staged and unstaged state without touching workspace
+        const { stdout: stashSha } = await execFileAsync('git', ['stash', 'create'], { cwd: this.rootDir });
+        const trimmedSha = stashSha.trim();
+        if (trimmedSha) {
+          baseRef = trimmedSha;
+        }
+
+        // Identify untracked, non-ignored files to mirror
+        const { stdout: untrackedOut } = await execFileAsync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: this.rootDir });
+        untrackedFiles = untrackedOut.split('\n').map((f) => f.trim()).filter(Boolean);
+      }
+    } catch {
+      // Fall back to HEAD if status check encounters a non-git environment
+      baseRef = 'HEAD';
+    }
+
+    // Step 2: Create Git worktree
+    try {
+      await execFileAsync('git', ['worktree', 'add', '-b', branch, worktreePath, baseRef], {
         cwd: this.rootDir,
       });
     } catch (err: any) {
       throw new WorktreeOperationError('create', `Git worktree add failed: ${err.message}`);
     }
 
-    // Step 2: Prepare dependencies via DependencyStrategy
+    // Step 3: Mirror untracked files into worktree
+    if (untrackedFiles.length > 0) {
+      for (const relFile of untrackedFiles) {
+        try {
+          const src = path.resolve(this.rootDir, relFile);
+          const dest = path.resolve(worktreePath, relFile);
+          await fs.mkdir(path.dirname(dest), { recursive: true });
+          await fs.copyFile(src, dest);
+        } catch {
+          // Non-critical file copy failure
+        }
+      }
+    }
+
+    // Step 2: Prepare dependencies via DependencyStrategy and enforce validation (AUDIT-16)
     const strategy = await DependencyStrategyResolver.resolve(this.rootDir);
     let prepResult;
     try {
       prepResult = await strategy.prepare(this.rootDir, worktreePath);
       // Validate dependency strategy isolation
-      await strategy.validate(worktreePath);
+      const validation = await strategy.validate(worktreePath);
+      if (!validation.isValid) {
+        throw new Error(
+          `Dependency validation failed for '${prepResult.strategy}' (isolation: ${prepResult.isolationLevel}): ${validation.error ?? 'Unmet dependency requirements'}`
+        );
+      }
     } catch (err: any) {
       await this.destroyWorktree(id).catch(() => {});
       throw new WorktreeOperationError('prepare-dependencies', err.message);
@@ -141,61 +233,55 @@ export class WorktreeManager {
   }
 
   /**
-   * Checks if an owner process ID is currently running on the system.
+   * Robust directory removal with exponential backoff to handle temporary
+   * Windows anti-virus or search indexer file locks.
    */
-  public static isProcessAlive(pid: number): boolean {
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-
-
-  /**
-   * Exponential backoff removal to handle Windows Defender / SearchIndexer transient file locks.
-   */
-  private async resilientRemove(targetPath: string, maxRetries = 5, initialDelayMs = 100): Promise<void> {
-    let delay = initialDelayMs;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  private async resilientRemove(targetPath: string, maxRetries = 5): Promise<void> {
+    let delayMs = 100;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         await fs.rm(targetPath, { recursive: true, force: true });
         return;
       } catch (err: any) {
-        if ((err.code === 'EBUSY' || err.code === 'EPERM' || err.code === 'ENOTEMPTY') && attempt < maxRetries) {
-          const jitter = Math.floor(Math.random() * 50);
-          await new Promise((resolve) => setTimeout(resolve, delay + jitter));
-          delay *= 2;
-        } else {
-          // If exhausted retries or other error, ignore if directory no longer exists
-          const exists = await fs.access(targetPath).then(() => true).catch(() => false);
-          if (!exists) return;
+        if (err.code === 'ENOENT') {
+          return;
         }
+        if (attempt === maxRetries - 1) {
+          // Fallback: attempt sync removal or log warning
+          try {
+            fsSync.rmSync(targetPath, { recursive: true, force: true });
+            return;
+          } catch {
+            return;
+          }
+        }
+        await new Promise((res) => setTimeout(res, delayMs));
+        delayMs *= 2;
       }
     }
   }
 
   private async registerWorktree(info: WorktreeInfo): Promise<void> {
-    const registry = await this.readRegistry();
-    registry.worktrees[info.id] = info;
-    await fs.writeFile(this.registryPath, JSON.stringify(registry, null, 2), 'utf8');
+    let reg: WorktreeRegistry = { worktrees: {} };
+    try {
+      const data = await fs.readFile(this.registryPath, 'utf-8');
+      reg = JSON.parse(data);
+    } catch {
+      // Default to empty registry if unreadable
+    }
+
+    reg.worktrees[info.id] = info;
+    await fs.writeFile(this.registryPath, JSON.stringify(reg, null, 2), 'utf-8');
   }
 
   private async unregisterWorktree(id: string): Promise<void> {
-    const registry = await this.readRegistry();
-    delete registry.worktrees[id];
-    await fs.writeFile(this.registryPath, JSON.stringify(registry, null, 2), 'utf8');
-  }
-
-  private async readRegistry(): Promise<WorktreeRegistry> {
     try {
-      const data = await fs.readFile(this.registryPath, 'utf8');
-      return JSON.parse(data) as WorktreeRegistry;
+      const data = await fs.readFile(this.registryPath, 'utf-8');
+      const reg: WorktreeRegistry = JSON.parse(data);
+      delete reg.worktrees[id];
+      await fs.writeFile(this.registryPath, JSON.stringify(reg, null, 2), 'utf-8');
     } catch {
-      return { worktrees: {} };
+      // Ignore registry read errors
     }
   }
 }
-

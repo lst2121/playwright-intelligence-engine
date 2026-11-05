@@ -111,8 +111,8 @@ export class AbstentionPolicy {
           top.element.role === 'link' ||
           top.element.role === 'tab' ||
           top.element.role === 'menuitem' ||
-          Boolean(top.element.attributes['onclick']) ||
-          Boolean(top.element.attributes['href']);
+          Boolean(top.element.attributes?.['onclick']) ||
+          Boolean(top.element.attributes?.['href']);
 
         if (!isClickable && top.element.tag !== 'div' && top.element.tag !== 'span' && top.element.tag !== 'td') {
           return {

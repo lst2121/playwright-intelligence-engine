@@ -29,7 +29,7 @@ describe('TraceParser & FailureClassifier Unit Tests', () => {
 
     const context = TraceParser.assembleDiagnosticContext(traceLines, []);
     // Populate DOM snapshot evidence to verify LOCATOR_DRIFT classification with available DOM
-    context.snapshots = { 'call@1': { html: '<button class="checkout">Checkout</button>' } as any };
+    context.snapshots = { action: '<button class="checkout">Checkout</button>' };
     context.evidenceCompleteness.domAvailable = true;
 
     expect(context.traceFormatVersion).toBe(6);

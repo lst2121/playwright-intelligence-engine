@@ -163,8 +163,8 @@ export class SnapshotResolver {
       const isInteractive =
         interactiveTags.has(node.tag) ||
         (node.role && interactiveRoles.has(node.role.toLowerCase())) ||
-        Boolean(node.attributes['onclick']) ||
-        node.attributes['cursor'] === 'pointer';
+        Boolean(node.attributes?.['onclick']) ||
+        node.attributes?.['cursor'] === 'pointer';
 
       if (isInteractive) {
         results.push(node);

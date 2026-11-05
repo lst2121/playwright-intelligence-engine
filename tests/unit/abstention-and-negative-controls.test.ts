@@ -17,6 +17,7 @@ describe('Abstention Policy and Negative Controls Suite (35 Tests)', () => {
       element: el,
       breakdown: {
         score: 0.88,
+        transformedScore: 0.91,
         calibratedProbability: 0.91,
         uniqueness: 1.0,
         matchCount: 1,

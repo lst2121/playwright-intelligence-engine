@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import AdmZip from 'adm-zip';
 import { McpServer, JsonRpcRequest } from '../../src/mcp/server.js';
 import { runCli } from '../../src/cli/index.js';
+import { ApprovalService } from '../../src/repair/approval-service.js';
 
 describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
   const tmpDir = path.resolve('tests/fixtures/tmp-cli-mcp');
@@ -179,13 +180,35 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
     };
     const propRes = await mcp.handleRequest(propReq);
     expect(propRes.result.status).toBe('PROPOSAL_READY_FOR_APPROVAL');
-    expect(propRes.result.approvalToken).toBeDefined();
+    expect(propRes.result.proposalId).toBeDefined();
 
     // Verify file remains completely untouched prior to approval
     const prePom = await fs.readFile(pomPath, 'utf8');
     expect(prePom).toContain("this.page.locator('#old')");
 
-    // Stage 2: Authorized application with verified approval token
+    // Stage 2: Explicit human operator authorization requires verified execution proof
+    const staged = ApprovalService.getInstance().getProposal(propRes.result.proposalId)!;
+    staged.worktreeExecutionVerified = true;
+    staged.executionProof = {
+      testFilePath: specPath,
+      worktreeId: 'worktree-verified',
+      command: 'npx playwright test',
+      exitCode: 0,
+      stdout: '1 passed',
+      stderr: '',
+      passed: true,
+      executionOutcome: 'PASS',
+      assertionIntegrityValid: true,
+      timestamp: Date.now(),
+      durationMs: 150,
+    };
+
+    const auth = ApprovalService.getInstance().authorizeProposal({
+      proposalId: propRes.result.proposalId,
+    });
+    expect(auth.tokenId).toBeDefined();
+
+    // Stage 3: Authorized application with verified approval token
     const applyReq: JsonRpcRequest = {
       jsonrpc: '2.0',
       id: 11,
@@ -198,7 +221,7 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
           className: 'TestPom',
           memberName: 'btn',
           replacementSelector: "this.page.getByRole('button', { name: 'New' })",
-          approvalToken: propRes.result.approvalToken,
+          approvalToken: auth.tokenId,
         },
       },
     };

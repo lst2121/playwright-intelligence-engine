@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { SelectorScorer, ScorerWeights } from '../../src/selector/selector-scorer.js';
 import { CandidateExtractor } from '../../src/selector/candidate-extractor.js';
 import { ResolvedElement } from '../../src/trace/snapshot-resolver.js';
+import { InsufficientIdentifiersError } from '../../src/core/errors/engine-errors.js';
 
 describe('Candidate Extraction and Multi-Factor Scoring Suite (35 Tests)', () => {
   const createCandidate = (overrides?: Partial<ResolvedElement>): ResolvedElement => ({
@@ -289,15 +290,14 @@ describe('Candidate Extraction and Multi-Factor Scoring Suite (35 Tests)', () =>
     expect(loc).toBe("this.page.locator('button.dropdown-item')");
   });
 
-  it('EXTRACT-08: should fallback to tag selector when element has no attributes', () => {
+  it('EXTRACT-08: should reject bare tag fallback when element has no attributes', () => {
     const candidate = createCandidate({
       role: undefined,
       accessibleName: undefined,
       attributes: {},
       text: '',
     });
-    const loc = CandidateExtractor.generateLocator(candidate);
-    expect(loc).toBe("this.page.locator('button')");
+    expect(() => CandidateExtractor.generateLocator(candidate)).toThrowError(InsufficientIdentifiersError);
   });
 
   it('EXTRACT-09: should extract and rank all interactive candidates from a DOM root', () => {

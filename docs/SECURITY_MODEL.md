@@ -1,6 +1,6 @@
-# Enterprise Security Model & Threat Mitigation Specification (v2.5)
+# Enterprise Security Model & Threat Mitigation Specification (v2.6)
 
-This document specifies the threat model, attack vectors, defensive controls, and cryptographic governance enforced across the **Playwright Intelligence Engine**.
+This document specifies the threat model, attack vectors, defensive controls, cryptographic governance, and atomic Compare-And-Swap (CAS) workspace promotion enforced across the **Playwright Intelligence Engine**.
 
 ---
 

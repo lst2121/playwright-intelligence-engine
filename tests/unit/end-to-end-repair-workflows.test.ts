@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { TraceParser } from '../../src/trace/trace-parser.js';
-import { SnapshotResolver, NodeSnapshot } from '../../src/trace/snapshot-resolver.js';
+import { SnapshotResolver, NodeSnapshot, ResolvedElement } from '../../src/trace/snapshot-resolver.js';
 import { FailureClassifier } from '../../src/diagnostics/failure-classifier.js';
 import { SelectorScorer } from '../../src/selector/selector-scorer.js';
 import { AbstentionPolicy, ScoredCandidate } from '../../src/selector/abstention-policy.js';
@@ -127,7 +127,19 @@ test('user login', async ({ page }) => {
       pageObjectPatchedSource: await fs.readFile(pomPath, 'utf8'),
       pageObjectClassName: 'LoginPage',
       targetMemberName: 'submitButton',
-      executionPassed: true,
+      executionProof: {
+        testFilePath: specPath,
+        worktreeId: 'wt-e2e-01',
+        exitCode: 0,
+        stdout: '1 passed',
+        stderr: '',
+        passed: true,
+        executionOutcome: 'PASS',
+        assertionIntegrityValid: true,
+        durationMs: 45,
+        command: 'npx playwright test',
+        timestamp: Date.now(),
+      },
     });
     expect(postIntentRes.isValid).toBe(true);
     expect(postIntentRes.assertionsPreserved).toBe(true);

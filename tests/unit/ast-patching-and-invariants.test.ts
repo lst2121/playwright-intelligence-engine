@@ -880,7 +880,19 @@ test('sample', async ({ page }) => {
       pageObjectPatchedSource: patchedPom,
       pageObjectClassName: 'Pom',
       targetMemberName: 'proceed',
-      executionPassed: true,
+      executionProof: {
+        testFilePath: specPath,
+        worktreeId: 'wt-intent-09',
+        exitCode: 0,
+        stdout: '1 passed',
+        stderr: '',
+        passed: true,
+        executionOutcome: 'PASS',
+        assertionIntegrityValid: true,
+        durationMs: 40,
+        command: 'npx playwright test',
+        timestamp: Date.now(),
+      },
     });
 
     expect(res.isValid).toBe(true);
@@ -951,7 +963,19 @@ test('sample', async ({ page }) => {
       pageObjectPatchedSource: patchedPom,
       pageObjectClassName: 'Pom',
       targetMemberName: 'pay',
-      executionPassed: true,
+      executionProof: {
+        testFilePath: specPath,
+        worktreeId: 'wt-intent-12',
+        exitCode: 0,
+        stdout: '1 passed',
+        stderr: '',
+        passed: true,
+        executionOutcome: 'PASS',
+        assertionIntegrityValid: true,
+        durationMs: 40,
+        command: 'npx playwright test',
+        timestamp: Date.now(),
+      },
     });
 
     expect(res.diffAllowlistPassed).toBe(true);

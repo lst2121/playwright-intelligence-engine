@@ -67,6 +67,8 @@ describe('Phase 3 Intelligence & Stability Tests', () => {
       element: candidateA,
       breakdown: {
         score: 0.81,
+        transformedScore: 0.81,
+        calibratedProbability: 0.81,
         uniqueness: 1.0,
         matchCount: 1,
         identityMatch: 0.8,
@@ -83,6 +85,8 @@ describe('Phase 3 Intelligence & Stability Tests', () => {
       element: candidateB,
       breakdown: {
         score: 0.80, // Delta is only 0.01 (< AMBIGUITY_DELTA_THRESHOLD 0.08)
+        transformedScore: 0.80,
+        calibratedProbability: 0.80,
         uniqueness: 1.0,
         matchCount: 1,
         identityMatch: 0.8,

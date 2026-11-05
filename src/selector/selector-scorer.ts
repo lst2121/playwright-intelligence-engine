@@ -109,9 +109,13 @@ export class SelectorScorer {
 
         let hasDistinguishingConflict = false;
         for (const [w1, w2] of distinguishingPairs) {
+          const origHasW1 = origNorm.includes(w1);
+          const origHasW2 = origNorm.includes(w2);
+          const candHasW1 = nameNorm.includes(w1);
+          const candHasW2 = nameNorm.includes(w2);
           if (
-            (origNorm.includes(w1) && nameNorm.includes(w2)) ||
-            (origNorm.includes(w2) && nameNorm.includes(w1))
+            (origHasW1 && !origHasW2 && candHasW2 && !candHasW1) ||
+            (origHasW2 && !origHasW1 && candHasW1 && !candHasW2)
           ) {
             hasDistinguishingConflict = true;
             break;
@@ -127,13 +131,26 @@ export class SelectorScorer {
         } else if (origNorm.includes(nameNorm) || nameNorm.includes(origNorm)) {
           identityMatch = 1.0;
         } else {
-          // Token overlap
+          // Token overlap evaluating composite candidate identity (accessibleName, text, testid, id)
+          const candCompositeText = [
+            candidate.accessibleName ?? '',
+            candidate.text ?? '',
+            candidate.attributes['data-testid'] ?? candidate.attributes['data-test'] ?? '',
+            candidate.attributes['id'] ?? '',
+          ].join(' ').toLowerCase().replace(/[-_]/g, ' ');
+
           const origWords = new Set(origNorm.split(/[^a-z0-9]+/).filter((w) => w.length > 2));
-          const candWords = new Set(nameNorm.split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+          const candWords = new Set(candCompositeText.split(/[^a-z0-9]+/).filter((w) => w.length > 2));
           if (origWords.size > 0 && candWords.size > 0) {
             const intersection = [...origWords].filter((w) => candWords.has(w));
             const overlap = intersection.length / Math.min(origWords.size, candWords.size);
-            identityMatch = overlap >= 0.5 ? 0.9 : 0.8;
+            if (overlap >= 0.5) {
+              identityMatch = 0.95;
+            } else if (overlap > 0) {
+              identityMatch = 0.85;
+            } else {
+              identityMatch = 0.8;
+            }
           }
         }
       }

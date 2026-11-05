@@ -15,17 +15,16 @@ export interface CorrelatedEvidence {
 
 export class EvidenceCorrelator {
   /**
-   * Correlates network and console anomalies within a temporal window leading up to the failure.
-   * Anchors the temporal window to the failed action timestamp (T_action), rather than
-   * max(timestamps) which could be background teardown/logging noise.
+   * Correlates network and console anomalies within an action-anchored temporal window
+   * leading up to the failure (AUDIT-12).
+   * Filters events FIRST before classification so the classifier evaluates only
+   * causally relevant, frame-matched events.
    */
   public static correlate(
     context: DiagnosticContext,
     windowMs = 5000
   ): CorrelatedEvidence {
-    const classification = FailureClassifier.classify(context);
-
-    // Anchor reference time to failedAction.timestamp if available
+    // 1. Anchor reference time strictly to failedAction.timestamp if available
     let refTime: number | undefined = context.failedAction.timestamp;
 
     if (refTime === undefined) {
@@ -43,7 +42,7 @@ export class EvidenceCorrelator {
     const windowStart = refTime !== undefined ? refTime - windowMs : undefined;
     const windowEnd = refTime !== undefined ? refTime + 1000 : undefined;
 
-    // Filter network events that occurred within the action-anchored temporal window with error status codes (4xx, 5xx)
+    // 2. Filter network events that occurred within the action-anchored temporal window with error status codes (4xx, 5xx)
     const suspiciousNetworkEvents = context.networkEvents.filter((event) => {
       const isError = event.status >= 400 || Boolean(event.errorText);
       if (!isError) return false;
@@ -54,7 +53,7 @@ export class EvidenceCorrelator {
       return true;
     });
 
-    // If frameId is specified, sort matching frame events to the front
+    // 3. If frameId is specified, sort matching frame events to the front
     if (context.failedAction.frameId) {
       const targetFrame = context.failedAction.frameId;
       suspiciousNetworkEvents.sort((a, b) => {
@@ -64,7 +63,7 @@ export class EvidenceCorrelator {
       });
     }
 
-    // Filter console errors within the action-anchored temporal window
+    // 4. Filter console errors within the action-anchored temporal window
     const suspiciousConsoleEvents = context.consoleEvents.filter((event) => {
       const isConsoleError = event.type === 'error' || event.text.toLowerCase().includes('uncaught');
       if (!isConsoleError) return false;
@@ -74,6 +73,15 @@ export class EvidenceCorrelator {
       }
       return true;
     });
+
+    // 5. Pipe filtered, frame-matched events directly to the FailureClassifier
+    const windowedContext: DiagnosticContext = {
+      ...context,
+      networkEvents: suspiciousNetworkEvents,
+      consoleEvents: suspiciousConsoleEvents,
+    };
+
+    const classification = FailureClassifier.classify(windowedContext);
 
     return {
       context,

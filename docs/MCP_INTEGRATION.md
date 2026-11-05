@@ -61,88 +61,72 @@ In Claude Desktop's configuration file:
 
 ## 3. Supported MCP Tools Reference
 
-The server exposes four strongly typed tools:
+The server exposes three strongly typed production tools:
 
 ### Tool 1: `diagnose_trace`
 Ingests a Playwright trace archive and returns failure classification, causal graph analysis, and diagnostic provenance.
 - **Parameters**:
-  - `tracePath` (string, required): Absolute or relative path to `trace.zip`.
+  - `tracePath` (string, required): Workspace-relative or absolute path to `trace.zip`.
 - **Output Schema**:
   ```json
   {
-    "category": "LOCATOR_DRIFT",
-    "confidence": 0.95,
-    "failedAction": {
-      "action": "click",
-      "selector": "button#submit-order",
-      "callId": "call@12"
-    },
-    "causalNetworkErrors": [],
-    "remedyRecommendation": "Target locator drifted. Eligible for automated repair."
-  }
-  ```
-
----
-
-### Tool 2: `score_candidates`
-Extracts DOM candidates matching the failed action's required semantics, applies multi-factor scoring, and evaluates abstention policies.
-- **Parameters**:
-  - `tracePath` (string, required): Path to `trace.zip`.
-  - `callId` (string, optional): Specific call ID to analyze (defaults to failed action).
-- **Output Schema**:
-  ```json
-  {
-    "candidatesEvaluated": 4,
-    "topCandidate": {
-      "selector": "getByRole('button', { name: 'Complete Checkout' })",
-      "rawScore": 0.88,
-      "calibratedProbability": 0.92,
-      "strictUniqueness": true,
-      "matchCount": 1
-    },
-    "abstentionDecision": {
+    "content": [{ "type": "text", "text": "Diagnostic Report..." }],
+    "classification": {
+      "category": "LOCATOR_DRIFT",
+      "confidence": 0.95,
+      "reason": "Locator timed out...",
       "shouldAbstain": false
+    },
+    "causalGraph": {
+      "nodes": [...],
+      "edges": [...]
     }
   }
   ```
 
 ---
 
-### Tool 3: `plan_repair`
-Generates an AST modification plan for the target Page Object and evaluates the Intent Invariant v2 without modifying any active files.
+### Tool 2: `repair_page_object`
+Safely refactors a Playwright Page Object file using `ts-morph` AST within the authorized workspace, with strict locator grammar and assertion immutability validation ($V = A \land T \land F \land I \land D \land E$).
+
+**Two-Stage Workflow**:
+1. **Proposal Mode (without `approvalToken`)**:
+   Stages the proposal in `ApprovalService` in-memory. Returns `proposalId`, proposed unified diff, and staging metadata without modifying disk and without leaking auto-usable bearer tokens.
+2. **Apply Mode (with `approvalToken`)**:
+   Validates the token's cryptographic binding (target path, AST hash, diff hash, TTL) and promotes the patch atomically to the workspace using `WorkspacePromoter` (cooperative file lock, CAS source hash verification, and atomic `fs.renameSync`).
+
 - **Parameters**:
-  - `tracePath` (string, required): Path to `trace.zip`.
-  - `targetPageObject` (string, required): Path to TypeScript Page Object file.
-  - `specPath` (string, optional): Path to test spec file for invariant hashing.
+  - `pomPath` (string, required): Path to Page Object file within workspace.
+  - `testPath` (string, required): Path to test spec file within workspace.
+  - `className` (string, required): Page Object class name.
+  - `memberName` (string, required): Target locator member name.
+  - `replacementSelector` (string, required): Replacement locator expression (e.g. `this.page.getByRole('button', { name: 'Submit' })`).
+  - `approvalToken` (string, optional): Cryptographic single-use approval token required to apply changes to workspace.
 - **Output Schema**:
   ```json
   {
-    "targetPattern": "CLASS_PROPERTY_INITIALIZER",
-    "originalSelector": "button#submit-order",
-    "proposedSelector": "this.page.getByRole('button', { name: 'Complete Checkout' })",
-    "intentInvariantPassed": true,
-    "diffAllowlistPassed": true,
-    "unifiedDiff": "--- a/src/pages/checkout.page.ts\n+++ b/src/pages/checkout.page.ts\n@@ -12,1 +12,1 @@\n-  readonly submitBtn = this.page.locator('button#submit-order');\n+  readonly submitBtn = this.page.getByRole('button', { name: 'Complete Checkout' });"
+    "status": "PROPOSED",
+    "proposalId": "prop-1730761200000-a8f9",
+    "diff": "--- a/src/pages/login.page.ts\n+++ b/src/pages/login.page.ts...",
+    "preflightPassed": true,
+    "instructions": "To apply this verified repair to the workspace, request human authorization and provide approvalToken."
   }
   ```
 
 ---
 
-### Tool 4: `execute_isolated_repair`
-Executes end-to-end repair inside an isolated Git worktree, runs the test runner, and returns verified execution evidence.
+### Tool 3: `generate_playwright_test`
+Generates enterprise-grade TypeScript Playwright Page Object and spec code with web-first assertions.
 - **Parameters**:
-  - `tracePath` (string, required): Path to `trace.zip`.
-  - `targetPageObject` (string, required): Path to TypeScript Page Object file.
-  - `specPath` (string, required): Path to test spec file.
-  - `configPath` (string, optional): Path to `playwright.config.ts`.
+  - `featureName` (string, required): Name of the feature or page (e.g. `"UserCheckout"`).
+  - `baseUrl` (string, optional): Target application URL.
+  - `steps` (array of objects, required): Array of interaction steps (`action`, `name`, `role`, `value`).
 - **Output Schema**:
   ```json
   {
-    "worktreeId": "repair-1730761200000",
-    "executionExitCode": 0,
-    "executionOutput": "1 passed (1.2s)",
-    "intentInvariantSatisfied": true,
-    "repairStatus": "VERIFIED_READY_FOR_APPROVAL"
+    "pageObjectName": "UserCheckoutPage",
+    "pageObjectCode": "export class UserCheckoutPage { ... }",
+    "specCode": "import { test, expect } from '@playwright/test'; ..."
   }
   ```
 

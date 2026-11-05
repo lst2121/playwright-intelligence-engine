@@ -9,10 +9,13 @@ import { AstPatcher } from '../../src/repair/ast-patcher.js';
 import { FailureClassifier } from '../../src/diagnostics/failure-classifier.js';
 import { EvidenceCorrelator } from '../../src/diagnostics/evidence-correlator.js';
 import { McpServer } from '../../src/mcp/server.js';
+import { ApprovalService } from '../../src/repair/approval-service.js';
 import { AbstentionPolicy, ScoredCandidate } from '../../src/selector/abstention-policy.js';
 import { TraceAdapterRegistry } from '../../src/trace/adapters/adapter-registry.js';
 import { DiagnosticContext } from '../../src/core/types/diagnostic-context.js';
 import { ResolvedElement } from '../../src/trace/snapshot-resolver.js';
+import { CandidateExtractor } from '../../src/selector/candidate-extractor.js';
+import { InsufficientIdentifiersError } from '../../src/core/errors/engine-errors.js';
 
 describe('Adversarial Safety and Correctness Remediation Suite (Workstream 10)', () => {
   let tmpDir: string;
@@ -218,7 +221,7 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
   // 11. Rejects ambiguous Playwright locator match when matchCount !== 1
   it('ADV-11: should strictly abstain when candidate element matches multiple elements in DOM (matchCount === 2)', () => {
     const candidate: ScoredCandidate = {
-      element: { tag: 'button', role: 'button', accessibleName: 'Submit', attributes: {}, children: [] },
+      element: { tag: 'button', role: 'button', accessibleName: 'Submit', text: 'Submit', attributes: {}, children: [] },
       breakdown: {
         score: 0.90,
         transformedScore: 0.92,
@@ -299,7 +302,7 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
 
   // 14. Unsupported trace version triggers UNSUPPORTED_TRACE_FORMAT
   it('ADV-14: should resolve UnknownTraceAdapter for unrecognized schema version', () => {
-    const manifest = { files: [] };
+    const manifest = { archivePath: 'test.zip', entryNames: [] };
     const sampleLines = ['{"type":"version","version":99}'];
 
     const adapter = TraceAdapterRegistry.resolveAdapter(manifest, sampleLines);
@@ -353,7 +356,19 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
       candidateElement: candidate,
       intendedAction: 'click',
       originalSelector: '#submit',
-      executionPassed: true,
+      executionProof: {
+        testFilePath: specPath,
+        worktreeId: 'wt-adv-16',
+        exitCode: 0,
+        stdout: '1 passed',
+        stderr: '',
+        passed: true,
+        executionOutcome: 'PASS',
+        assertionIntegrityValid: true,
+        durationMs: 120,
+        command: 'npx playwright test',
+        timestamp: Date.now(),
+      },
       strict: true,
     });
 
@@ -364,5 +379,131 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
     expect(res.identityAndActionPreserved).toBe(true);
     expect(res.diffAllowlistPassed).toBe(true);
     expect(res.executionVerified).toBe(true);
+  });
+
+  // 17. ApprovalService: Replay Rejection
+  it('ADV-17: ApprovalService should reject token replay (single-use consumption)', async () => {
+    const service = ApprovalService.getInstance();
+    const token = service.generateToken({
+      proposalId: 'prop-test-1',
+      patchHash: 'hash-patch-1',
+      targetFilePath: path.resolve(tmpDir, 'pom.ts'),
+      originalSourceHash: ApprovalService.hashContent('source 1'),
+      executionVerified: true,
+    });
+
+    const check1 = service.verifyAndConsumeToken({
+      tokenId: token.tokenId,
+      targetFilePath: path.resolve(tmpDir, 'pom.ts'),
+      currentSourceContent: 'source 1',
+      patchHash: 'hash-patch-1',
+    });
+    expect(check1.isValid).toBe(true);
+
+    const check2 = service.verifyAndConsumeToken({
+      tokenId: token.tokenId,
+      targetFilePath: path.resolve(tmpDir, 'pom.ts'),
+      currentSourceContent: 'source 1',
+      patchHash: 'hash-patch-1',
+    });
+    expect(check2.isValid).toBe(false);
+    expect(check2.reason).toContain('Approval token not found or already expired/consumed');
+  });
+
+  // 18. ApprovalService: CAS Source Modification Rejection
+  it('ADV-18: ApprovalService should reject token when source is modified concurrently', async () => {
+    const service = ApprovalService.getInstance();
+    const token = service.generateToken({
+      proposalId: 'prop-test-2',
+      patchHash: 'hash-patch-2',
+      targetFilePath: path.resolve(tmpDir, 'pom2.ts'),
+      originalSourceHash: ApprovalService.hashContent('original source'),
+      executionVerified: true,
+    });
+
+    const check = service.verifyAndConsumeToken({
+      tokenId: token.tokenId,
+      targetFilePath: path.resolve(tmpDir, 'pom2.ts'),
+      currentSourceContent: 'concurrently modified source',
+      patchHash: 'hash-patch-2',
+    });
+    expect(check.isValid).toBe(false);
+    expect(check.reason).toContain('source hash mismatch');
+  });
+
+  // 18b. ApprovalService: Unverified Execution Fail-Closed
+  it('ADV-18b: ApprovalService should reject token consumption when execution was not explicitly verified', async () => {
+    const service = ApprovalService.getInstance();
+    const token = service.generateToken({
+      proposalId: 'prop-test-unverified',
+      patchHash: 'hash-patch-unverified',
+      targetFilePath: path.resolve(tmpDir, 'pom-unverified.ts'),
+      originalSourceHash: ApprovalService.hashContent('unverified source'),
+      // executionVerified omitted -> must fail-closed to false
+    });
+
+    const check = service.verifyAndConsumeToken({
+      tokenId: token.tokenId,
+      targetFilePath: path.resolve(tmpDir, 'pom-unverified.ts'),
+      currentSourceContent: 'unverified source',
+      patchHash: 'hash-patch-unverified',
+    });
+    expect(check.isValid).toBe(false);
+    expect(check.reason).toContain('Cannot consume token for unverified repair execution');
+  });
+
+  // 19. WorkspacePromoter: Atomic Replacement and CAS Protection
+  it('ADV-19: WorkspacePromoter should atomically replace target file and verify hash', async () => {
+    const targetFile = path.resolve(tmpDir, 'promoted-pom.ts');
+    const originalContent = 'export class OldPage {}';
+    const patchedContent = 'export class NewPage {}';
+    await fs.writeFile(targetFile, originalContent, 'utf-8');
+
+    const service = ApprovalService.getInstance();
+    const token = service.generateToken({
+      proposalId: 'prop-promo-1',
+      patchHash: ApprovalService.hashContent(patchedContent),
+      targetFilePath: targetFile,
+      originalSourceHash: ApprovalService.hashContent(originalContent),
+      patchedSourceHash: ApprovalService.hashContent(patchedContent),
+      executionVerified: true,
+    });
+
+    const { WorkspacePromoter } = await import('../../src/repair/workspace-promoter.js');
+    const result = await WorkspacePromoter.promote({
+      targetFilePath: targetFile,
+      workspaceRoot: tmpDir,
+      patchedContent,
+      approvalTokenPayload: token,
+    });
+
+    expect(result.success).toBe(true);
+    const diskContent = await fs.readFile(targetFile, 'utf-8');
+    expect(diskContent).toBe(patchedContent);
+  });
+
+  // 20. ExecutionRunner: Dangerous Env Variable Sanitization
+  it('ADV-20: ExecutionRunner should strip dangerous NODE_OPTIONS environment variables', async () => {
+    const { ExecutionRunner } = await import('../../src/sandbox/execution-runner.js');
+    const sanitized = ExecutionRunner.getSanitizedEnv({
+      NODE_OPTIONS: '--inspect=9229',
+      CI: '1',
+      PW_TEST: 'true',
+    });
+
+    expect(sanitized['NODE_OPTIONS']).toBeUndefined();
+    expect(sanitized['CI']).toBe('1');
+  });
+
+  // 21. CandidateExtractor: Strict Bare Tag Fallback Elimination
+  it('ADV-21: CandidateExtractor should strictly throw InsufficientIdentifiersError on bare tags', () => {
+    const bareEl: ResolvedElement = {
+      tag: 'button',
+      attributes: {},
+      text: '',
+      children: [],
+    };
+
+    expect(() => CandidateExtractor.generateLocator(bareEl)).toThrowError(InsufficientIdentifiersError);
   });
 });

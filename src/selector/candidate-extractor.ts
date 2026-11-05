@@ -18,48 +18,60 @@ export class CandidateExtractor {
   }
 
   /**
+   * Discovers the page property identifier used in a Page Object class (e.g. this.page, this._page, this.browserPage, page).
+   */
+  public static discoverPageProperty(source?: string): string {
+    if (!source || typeof source !== 'string') return 'this.page';
+    if (source.includes('this._page')) return 'this._page';
+    if (source.includes('this.browserPage')) return 'this.browserPage';
+    if (source.includes('this.page')) return 'this.page';
+    if (source.includes(' page: Page') || source.includes('page.')) return 'this.page';
+    return 'this.page';
+  }
+
+  /**
    * Generates a modern, user-centric Playwright locator expression prioritizing getByRole and getByLabel.
    * Employs robust literal escaping.
-   * Avoids unsafe generic tag fallbacks (e.g. `locator('button')`).
+   * Dynamically adapts to Page Object page property prefix.
    */
-  public static generateLocator(el: ResolvedElement): string {
+  public static generateLocator(el: ResolvedElement, pageProperty = 'this.page'): string {
     // Rule 1: Priority on ARIA role with accessible name (getByRole)
     if (el.role && el.accessibleName) {
       const escapedRole = CandidateExtractor.escapeLocatorString(el.role);
       const escapedName = CandidateExtractor.escapeLocatorString(el.accessibleName);
-      return `this.page.getByRole('${escapedRole}', { name: '${escapedName}' })`;
+      return `${pageProperty}.getByRole('${escapedRole}', { name: '${escapedName}' })`;
     }
 
     // Rule 2: Dedicated Test ID attribute (getByTestId)
     const testId = el.attributes['data-testid'] ?? el.attributes['data-test'] ?? el.attributes['data-cy'];
     if (testId) {
       const escapedId = CandidateExtractor.escapeLocatorString(testId);
-      return `this.page.getByTestId('${escapedId}')`;
+      return `${pageProperty}.getByTestId('${escapedId}')`;
     }
 
     // Rule 3: Form label (getByLabel)
     if (el.attributes['aria-label']) {
       const escapedLabel = CandidateExtractor.escapeLocatorString(el.attributes['aria-label']);
-      return `this.page.getByLabel('${escapedLabel}')`;
+      return `${pageProperty}.getByLabel('${escapedLabel}')`;
     }
 
     // Rule 4: Placeholder (getByPlaceholder)
     if (el.attributes['placeholder']) {
       const escapedPl = CandidateExtractor.escapeLocatorString(el.attributes['placeholder']);
-      return `this.page.getByPlaceholder('${escapedPl}')`;
+      return `${pageProperty}.getByPlaceholder('${escapedPl}')`;
     }
 
     // Rule 5: Accessible text (getByText)
     if (el.text && el.text.length > 0 && el.text.length < 50) {
       const escapedText = CandidateExtractor.escapeLocatorString(el.text);
-      return `this.page.getByText('${escapedText}')`;
+      return `${pageProperty}.getByText('${escapedText}')`;
     }
 
     // Rule 6: Scoped ID selector locator(#id)
     const id = el.attributes['id'];
     if (id && !/^[0-9a-f]{8,}$/i.test(id)) {
       const escapedId = CandidateExtractor.escapeLocatorString(id);
-      return `this.page.locator('#${escapedId}')`;
+      return `${pageProperty}.locator('#${escapedId}')`;
     }
 
     // Rule 7: Scoped Class selector locator(tag.class)
@@ -68,17 +80,17 @@ export class CandidateExtractor {
       const primaryClass = cls.split(' ').filter(Boolean)[0];
       if (primaryClass) {
         const escapedClass = CandidateExtractor.escapeLocatorString(primaryClass);
-        return `this.page.locator('${el.tag}.${escapedClass}')`;
+        return `${pageProperty}.locator('${el.tag}.${escapedClass}')`;
       }
     }
 
     // If no identifying attributes exist, produce a scoped attribute locator or role locator
     if (el.role) {
-      return `this.page.getByRole('${CandidateExtractor.escapeLocatorString(el.role)}')`;
+      return `${pageProperty}.getByRole('${CandidateExtractor.escapeLocatorString(el.role)}')`;
     }
 
     // Never return bare tag fallback without warning/abstention
-    return `this.page.locator('${CandidateExtractor.escapeLocatorString(el.tag)}')`;
+    return `${pageProperty}.locator('${CandidateExtractor.escapeLocatorString(el.tag)}')`;
   }
 
   /**

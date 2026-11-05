@@ -7,10 +7,28 @@ export interface CausalEvidenceNode {
   description: string;
   isCausallyRelevant: boolean;
   relevanceReason: string;
+  frameId?: string | undefined;
+}
+
+export type CausalEdgeRelation =
+  | 'TEMPORALLY_PRECEDES'
+  | 'SAME_FRAME'
+  | 'INITIATED_BY'
+  | 'SUPPORTS'
+  | 'CONTRADICTS';
+
+export interface CausalEvidenceEdge {
+  fromNodeId: string;
+  toNodeId: string;
+  relation: CausalEdgeRelation;
+  description?: string;
 }
 
 export interface CausalEvidenceGraph {
   nodes: CausalEvidenceNode[];
+  edges: CausalEvidenceEdge[];
+  actionNode?: CausalEvidenceNode | undefined;
+  domNode?: CausalEvidenceNode | undefined;
   hasCausallyRelevantServerError: boolean;
   hasCausallyRelevantAuthError: boolean;
   offendingNetworkEvent?: NetworkEvent | undefined;
@@ -48,9 +66,45 @@ export class FailureClassifier {
    */
   public static buildCausalEvidenceGraph(context: DiagnosticContext): CausalEvidenceGraph {
     const nodes: CausalEvidenceNode[] = [];
+    const edges: CausalEvidenceEdge[] = [];
     let hasCausallyRelevantServerError = false;
     let hasCausallyRelevantAuthError = false;
     let offendingNetworkEvent: NetworkEvent | undefined;
+
+    // Action node
+    const actionNodeId = context.failedAction.callId || 'failed-action-0';
+    const actionTimestamp = context.failedAction.timestamp ?? Date.now();
+    const actionNode: CausalEvidenceNode = {
+      type: 'action',
+      id: actionNodeId,
+      timestamp: actionTimestamp,
+      description: `Action: ${context.failedAction.action} (${context.failedAction.selector ?? 'no selector'})`,
+      isCausallyRelevant: true,
+      relevanceReason: 'Primary failed action under diagnosis',
+      frameId: context.failedAction.frameId,
+    };
+
+    // DOM Snapshot node
+    let domNode: CausalEvidenceNode | undefined;
+    const hasDom = Boolean(
+      context.snapshots?.action || context.snapshots?.before || context.snapshots?.after
+    );
+    if (hasDom) {
+      domNode = {
+        type: 'dom',
+        id: 'dom-snapshot',
+        timestamp: actionTimestamp,
+        description: 'DOM Snapshot available at failure point',
+        isCausallyRelevant: true,
+        relevanceReason: 'Captures target page state at action time',
+      };
+      edges.push({
+        fromNodeId: 'dom-snapshot',
+        toNodeId: actionNodeId,
+        relation: 'SUPPORTS',
+        description: 'DOM snapshot provides ground truth for element availability',
+      });
+    }
 
     for (const net of context.networkEvents) {
       const isTelemetry = FailureClassifier.TELEMETRY_PATTERNS.some((p) => p.test(net.url));
@@ -81,18 +135,57 @@ export class FailureClassifier {
         relevanceReason = `Normal response (HTTP ${net.status})`;
       }
 
+      const netNodeId = net.requestId ?? net.url;
       nodes.push({
         type: 'network',
-        id: net.requestId ?? net.url,
+        id: netNodeId,
         timestamp: net.timestamp,
         description: `${net.method} ${net.url} -> ${net.status}`,
         isCausallyRelevant,
         relevanceReason,
+        frameId: net.frameId,
       });
+
+      // Construct causal edges
+      if (typeof net.timestamp === 'number' && typeof context.failedAction.timestamp === 'number') {
+        if (net.timestamp <= context.failedAction.timestamp) {
+          edges.push({
+            fromNodeId: netNodeId,
+            toNodeId: actionNodeId,
+            relation: 'TEMPORALLY_PRECEDES',
+            description: `Network event completed ${context.failedAction.timestamp - net.timestamp}ms before action`,
+          });
+        }
+      }
+
+      if (
+        context.failedAction.frameId &&
+        net.frameId &&
+        context.failedAction.frameId === net.frameId
+      ) {
+        edges.push({
+          fromNodeId: netNodeId,
+          toNodeId: actionNodeId,
+          relation: 'SAME_FRAME',
+          description: `Network request originated from the same frame (${net.frameId})`,
+        });
+      }
+
+      if (isServerError || isAuthError) {
+        edges.push({
+          fromNodeId: netNodeId,
+          toNodeId: actionNodeId,
+          relation: 'SUPPORTS',
+          description: `HTTP ${net.status} directly explains failure of action`,
+        });
+      }
     }
 
     return {
       nodes,
+      edges,
+      actionNode,
+      domNode,
       hasCausallyRelevantServerError,
       hasCausallyRelevantAuthError,
       offendingNetworkEvent,
@@ -185,8 +278,7 @@ export class FailureClassifier {
     // Step 6: Ambiguous Match / Strict Mode Violation
     if (
       errorMsg.includes('strict mode violation') ||
-      errorMsg.includes('resolved to') ||
-      errorMsg.includes('elements')
+      /resolved to \d+ elements/i.test(errorMsg)
     ) {
       supportingEvidence.push(`Strict mode violation detected: ${context.failedAction.errorMessage}`);
       return {

@@ -12,7 +12,8 @@
     "build": "tsup src/index.ts --format esm --clean && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark": "tsx benchmarks/runner/master-benchmark-runner.ts"
   },
   "keywords": [
     "playwright",

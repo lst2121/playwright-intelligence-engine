@@ -1,8 +1,8 @@
-# Playwright Intelligence Engine — Architecture Specification (v2.4 As-Built)
+# Playwright Intelligence Engine — Architecture Specification (v2.5 Enterprise As-Built)
 
-**Version:** 2.4 Enterprise Architecture Baseline  
+**Version:** 2.5 Enterprise Architecture Baseline  
 **Language & Runtime:** TypeScript 5.9 / Node.js 20+ (ESM, strict NodeNext)  
-**Verification Baseline:** 329 Passed Tests | 104 Adversarial Scenarios | 100% Defect Resistance | 0.0% False Repairs  
+**Verification Baseline:** 365 Passed Tests | 104 Empirical Scenarios | 100% Defect Resistance | 0.0% False Repairs  
 
 ---
 
@@ -11,17 +11,23 @@
 1. **Deterministic Controller Over Unbounded Agents**:  
    The execution lifecycle, failure classification, candidate scoring, AST transformations, and verification workflows are governed entirely by deterministic, strongly typed TypeScript state machines. LLM involvement is strictly isolated to optional semantic disambiguation and bounded candidate ranking. The engine never allows an LLM to freely generate code modifications or execute unconstrained file writes.
 
-2. **Zero In-Band Runtime Overhead**:  
-   Unlike legacy auto-healing libraries that inject intrusive browser proxies or monkey-patch `page.click()` at runtime, Playwright Intelligence Engine operates strictly out-of-band via post-mortem trace ingestion (`trace.zip`). Test execution speed in CI/CD is unaltered.
+2. **True Multi-Source Evidence Model (Beyond Trace-Only)**:  
+   While `trace.zip` post-mortem ingestion remains a first-class evidence source, the engine does not depend exclusively on trace files. It features independent evidence collectors spanning live browser fixtures, static AST analysis, HTTP/network interception, git diff history, operating environment metadata, and Playwright error parsing. Evidence is unified through a normalized schema (`UnifiedEvidenceRecord`) with an `EvidenceScorecard`.
 
-3. **Abstention as a Successful Safety Outcome**:  
+3. **Zero In-Band Runtime Overhead with Opt-In Diagnostic Reproduction**:  
+   Production tests run without intrusive browser proxies or monkey-patching. When a test fails in CI or locally, developers can either ingest the generated trace or invoke `pw-intel reproduce <spec.ts>` to re-execute in an isolated worktree with attached live diagnostic hooks.
+
+4. **Action-Anchored Temporal Windowing & Causal Evidence Graph**:  
+   Temporal anomaly windows are anchored to the timestamp of the failed action ($T_{\text{action}}$) rather than $\max(\text{timestamps})$ (which can be contaminated by post-failure teardown logs). Causal evidence graphs explicitly link network events, frame identifiers, DOM snapshots, and error stacks through typed edges (`TEMPORALLY_PRECEDES`, `SAME_FRAME`, `INITIATED_BY`, `SUPPORTS`, `CONTRADICTS`).
+
+5. **Abstention as a Successful Safety Outcome**:  
    When evidence is ambiguous, when multiple elements match, when trace artifacts are incomplete, or when failures stem from backend infrastructure (HTTP 500, expired authentication, offline networks), the engine **strictly abstains** from attempting code modifications. An explicit diagnostic explanation is generated with zero file mutation.
 
-4. **Multi-Dimensional Intent Invariant ($V = A \land T \land F \land I \land D \land E$)**:  
-   Code modifications are formally verified across six dimensions before being proposed: Assertion Fingerprinting ($A$), Structural Control Flow ($T$), Critical Fixtures ($F$), Target Identity & Action Semantics ($I$), Diff Allowlist ($D$), and Worktree Execution ($E$).
+6. **Unconditionally Fail-Closed Intent Invariant v2 ($V = A \land T \land F \land I \land D \land E$)**:  
+   Code modifications are formally verified across six dimensions before being proposed: Assertion Fingerprinting ($A$), Structural Control Flow ($T$), Critical Fixtures ($F$), Target Identity & Action Semantics ($I$), Diff Allowlist ($D$), and Worktree Execution ($E$). In-memory planning uses explicit pre-flight verification ($V_{\text{pre}} = A \land T \land F \land I$), while production application strictly requires affirmative worktree execution evidence ($E$).
 
-5. **Sandbox Isolation & Enterprise Governance**:  
-   All repairs and executions are isolated in detached Git worktrees (`.pw-intelligence/worktrees/*`). Active working branches and developer workspaces are never modified autonomously. Applying a verified patch requires explicit human review and approval.
+7. **Centralized Cryptographic Approval Service & Hardened Worktrees**:  
+   Direct disk modifications on working branches are strictly prohibited. Applying a verified patch requires a single-use cryptographic token (`ApprovalService`) bound to the canonical file path, original source hash, and patch hash. All verification executes within detached Git worktrees protected by canonical filesystem containment (`fs.realpathSync`), sanitized environments, bounded process buffers (16 MB), and Windows process tree termination (`taskkill`).
 
 ---
 
@@ -29,58 +35,62 @@
 
 ```mermaid
 flowchart TD
-    subgraph IngestionSubsystem["Subsystem A: Trace Ingestion & Provenance"]
-        ArchiveReader["ArchiveReader\n• Zip-Slip Protection\n• Decompression Bomb Guards\n• Streaming JSONL Limits"]
-        TraceAdapterRegistry["TraceAdapterRegistry\n• V8TraceAdapter (v7/v8)\n• V9TraceAdapter (v9)\n• V10TraceAdapter (v10)\n• UnknownTraceAdapter (Abstain)"]
-        SnapshotResolver["SnapshotResolver\n• Provenance (frameId, callId, phase)\n• Completeness (COMPLETE/PARTIAL/UNAVAIL)\n• Ref Unresolved Warnings"]
+    subgraph MultiSourceSubsystem["Subsystem A: Multi-Source Evidence Ingestion & Redaction"]
+        TraceCollector["TraceCollector\n• ArchiveReader (Zip-bomb defense)\n• VersionDetector\n• TraceParser"]
+        LiveCollector["LiveBrowserCollector\n• Page listeners (console, error)\n• DOM / Accessibility Snapshots\n• Live Uniqueness Evaluation"]
+        AstCollector["StaticAstCollector\n• ts-morph AST analysis\n• Page Object discovery\n• Test action & assertion mapping"]
+        NetCollector["NetworkCollector\n• HTTP request/response\n• Status codes & timings"]
+        GitCollector["GitDiffCollector\n• Working tree diffs\n• Recent selector commits"]
+        EnvCollector["EnvironmentCollector\n• Node, OS, Playwright version\n• CI Provider detection"]
+        ErrCollector["ErrorCollector\n• TimeoutError / StrictMode\n• Stack trace & frame parser"]
         
-        ArchiveReader --> TraceAdapterRegistry
-        TraceAdapterRegistry --> SnapshotResolver
+        Redactor["EvidenceRedactor\n• JWT / Bearer token scrubbing\n• PAN / SSN / Secret redaction\n• Sensitive header filtering"]
+        Normalizer["EvidenceNormalizer\n• UnifiedEvidenceRecord\n• EvidenceScorecard\n• DiagnosticContext Bridge"]
+
+        TraceCollector --> Redactor
+        LiveCollector --> Redactor
+        AstCollector --> Redactor
+        NetCollector --> Redactor
+        GitCollector --> Redactor
+        EnvCollector --> Redactor
+        ErrCollector --> Redactor
+        Redactor --> Normalizer
     end
 
     subgraph DiagnosticSubsystem["Subsystem B: Causal Evidence Graph & Diagnostics"]
-        EvidenceCorrelator["EvidenceCorrelator\n• Telemetry Domain Filtering\n• Endpoint Exclusion (/metrics, /beacon)\n• Causal Chain Linking"]
-        FailureClassifier["FailureClassifier\n• LOCATOR_DRIFT\n• BACKEND_500\n• AUTH_EXPIRED\n• ASSERTION_FAILURE\n• TIMING_RACE"]
+        EvidenceCorrelator["EvidenceCorrelator\n• Action-Anchored Window (T_action)\n• Frame Association\n• Telemetry Domain Filtering"]
+        FailureClassifier["FailureClassifier\n• Causal Evidence Graph\n• LOCATOR_DRIFT\n• BACKEND_500\n• AUTH_EXPIRED\n• ASSERTION_FAILURE\n• TIMING_RACE\n• INCOMPLETE_EVIDENCE"]
+        ReportGenerator["DiagnosticReportGenerator\n• Terminal & Markdown Reports\n• Multi-Source Evidence Scorecard"]
         
-        SnapshotResolver --> EvidenceCorrelator
+        Normalizer --> EvidenceCorrelator
         EvidenceCorrelator --> FailureClassifier
+        FailureClassifier --> ReportGenerator
     end
 
     subgraph IntelligenceSubsystem["Subsystem C: Candidate Extraction & Calibrated Scoring"]
-        CandidateExtractor["CandidateExtractor\n• Action Semantic Filtering (click/fill)\n• Token Normalization\n• Accessibility Hierarchy"]
-        SelectorScorer["SelectorScorer\n• Heuristic Score S(L)\n• Calibrated Probability Sigmoid P(valid)\n• Volatility Penalties"]
-        AbstentionPolicy["AbstentionPolicy\n• Strict Uniqueness Gate (matchCount == 1)\n• Confidence Gate (>= 0.75)\n• Ambiguity Delta (>= 0.08)"]
+        CandidateExtractor["CandidateExtractor\n• Dynamic Page Property Discovery\n• Literal escaping\n• Priority: getByRole > getByTestId"]
+        SelectorScorer["SelectorScorer\n• Multi-factor score S(L)\n• Semantic action token matching\n• Volatile hash penalties"]
+        AbstentionPolicy["AbstentionPolicy\n• Strict Uniqueness Gate (U=1.0)\n• Ambiguity Delta Guardrail\n• Negative Control Abstention"]
         
-        FailureClassifier -->|LOCATOR_DRIFT| CandidateExtractor
+        FailureClassifier -->|If LOCATOR_DRIFT| CandidateExtractor
         CandidateExtractor --> SelectorScorer
         SelectorScorer --> AbstentionPolicy
     end
 
-    subgraph RepairSubsystem["Subsystem D: Sandboxed AST Repair & Verification"]
-        WorktreeManager["WorktreeManager\n• Detached Git Worktree\n• DependencyStrategyResolver\n• Windows NTFS Junction Safety"]
-        AstPatcher["AstPatcher (ts-morph)\n• 5 Static Page Object Patterns\n• Rejects Dynamic Parameterized Locators"]
-        DiffAllowlist["DiffAllowlistValidator\n• Rejects Import Mutations\n• Rejects Method / Property Additions"]
-        IntentValidator["IntentValidator\n• Canonical Expectation AST Hash\n• Structural Statement Preservation"]
-        ExecutionRunner["ExecutionRunner\n• Isolated 'npx playwright test'\n• Zero Shell Injection"]
-        
-        AbstentionPolicy -->|Approved Candidate| WorktreeManager
+    subgraph RepairSubsystem["Subsystem D: Isolated Repair & Fail-Closed Invariants"]
+        WorktreeManager["WorktreeManager\n• Detached Git worktrees\n• Canonical containment (realpath)\n• NTFS junction node_modules"]
+        AstPatcher["AstPatcher\n• Atomic temporary file swap\n• ts-morph surgical replacement"]
+        DiffAllowlist["DiffAllowlistValidator\n• Recursive locator grammar\n• Reject process.env/code injection"]
+        IntentValidator["IntentValidator v2\n• V = A ∧ T ∧ F ∧ I ∧ D ∧ E\n• Pre-flight mode separation"]
+        ExecutionRunner["ExecutionRunner\n• taskkill /T /F tree termination\n• 16 MB bounded output buffers\n• Sanitized env variable whitelist"]
+        ApprovalService["ApprovalService\n• Cryptographic single-use tokens\n• SHA-256 patch & file verification\n• 10-minute TTL"]
+
+        AbstentionPolicy -->|If Authorized Candidate| WorktreeManager
         WorktreeManager --> AstPatcher
         AstPatcher --> DiffAllowlist
-        DiffAllowlist --> IntentValidator
-        IntentValidator --> ExecutionRunner
-    end
-
-    subgraph GovernanceSubsystem["Subsystem E: Governance & Interfaces"]
-        SignedArtifact["Signed Repair Artifact\n• Unified Diff\n• Verification Ledger\n• Causal Evidence Metadata"]
-        CLI["PwIntelCli (Terminal)"]
-        MCP["PlaywrightIntelligenceMcpServer\n(JSON-RPC 2.0 stdio for Cursor/Claude)"]
-        HumanReview{"Human Approval Gate"}
-
-        ExecutionRunner --> SignedArtifact
-        SignedArtifact --> CLI
-        SignedArtifact --> MCP
-        CLI --> HumanReview
-        MCP --> HumanReview
+        DiffAllowlist --> ExecutionRunner
+        ExecutionRunner --> IntentValidator
+        IntentValidator -->|Fully Proved| ApprovalService
     end
 ```
 
@@ -88,70 +98,48 @@ flowchart TD
 
 ## 3. Subsystem Detailed Specifications
 
-### Subsystem A: Trace Ingestion & Provenance (`src/trace/`)
-- **`ArchiveReader`**: Ingests Playwright `trace.zip` archives. Enforces path traversal prevention (Zip-Slip defense), limits uncompressed file size to 100MB (decompression bomb defense), caps maximum archive entries at 10,000, and restricts streaming JSONL reader buffers.
-- **`TraceAdapterRegistry`**: Detects and adapts internal trace formats across Playwright versions:
-  - `V8TraceAdapter`: Playwright v1.30–v1.39 traces (schema v7/v8).
-  - `V9TraceAdapter`: Playwright v1.40–v1.44 traces (schema v9).
-  - `V10TraceAdapter`: Playwright v1.45+ traces (schema v10).
-  - `UnknownTraceAdapter`: Rejects unsupported formats with an explicit `UNSUPPORTED_TRACE_FORMAT` error.
-- **`SnapshotResolver`**: Resolves array-based DOM snapshot tuples into hierarchical element trees. Records provenance metadata (`frameId`, `callId`, `phase`), categorizes completeness (`COMPLETE`, `PARTIAL`, `UNAVAILABLE`), and identifies unresolved element references.
+### Subsystem A: Multi-Source Evidence Model
+The engine operates across eight distinct evidence sources:
+1. `trace`: Ingested `.trace` and `.network` streams from Playwright trace archives.
+2. `live-browser`: CDP and Page listeners capturing console logs, unhandled errors, failed requests, and live DOM snapshots.
+3. `static-ast`: Static analysis of test specs and Page Objects via `ts-morph` extracting declared locators, actions, and assertions without browser execution.
+4. `network`: HTTP request/response tracking with header and body redaction.
+5. `git-diff`: Working tree and commit diffs identifying recently modified HTML attributes (`id`, `class`, `data-testid`).
+6. `environment`: Node.js, OS platform, memory, Playwright version, and CI environment metadata without secret leakage.
+7. `error`: Playwright error message, error stack, and frame location parsing.
+8. `console`: Browser console events with severity levels and source file locations.
 
-### Subsystem B: Causal Evidence Graph & Diagnostics (`src/diagnostics/`)
-- **`EvidenceCorrelator`**: Constructs a directed causal graph connecting network events, console logs, and action timestamps. Prevents false-positive backend classifications by stripping non-causal telemetry domains (`google-analytics.com`, `sentry.io`, `datadoghq.com`) and endpoints (`/metrics`, `/beacon`, `/favicon.ico`).
-- **`FailureClassifier`**: Evaluates normalized evidence into grounded diagnostic categories:
-  - `LOCATOR_DRIFT`: Action failed due to missing, relocated, or mutated DOM target, with healthy server responses.
-  - `BACKEND_500`: Action preceded or accompanied by a failing in-domain application API request.
-  - `AUTH_EXPIRED`: Authentication token revoked or rejected (HTTP 401/403 or redirect to login).
-  - `ASSERTION_FAILURE`: Action succeeded, but test expectation condition failed.
-  - `TIMING_RACE`: Element appeared shortly after timeout or DOM was actively mutating.
-  - `INCOMPLETE_EVIDENCE`: Trace missing critical snapshots or DOM trees required for diagnosis.
+### Subsystem B: Diagnostic Intelligence & Causal Graph
+Temporal correlation anchors strictly to the failed action timestamp ($T_{\text{action}}$):
+$$W = [T_{\text{action}} - 5000\,\text{ms}, T_{\text{action}} + 1000\,\text{ms}]$$
+Events outside this window or originating from background telemetry/analytics (`google-analytics`, `sentry`, `datadog`, `hotjar`, `/beacon`, `/metrics`) are stripped.
 
-### Subsystem C: Candidate Extraction & Calibrated Scoring (`src/selector/`)
-- **`CandidateExtractor`**: Discovers candidate elements in the resolved DOM snapshot matching the failed action's required semantics (e.g. `<button>`, `role="button"`, `<a>` for click; `<input>`, `<textarea>` for fill).
-- **`SelectorScorer`**: Evaluates candidates across multiple orthogonal dimensions:
-  $$S(L) = 0.40 \cdot S_{role} + 0.25 \cdot S_{attr} + 0.15 \cdot S_{struct} + 0.10 \cdot S_{loc} + 0.10 \cdot S_{vis} - P_{dynamic}$$
-  Computes calibrated probability via logistic sigmoid:
-  $$P(\text{valid}) = \frac{1}{1 + e^{-k(S(L) - S_0)}}$$
-- **`AbstentionPolicy`**: Strict multi-stage decision pipeline:
-  1. *Stage 1: Supported Element*: Element must be an interactive HTML tag or ARIA widget.
-  2. *Stage 2: Target Identity*: Normalized token match against original locator intent.
-  3. *Stage 3: Strict Uniqueness*: Candidate must match exactly 1 element in DOM ($matchCount === 1$). If $\ge 2$ matches exist and parent scope is unverified, **abstain immediately**.
-  4. *Stage 4: Action Semantics*: Element tag and role must permit the target action.
-  5. *Stage 5: Confidence Threshold*: Calibrated score $P(\text{valid}) \ge 0.75$.
-  6. *Stage 6: Ambiguity Delta*: Top candidate must exceed runner-up by $\Delta \ge 0.08$.
+The Causal Evidence Graph links network requests, console errors, and DOM snapshots to the failed action using explicit directed edges:
+- `TEMPORALLY_PRECEDES`: Confirms event completed before action dispatch.
+- `SAME_FRAME`: Confirms network request originated from the exact frame executing the action.
+- `SUPPORTS`: Confirms diagnostic evidence directly explains action failure (e.g., HTTP 500 or 401).
+- `CONTRADICTS`: Confirms evidence refutes failure hypothesis.
 
-### Subsystem D: Sandboxed AST Repair & Verification (`src/repair/` & `src/sandbox/`)
-- **`WorktreeManager` & `DependencyStrategyResolver`**: Creates isolated Git worktrees. Resolves package manager strategy:
-  - `npm`: Links `node_modules` via Windows NTFS Directory Junctions (`IMMUTABLE_SHARED`). Unlinks junctions prior to worktree removal.
-  - `pnpm`: Identifies virtual store (`SHARED_MUTABLE`) and emits cache integrity warnings.
-  - `yarn pnp`: Detects `.pnp.cjs` and rejects with `UNSUPPORTED`.
-- **`AstPatcher`**: Uses `ts-morph` to safely patch 5 static Page Object patterns:
-  1. Class property initializers (`readonly btn = this.page.locator(...)`).
-  2. Class getters (`get btn() { return this.page.locator(...); }`).
-  3. Constructor assignments (`this.btn = this.page.locator(...)`).
-  4. Parameterless factory methods (`getBtn() { return this.page.locator(...); }`).
-  5. Standalone locator constants (`export const BTN = ...`).
-  Rejects parameterized helper methods (`row(id: string)`) with `AST_PARAMETERIZED_LOCATOR`.
-- **`DiffAllowlistValidator`**: Inspects AST diff to ensure *only* the authorized locator initializer was modified. Rejects any changes to imports, class inheritance, methods, or constructor parameters.
-- **`IntentValidator`**: Enforces $V = A \land T \land F \land I \land D \land E$. Computes canonical, formatting-insensitive SHA-256 hash of all `expect()` nodes. Verifies statement sequences and test literals.
-- **`ExecutionRunner`**: Runs isolated Playwright test in worktree, parsing stdout/stderr without shell injection risks.
+### Subsystem C: Candidate Extraction & Calibrated Scoring
+Locator expressions are synthesized using user-centric, resilient Playwright locator methods:
+1. `getByRole(role, { name: '...' })`
+2. `getByTestId('...')`
+3. `getByLabel('...')`
+4. `getByPlaceholder('...')`
+5. `getByText('...')`
+6. `locator('#id')` (unhashed)
+7. `locator('tag.class')` (unhashed)
 
-### Subsystem E: Interfaces & Governance (`src/cli/` & `src/mcp/`)
-- **`PwIntelCli`**: Command-line interface providing `diagnose`, `repair`, `verify`, and `audit` commands.
-- **`PlaywrightIntelligenceMcpServer`**: Full Model Context Protocol JSON-RPC 2.0 stdio server, exposing diagnostic and repair capabilities directly to Cursor and Claude Desktop.
-- **Human Approval Gate**: Zero automated modification of active developer branches. All repairs produce structured diff artifacts requiring manual confirmation before merge.
+Page property prefixes are discovered dynamically from target Page Objects (`this.page`, `this._page`, `this.browserPage`), preventing broken references. Semantic action token matching distinguishes conflicting action targets (e.g., `"Continue shopping"` vs `"Continue checkout"`).
 
----
+### Subsystem D: Isolated Worktree Repair & Intent Invariant v2
+Repairs are verified exclusively within detached Git worktrees. Intent Invariant v2 is evaluated fail-closed:
+$$V = A \land T \land F \land I \land D \land E$$
+- $A$: Assertion fingerprint hash unchanged ($\Delta A = 0$).
+- $T$: Structural control flow AST unchanged ($\Delta T = 0$).
+- $F$: Critical test fixtures unchanged ($\Delta F = 0$).
+- $I$: Target element semantic identity confirmed.
+- $D$: Diff contains exclusively a single surgical locator replacement matching recursive locator grammar.
+- $E$: Target test spec executed and passed cleanly inside the isolated worktree with $\ge 1$ passing test.
 
-## 4. Benchmark Verification Summary
-
-The architecture was evaluated against the **Master Adversarial Benchmark Suite** consisting of **104 real scenarios**:
-- **Tier 1 Baseline Scenarios (24)**: Pass Rate: **100.0%**.
-- **Tier 2 Structural Mutations (50)**: Recovery Rate: **100.0%**.
-- **Tier 3 Negative Controls (30)**: Abstention Rate: **100.0%**.
-- **Seeded Defect Detection Rate**: **100.0%** (Defect Masking: **0.0%**).
-- **False Repair Rate**: **0.0%**.
-- **Execution Latency**: P50 = 14 ms, P95 = 29 ms.
-- **Statistical Confidence**: Wilson 95% CI: `[96.44%, 100.00%]`.
-
+Applying patches outside the worktree requires a single-use token issued by `ApprovalService` after affirmative cryptographic verification.

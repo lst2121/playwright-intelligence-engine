@@ -1,5 +1,5 @@
 {
-  "timestamp": 1793844827628,
+  "timestamp": 1793848801813,
   "totalScenarios": 104,
   "tier1BaselineCount": 24,
   "tier2MutationCount": 50,
@@ -15,172 +15,42 @@
   "defectMaskingRate": 0,
   "tier2RepairedCount": 40,
   "tier2AbstainedCount": 10,
-  "latencyP50Ms": 15,
-  "latencyP95Ms": 26,
+  "latencyP50Ms": 0.75,
+  "latencyP95Ms": 39.28,
   "confidenceInterval95": {
     "lower": 96.44,
     "upper": 100
   },
-  "sampleInterpretationNote": "Wilson 95% CI represents binomial confidence over the 104 evaluated scenario trials under controlled benchmark distributions, not an unconstrained universal production reliability guarantee.",
+  "sampleInterpretationNote": "Wilson 95% CI represents binomial confidence over the 104 empirical trials under controlled benchmark distributions, not an unconstrained universal production reliability guarantee.",
   "scenarios": [
     {
       "id": "T1-BASE-01",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Dynamic ID Button Interaction",
-      "targetApp": "UI Testing Playground",
+      "name": "Root Dashboard Endpoint Verification",
+      "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 14.19,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET / -> 200 in 14.19ms"
     },
     {
       "id": "T1-BASE-02",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Class Attribute Button Click",
-      "targetApp": "UI Testing Playground",
+      "name": "Login Form View Endpoint",
+      "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 13,
+      "executionDurationMs": 1.15,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /login -> 200 in 1.15ms"
     },
     {
       "id": "T1-BASE-03",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Standard User Authentication",
-      "targetApp": "SauceDemo",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 14,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-04",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Product Inventory Sorting",
-      "targetApp": "SauceDemo",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 15,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-05",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Form Authentication Login",
-      "targetApp": "The Internet",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 16,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-06",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Checkboxes and Dynamic Controls",
-      "targetApp": "The Internet",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 17,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-07",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Text Input Field Manipulation",
-      "targetApp": "LetCode",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 12,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-08",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Button Click and Geometry Validation",
-      "targetApp": "LetCode",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 13,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-09",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Admin Dashboard Login",
-      "targetApp": "OrangeHRM",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 14,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-10",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Employee Table Navigation",
-      "targetApp": "OrangeHRM",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 15,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-11",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Product Catalog Browsing",
-      "targetApp": "Automation Exercise",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 16,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-12",
-      "tier": "TIER_1_BASELINE",
-      "category": "Clean Baseline",
-      "name": "Contact Form Submission",
-      "targetApp": "Automation Exercise",
-      "expectedOutcome": "PASS",
-      "actualOutcome": "PASS",
-      "diagnosticCategory": "NONE",
-      "executionDurationMs": 17,
-      "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
-    },
-    {
-      "id": "T1-BASE-13",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
       "name": "User Authentication Workflow",
@@ -188,152 +58,282 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 1.32,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP POST /api/login -> 200 in 1.32ms"
+    },
+    {
+      "id": "T1-BASE-04",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Customer Authentication Workflow",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 1.29,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP POST /api/login -> 200 in 1.29ms"
+    },
+    {
+      "id": "T1-BASE-05",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Product Catalog Ingestion",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 1.24,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP GET /api/products -> 200 in 1.24ms"
+    },
+    {
+      "id": "T1-BASE-06",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Product Filtering by Category",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.86,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP GET /api/products?category=Software -> 200 in 0.86ms"
+    },
+    {
+      "id": "T1-BASE-07",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Shopping Cart Retrieval",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.73,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP GET /api/cart -> 200 in 0.73ms"
+    },
+    {
+      "id": "T1-BASE-08",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Shopping Cart Item Addition",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.69,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP POST /api/cart/add -> 200 in 0.69ms"
+    },
+    {
+      "id": "T1-BASE-09",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Cart Item Quantity Update",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.65,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP POST /api/cart/update -> 200 in 0.65ms"
+    },
+    {
+      "id": "T1-BASE-10",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Checkout Page Render",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.93,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP GET /checkout -> 200 in 0.93ms"
+    },
+    {
+      "id": "T1-BASE-11",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Order Subtotal Calculation Verification",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.75,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP GET /api/checkout/summary -> 200 in 0.75ms"
+    },
+    {
+      "id": "T1-BASE-12",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Credit Card Payment Processing",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.59,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP POST /api/checkout/pay -> 200 in 0.59ms"
+    },
+    {
+      "id": "T1-BASE-13",
+      "tier": "TIER_1_BASELINE",
+      "category": "Clean Baseline",
+      "name": "Order History Ingestion",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "PASS",
+      "actualOutcome": "PASS",
+      "diagnosticCategory": "NONE",
+      "executionDurationMs": 0.37,
+      "intentInvariantPassed": true,
+      "notes": "Live HTTP GET /api/orders -> 200 in 0.37ms"
     },
     {
       "id": "T1-BASE-14",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Product Search & Filtering",
+      "name": "Order Status Lifecycle Retrieval",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 13,
+      "executionDurationMs": 0.36,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /api/orders/ORD-101 -> 200 in 0.36ms"
     },
     {
       "id": "T1-BASE-15",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Cart Item Insertion",
+      "name": "User Profile Metadata Retrieval",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.44,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /api/profile -> 200 in 0.44ms"
     },
     {
       "id": "T1-BASE-16",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Order Subtotal Calculation",
+      "name": "Admin Dashboard User Table View",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 15,
+      "executionDurationMs": 0.59,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /api/admin/users -> 200 in 0.59ms"
     },
     {
       "id": "T1-BASE-17",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Checkout Credit Card Processing",
+      "name": "System Health Check Endpoint",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 16,
+      "executionDurationMs": 0.82,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /health -> 200 in 0.82ms"
     },
     {
       "id": "T1-BASE-18",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "User Management Table Access",
+      "name": "Session Token Validation Probe",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.98,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /api/session/verify -> 200 in 0.98ms"
     },
     {
       "id": "T1-BASE-19",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Order Status Lifecycle Transition",
+      "name": "Inventory Availability Check",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.57,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP GET /api/inventory/prod-1 -> 200 in 0.57ms"
     },
     {
       "id": "T1-BASE-20",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Modal Confirmation Dismissal",
+      "name": "Shipping Rate Calculation",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 13,
+      "executionDurationMs": 0.51,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP POST /api/shipping/calculate -> 200 in 0.51ms"
     },
     {
       "id": "T1-BASE-21",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Form Input Deterministic Reset",
+      "name": "Promo Code Validation",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.48,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP POST /api/promo/apply -> 200 in 0.48ms"
     },
     {
       "id": "T1-BASE-22",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Active Session Cookie Verification",
+      "name": "Order Cancellation Flow",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 15,
+      "executionDurationMs": 0.55,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP POST /api/orders/ORD-101/cancel -> 200 in 0.55ms"
     },
     {
       "id": "T1-BASE-23",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Admin Role Navigation Authorization",
+      "name": "Customer Support Inquiry Endpoint",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 16,
+      "executionDurationMs": 0.52,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP POST /api/support/ticket -> 200 in 0.52ms"
     },
     {
       "id": "T1-BASE-24",
       "tier": "TIER_1_BASELINE",
       "category": "Clean Baseline",
-      "name": "Multi-Item Checkout Cart Totals",
+      "name": "Deterministic Session Logout",
       "targetApp": "Controlled App",
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.39,
       "intentInvariantPassed": true,
-      "notes": "Native Playwright execution passed cleanly; baseline trace captured"
+      "notes": "Live HTTP POST /api/logout -> 200 in 0.39ms"
     },
     {
       "id": "T2-MUT-01",
@@ -344,9 +344,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.96,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-02",
@@ -357,9 +357,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.26,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-03",
@@ -370,9 +370,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 84.71,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-04",
@@ -383,9 +383,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 42.92,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-05",
@@ -396,9 +396,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 26,
+      "executionDurationMs": 24.31,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-06",
@@ -409,9 +409,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29,
+      "executionDurationMs": 41.6,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-07",
@@ -422,9 +422,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 29.42,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-08",
@@ -435,9 +435,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 22.31,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-09",
@@ -448,9 +448,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 27.21,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-10",
@@ -461,9 +461,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 22.3,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-11",
@@ -474,9 +474,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.13,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: Target identity mismatch: candidate accessible name 'Continue Shopping' does not align with original selector intent."
     },
     {
       "id": "T2-MUT-12",
@@ -487,9 +487,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: Target identity mismatch: candidate accessible name 'Continue Shopping' does not align with original selector intent."
     },
     {
       "id": "T2-MUT-13",
@@ -500,9 +500,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 20.66,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-14",
@@ -513,9 +513,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 24.22,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-15",
@@ -526,9 +526,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 26,
+      "executionDurationMs": 18.04,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-16",
@@ -539,9 +539,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29,
+      "executionDurationMs": 18.81,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-17",
@@ -552,9 +552,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 18.87,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-18",
@@ -565,9 +565,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 35.04,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-19",
@@ -578,9 +578,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 20.81,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-20",
@@ -591,9 +591,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 18.98,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 85.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-21",
@@ -604,9 +604,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.29,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-22",
@@ -617,9 +617,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-23",
@@ -630,9 +630,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 19.41,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-24",
@@ -643,9 +643,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 26.61,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-25",
@@ -656,9 +656,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 26,
+      "executionDurationMs": 23.22,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-26",
@@ -669,9 +669,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29,
+      "executionDurationMs": 19.82,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-27",
@@ -682,9 +682,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 20.64,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-28",
@@ -695,9 +695,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 53.41,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-29",
@@ -708,9 +708,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 36.44,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-30",
@@ -721,9 +721,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 39.28,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-31",
@@ -734,9 +734,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.36,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-32",
@@ -747,9 +747,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-33",
@@ -760,9 +760,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 69.49,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-34",
@@ -773,9 +773,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 35.82,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-35",
@@ -786,9 +786,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 26,
+      "executionDurationMs": 22.62,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-36",
@@ -799,9 +799,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29,
+      "executionDurationMs": 20.42,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-37",
@@ -812,9 +812,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 33.62,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-38",
@@ -825,9 +825,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 30.34,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-39",
@@ -838,9 +838,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 18.74,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-40",
@@ -851,9 +851,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 28.13,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 82.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-41",
@@ -864,9 +864,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 0.28,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-42",
@@ -877,9 +877,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Candidate locator resolved to >1 matching element. Engine strictly abstained under uniqueness gate."
+      "notes": "Engine strictly abstained: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T2-MUT-43",
@@ -890,9 +890,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 17.36,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-44",
@@ -903,9 +903,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 18.01,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-45",
@@ -916,9 +916,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 26,
+      "executionDurationMs": 18.57,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-46",
@@ -929,9 +929,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 29,
+      "executionDurationMs": 15.55,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-47",
@@ -942,9 +942,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 14,
+      "executionDurationMs": 16.57,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-48",
@@ -955,9 +955,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 17,
+      "executionDurationMs": 14.55,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-49",
@@ -968,9 +968,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 20,
+      "executionDurationMs": 26.38,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T2-MUT-50",
@@ -981,9 +981,9 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 23,
+      "executionDurationMs": 16.7,
       "intentInvariantPassed": true,
-      "notes": "Candidate scored >= 0.75, strictly unique, Intent Invariant v2 proved, test passed in worktree."
+      "notes": "Candidate score 90.0% unique. Intent Invariant v2 passed ($V_{pre}=true)."
     },
     {
       "id": "T3-NEG-01",
@@ -994,9 +994,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.84,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 500 on /api/checkout/pay"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (500 on https://app.test/api/checkout/pay). Modifying UI locators is prohibited."
     },
     {
       "id": "T3-NEG-02",
@@ -1007,9 +1007,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.16,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 502 on /api/inventory"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (502 on https://app.test/api/inventory). Modifying UI locators is prohibited."
     },
     {
       "id": "T3-NEG-03",
@@ -1020,9 +1020,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.03,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 503 on /api/users"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (503 on https://app.test/api/users). Modifying UI locators is prohibited."
     },
     {
       "id": "T3-NEG-04",
@@ -1033,9 +1033,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 504 on /api/orders"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (504 on https://app.test/api/orders). Modifying UI locators is prohibited."
     },
     {
       "id": "T3-NEG-05",
@@ -1046,9 +1046,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.05,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 500 on /api/orders/submit"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (500 on https://app.test/api/orders/submit). Modifying UI locators is prohibited."
     },
     {
       "id": "T3-NEG-06",
@@ -1059,9 +1059,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.08,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 502 on /api/billing"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Test failed due to backend server failure (502 on https://app.test/api/billing). Modifying UI locators is prohibited."
     },
     {
       "id": "T3-NEG-07",
@@ -1072,9 +1072,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_EXPIRED",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.03,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 401 Unauthorized on /api/profile"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Authentication session expired or unauthorized (HTTP 401). Locator healing must abstain."
     },
     {
       "id": "T3-NEG-08",
@@ -1085,9 +1085,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_EXPIRED",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 403 Forbidden on /api/checkout"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Authentication session expired or unauthorized (HTTP 403). Locator healing must abstain."
     },
     {
       "id": "T3-NEG-09",
@@ -1098,9 +1098,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_EXPIRED",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 401 on /api/oauth/token"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Authentication session expired or unauthorized (HTTP 401). Locator healing must abstain."
     },
     {
       "id": "T3-NEG-10",
@@ -1111,9 +1111,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_EXPIRED",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: HTTP 403 on /api/admin/system"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Authentication session expired or unauthorized (HTTP 403). Locator healing must abstain."
     },
     {
       "id": "T3-NEG-11",
@@ -1123,10 +1123,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "INCOMPLETE_EVIDENCE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "UNKNOWN_ERROR",
+      "executionDurationMs": 0.07,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: DOM snapshot missing from trace"
+      "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
     {
       "id": "T3-NEG-12",
@@ -1136,10 +1136,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "INCOMPLETE_EVIDENCE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "UNKNOWN_ERROR",
+      "executionDurationMs": 0.05,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Zero DOM elements in snapshot"
+      "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
     {
       "id": "T3-NEG-13",
@@ -1149,10 +1149,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "INCOMPLETE_EVIDENCE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "UNKNOWN_ERROR",
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Malformed JSON line"
+      "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
     {
       "id": "T3-NEG-14",
@@ -1162,10 +1162,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "INCOMPLETE_EVIDENCE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "UNKNOWN_ERROR",
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Incomplete network event stream"
+      "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
     {
       "id": "T3-NEG-15",
@@ -1176,9 +1176,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "TIMING_RACE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.03,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Element detached during action dispatch"
+      "notes": "Engine strictly abstained under guardrail: Timing race condition detected. Locator modification will not solve DOM detachment."
     },
     {
       "id": "T3-NEG-16",
@@ -1189,25 +1189,12 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "TIMING_RACE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.02,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Context destroyed"
+      "notes": "Engine strictly abstained under guardrail: Timing race condition detected. Locator modification will not solve DOM detachment."
     },
     {
       "id": "T3-NEG-17",
-      "tier": "TIER_3_NEGATIVE_CONTROL",
-      "category": "Negative Control & Safety",
-      "name": "Defect: DEFECT_INVALID_PAYMENT_ACCEPTED",
-      "targetApp": "Controlled App",
-      "expectedOutcome": "ABSTAIN",
-      "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 12,
-      "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Order accepted invalid card"
-    },
-    {
-      "id": "T3-NEG-18",
       "tier": "TIER_3_NEGATIVE_CONTROL",
       "category": "Negative Control & Safety",
       "name": "Defect: DEFECT_WRONG_TOTAL",
@@ -1215,9 +1202,22 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Cart total discrepancy ($100 != $120)"
+      "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
+    },
+    {
+      "id": "T3-NEG-18",
+      "tier": "TIER_3_NEGATIVE_CONTROL",
+      "category": "Negative Control & Safety",
+      "name": "Defect: DEFECT_INVALID_PAYMENT_ACCEPTED",
+      "targetApp": "Controlled App",
+      "expectedOutcome": "ABSTAIN",
+      "actualOutcome": "ABSTAIN",
+      "diagnosticCategory": "ASSERTION_FAILURE",
+      "executionDurationMs": 0,
+      "intentInvariantPassed": true,
+      "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
     {
       "id": "T3-NEG-19",
@@ -1228,9 +1228,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Form submitted without mandatory email"
+      "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
     {
       "id": "T3-NEG-20",
@@ -1241,9 +1241,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Updated record ID 2 instead of 1"
+      "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
     {
       "id": "T3-NEG-21",
@@ -1254,9 +1254,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Regular user executed admin delete"
+      "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
     {
       "id": "T3-NEG-22",
@@ -1267,9 +1267,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Workflow jumped directly to Delivered"
+      "notes": "Engine strictly abstained under guardrail: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
     {
       "id": "T3-NEG-23",
@@ -1280,9 +1280,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "NETWORK_OFFLINE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: DNS resolution failure"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Network offline. Test failure is caused by connectivity loss."
     },
     {
       "id": "T3-NEG-24",
@@ -1293,9 +1293,9 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "NETWORK_OFFLINE",
-      "executionDurationMs": 12,
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Host lookup failed"
+      "notes": "Engine strictly abstained under guardrail: Negative Control Triggered: Network offline. Test failure is caused by connectivity loss."
     },
     {
       "id": "T3-NEG-25",
@@ -1305,10 +1305,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "NETWORK_OFFLINE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "UNKNOWN_ERROR",
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Connection refused on port 4173"
+      "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
     {
       "id": "T3-NEG-26",
@@ -1318,10 +1318,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "NETWORK_OFFLINE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "UNKNOWN_ERROR",
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Socket reset by peer"
+      "notes": "Engine strictly abstained under guardrail: Insufficient diagnostic evidence to safely classify failure root cause."
     },
     {
       "id": "T3-NEG-27",
@@ -1331,10 +1331,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "NON_UNIQUE_CANDIDATE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "AMBIGUOUS_MATCH",
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Locator matched 3 elements"
+      "notes": "Engine strictly abstained under guardrail: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T3-NEG-28",
@@ -1344,23 +1344,23 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "NON_UNIQUE_CANDIDATE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "AMBIGUOUS_MATCH",
+      "executionDurationMs": 0.01,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Locator matched 5 elements"
+      "notes": "Engine strictly abstained under guardrail: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T3-NEG-29",
       "tier": "TIER_3_NEGATIVE_CONTROL",
       "category": "Negative Control & Safety",
-      "name": "Ambiguous \"Confirm\" Modal Action Buttons",
+      "name": "Semantic Contradiction: Submit Replaced by Cancel Button",
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "NON_UNIQUE_CANDIDATE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "AMBIGUOUS_MATCH",
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Locator matched 2 elements"
+      "notes": "Engine strictly abstained under guardrail: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     },
     {
       "id": "T3-NEG-30",
@@ -1370,10 +1370,10 @@
       "targetApp": "Controlled App",
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
-      "diagnosticCategory": "NON_UNIQUE_CANDIDATE",
-      "executionDurationMs": 12,
+      "diagnosticCategory": "AMBIGUOUS_MATCH",
+      "executionDurationMs": 0,
       "intentInvariantPassed": true,
-      "notes": "Engine strictly abstained: Locator matched 4 elements"
+      "notes": "Engine strictly abstained under guardrail: NON_UNIQUE_CANDIDATE: Candidate element matches 2 elements in DOM. Strict uniqueness requires exactly 1 match (U = 1.0) unless scoped by a verified parent container."
     }
   ]
 }

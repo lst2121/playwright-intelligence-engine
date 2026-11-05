@@ -1,7 +1,11 @@
 import { CorrelatedEvidence } from './evidence-correlator.js';
+import { EvidenceScorecard } from '../evidence/evidence-model.js';
 
 export class DiagnosticReportGenerator {
-  public static generateTerminalReport(evidence: CorrelatedEvidence): string {
+  public static generateTerminalReport(
+    evidence: CorrelatedEvidence,
+    scorecard?: EvidenceScorecard
+  ): string {
     const { context, classification } = evidence;
     const { failedAction } = context;
 
@@ -38,13 +42,37 @@ export class DiagnosticReportGenerator {
     }
     lines.push(divider);
 
-    // Evidence Completeness
-    const comp = context.evidenceCompleteness;
-    lines.push('Evidence Provenance:');
-    lines.push(`  • DOM Snapshot Available : ${comp.domAvailable ? '✅ YES' : '❌ NO'}`);
-    lines.push(`  • Network Logs Ingested  : ${comp.networkAvailable ? `✅ YES (${context.networkEvents.length} events)` : '❌ NONE'}`);
-    lines.push(`  • Source Code Mapped     : ${comp.sourceAvailable ? '✅ YES' : '❌ NO'}`);
+    // Evidence Scorecard / Completeness
+    if (scorecard) {
+      lines.push('Multi-Source Evidence Scorecard:');
+      lines.push(`  • Playwright Error Msg   : ${scorecard.playwrightErrorAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Test Source AST        : ${scorecard.testSourceAstAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • DOM Snapshot           : ${scorecard.domSnapshotAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Network Events         : ${scorecard.networkEventsAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Console Events         : ${scorecard.consoleEventsAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Trace Archive          : ${scorecard.traceArchiveAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Git Working Tree Diff  : ${scorecard.gitHistoryAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Environment Metadata   : ${scorecard.environmentMetadataAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Total Ingested Records : ${scorecard.totalRecordsCount}`);
+    } else {
+      const comp = context.evidenceCompleteness;
+      lines.push('Evidence Provenance:');
+      lines.push(`  • DOM Snapshot Available : ${comp.domAvailable ? '✅ YES' : '❌ NO'}`);
+      lines.push(`  • Network Logs Ingested  : ${comp.networkAvailable ? `✅ YES (${context.networkEvents.length} events)` : '❌ NONE'}`);
+      lines.push(`  • Source Code Mapped     : ${comp.sourceAvailable ? '✅ YES' : '❌ NO'}`);
+    }
     lines.push(divider);
+
+    // Causal Evidence Graph summary
+    if (classification.causalGraph) {
+      const g = classification.causalGraph;
+      lines.push('Causal Evidence Graph:');
+      lines.push(`  • Graph Size   : ${g.nodes.length} nodes, ${g.edges?.length ?? 0} causal edges`);
+      if (g.hasCausallyRelevantServerError && g.offendingNetworkEvent) {
+        lines.push(`  • Offending Request: HTTP ${g.offendingNetworkEvent.status} on ${g.offendingNetworkEvent.method} ${g.offendingNetworkEvent.url}`);
+      }
+      lines.push(divider);
+    }
 
     // Suspicious Network & Console Context
     if (evidence.suspiciousNetworkEvents.length > 0) {
@@ -78,5 +106,50 @@ export class DiagnosticReportGenerator {
     lines.push('');
 
     return lines.join('\n');
+  }
+
+  public static generateMarkdownReport(
+    evidence: CorrelatedEvidence,
+    scorecard?: EvidenceScorecard
+  ): string {
+    const { context, classification } = evidence;
+    const { failedAction } = context;
+
+    const md: string[] = [];
+    md.push('# Playwright Intelligence Engine — Diagnostic Report');
+    md.push('');
+    md.push(`**Classification:** \`${classification.category}\` (Confidence: ${(classification.confidence * 100).toFixed(1)}%)  `);
+    md.push(`**Status:** ${classification.shouldAbstain ? '⛔ **Abstained from repair**' : '🔍 **Repair candidate eligible**'}  `);
+    md.push(`**Reason:** ${classification.reason}  `);
+    md.push('');
+
+    md.push('## Failed Action');
+    md.push(`- **Action:** \`${failedAction.action}\``);
+    if (failedAction.selector) md.push(`- **Selector:** \`${failedAction.selector}\``);
+    if (failedAction.sourceFile) md.push(`- **Location:** \`${failedAction.sourceFile}:${failedAction.line ?? 0}\``);
+    if (failedAction.errorMessage) md.push(`- **Error:** \`${failedAction.errorMessage}\``);
+    md.push('');
+
+    if (scorecard) {
+      md.push('## Evidence Scorecard');
+      md.push('| Evidence Channel | Available |');
+      md.push('|---|---|');
+      md.push(`| Playwright Error Message | ${scorecard.playwrightErrorAvailable ? '✅' : '❌'} |`);
+      md.push(`| Test Source Code (AST) | ${scorecard.testSourceAstAvailable ? '✅' : '❌'} |`);
+      md.push(`| Browser DOM Snapshot | ${scorecard.domSnapshotAvailable ? '✅' : '❌'} |`);
+      md.push(`| Network Interception | ${scorecard.networkEventsAvailable ? '✅' : '❌'} |`);
+      md.push(`| Browser Console | ${scorecard.consoleEventsAvailable ? '✅' : '❌'} |`);
+      md.push(`| Playwright Trace | ${scorecard.traceArchiveAvailable ? '✅' : '❌'} |`);
+      md.push(`| Git History / Diff | ${scorecard.gitHistoryAvailable ? '✅' : '❌'} |`);
+      md.push(`| Environment Metadata | ${scorecard.environmentMetadataAvailable ? '✅' : '❌'} |`);
+      md.push('');
+    }
+
+    if (classification.shouldAbstain) {
+      md.push('## Abstention Guardrail Enforced');
+      md.push(`> [!IMPORTANT]\n> ${classification.abstentionReason ?? classification.reason}`);
+    }
+
+    return md.join('\n');
   }
 }

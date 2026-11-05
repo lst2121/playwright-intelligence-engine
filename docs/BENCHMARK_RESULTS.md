@@ -1,20 +1,21 @@
-# Benchmark Results & Statistical Evaluation (v2.4 Remediated)
+# Benchmark Results & Empirical Evaluation (v2.5)
 
-This document presents the empirical execution results obtained from evaluating the **Playwright Intelligence Engine** against the **Master Adversarial Benchmark Suite** (`benchmarks/runner/master-benchmark-runner.ts`).
+This document presents the empirical execution results obtained from evaluating the **Playwright Intelligence Engine** against the **Master Empirical Benchmark Suite** (`benchmarks/runner/master-benchmark-runner.ts`).
 
 **Evaluation Timestamp:** November 2026  
-**Artifact Source:** `benchmarks/reports/master-benchmark-results.json`  
-**Execution Environment:** Node.js v20.18.0, Windows 11, Local Controlled App Server (Port 4173)
+**Artifact Source:** `benchmarks/reports/master-benchmark-results.json` and `artifacts/benchmark-report.json`  
+**Execution Environment:** Node.js v20.18.0, Windows 11, Local In-Memory `ControlledAppServer` (Port 4173)  
+**Scenarios Evaluated:** 104 total empirical trials  
 
 ---
 
 ## 1. Executive Summary Table & Disaggregated Metrics
 
-Following expert code audit recommendations, the benchmark results strictly disaggregate repairs from safe abstentions, and report precision, recall, coverage, and regression metrics separately:
+Every scenario is executed against the live in-memory server, scored by `SelectorScorer`, evaluated through `AbstentionPolicy`, verified through `DiffAllowlistValidator` and `IntentValidator`, or classified through `FailureClassifier`:
 
 ```
 ========================================================================
- MASTER ADVERSARIAL BENCHMARK SUITE — EMPIRICAL RESULTS
+ MASTER EMPIRICAL BENCHMARK SUITE — EMPIRICAL RESULTS
 ========================================================================
  Total Scenarios Evaluated          : 104
  • Tier 1: Live Baseline Scenarios  : 24 / 24 Passed (Pass Rate: 100.0%)
@@ -24,12 +25,12 @@ Following expert code audit recommendations, the benchmark results strictly disa
    - Repair Coverage                : 80.0%  (Eligible failure population / total mutations)
  • Tier 3: Negative Controls        : 30 / 30 Abstained (Safe Abstention Rate: 100.0%)
  
- RELIABILITY & DEFECT ORACLE METRICS:
+ RELIABILITY & DEFECT RESISTANCE METRICS:
  • Seeded Defect Detection Rate     : 100.0% (6 / 6 Defect Families)
  • Defect Masking Rate              : 0.0%   (Zero defects concealed by repairs)
  • False Repair Rate                : 0.0%   (Zero incorrect repairs accepted)
  • Regression Rate                  : 0.0%   (Zero regressions introduced)
- • Diagnostic Latency P50 / P95     : 15 ms / 26 ms
+ • Diagnostic Latency P50 / P95     : 0.62 ms / 33.43 ms
  • Wilson 95% Confidence Interval   : [96.44%, 100.00%]*
 ========================================================================
  * Note on Statistical Interpretation: The Wilson 95% confidence interval describes
@@ -54,44 +55,47 @@ Following expert code audit recommendations, the benchmark results strictly disa
 
 ---
 
-## 3. Tier-by-Tier Breakdown
+## 3. Tier-by-Tier Empirical Breakdown
 
-### Tier 1: Live Baseline Scenarios (24 / 24 Passed — 100.0%)
-Evaluated against 6 distinct target web applications to verify cross-application compatibility:
-- UI Testing Playground (2 scenarios): Dynamic IDs, class attributes.
-- SauceDemo (2 scenarios): Standard login, product inventory sorting.
-- The Internet (2 scenarios): Form authentication, dynamic controls.
-- LetCode (2 scenarios): Input manipulation, button geometry.
-- OrangeHRM (2 scenarios): Admin login, employee table navigation.
-- Automation Exercise (2 scenarios): Catalog browsing, contact form.
-- Controlled App (12 scenarios): Full e-commerce and admin lifecycle workflows.
+### Tier 1: Live Clean Baselines (24 / 24 Passed — 100.0%)
+Executed live against `ControlledAppServer` endpoints on port 4173 covering:
+1. Root dashboard view (`GET /`)
+2. Login form view (`GET /login`)
+3. Admin user authentication (`POST /api/login`)
+4. Customer user authentication (`POST /api/login`)
+5. Product catalog ingestion (`GET /api/products`)
+6. Product filtering by category (`GET /api/products?category=Software`)
+7. Shopping cart retrieval (`GET /api/cart`)
+8. Cart item addition (`POST /api/cart/add`)
+9. Cart quantity update (`POST /api/cart/update`)
+10. Checkout page render (`GET /checkout`)
+11. Order subtotal summary (`GET /api/checkout/summary`)
+12. Credit card payment processing (`POST /api/checkout/pay`)
+13. Order history ingestion (`GET /api/orders`)
+14. Order status lifecycle check (`GET /api/orders/ORD-101`)
+15. User profile metadata (`GET /api/profile`)
+16. Admin user management table (`GET /api/admin/users`)
+17. System health probe (`GET /health`)
+18. Session token validation (`GET /api/session/verify`)
+19. Inventory availability check (`GET /api/inventory/prod-1`)
+20. Shipping rate calculation (`POST /api/shipping/calculate`)
+21. Promo code validation (`POST /api/promo/apply`)
+22. Order cancellation workflow (`POST /api/orders/ORD-101/cancel`)
+23. Customer support inquiry (`POST /api/support/ticket`)
+24. Deterministic session logout (`POST /api/logout`)
 
-### Tier 2: Structural Mutation Scenarios (50 Scenarios — 40 Repaired, 10 Safely Abstained)
-- **Family A (Dynamic IDs & Hashed Suffixes)**: 8 repaired with role/testid; 2 ambiguous duplicate IDs safely abstained.
-- **Family B (Accessible Name Drift)**: 8 repaired with semantic token matching; 2 contradictory button label mutations safely abstained.
-- **Family C (DOM Container Restructuring)**: 8 repaired with parent scoping; 2 unstructured detached containers safely abstained.
-- **Family D (Utility Class Volatility)**: 8 repaired with ARIA locators; 2 ambiguous styled containers safely abstained.
-- **Family E (Duplicate Controls & Strict-Mode Boundaries)**: 8 scoped to unique containers; 2 unscoped duplicate controls safely abstained under strict uniqueness gate ($matchCount === 1$).
+### Tier 2: Empirical Structural Mutations (50 Scenarios: 40 Repaired, 10 Safely Abstained)
+Evaluated across 5 mutation families (10 scenarios per family):
+- **Family A (Dynamic IDs & Hashed Suffixes):** 8 unique dynamic ID drift scenarios repaired; 2 duplicate ID scenarios safely abstained under uniqueness gate.
+- **Family B (Accessible Name Drift):** 8 unique accessible name drift scenarios repaired; 2 conflicting target action scenarios (`Continue Shopping` vs `Continue Checkout`) safely abstained.
+- **Family C (DOM Container Restructuring):** 8 nested container restructuring scenarios repaired via resilient `data-testid` and role locators; 2 duplicate card scenarios safely abstained.
+- **Family D (Utility Class Volatility):** 8 volatile CSS utility class mutations repaired; 2 identical styled button scenarios safely abstained.
+- **Family E (Duplicate Controls & Strict-Mode Boundaries):** 8 modal dialog scoped actions repaired; 2 ambiguous page-vs-modal duplicate controls safely abstained.
 
-### Tier 3: Negative Controls & Business Defects (30 / 30 Abstained — 100.0%)
-- 6 In-Domain Backend 500 / 502 / 503 / 504 server errors: Abstained with `BACKEND_500`.
-- 4 Authentication / 401 / 403 / CSRF session errors: Abstained with `AUTH_EXPIRED`.
-- 4 Incomplete trace artifacts: Abstained with `INCOMPLETE_EVIDENCE`.
-- 2 Timing races / DOM detached nodes: Abstained with `TIMING_RACE`.
-- 6 Seeded business defects (Experiment C): Abstained with `ASSERTION_FAILURE`.
-- 4 Network offline / DNS resolution failures: Abstained with `NETWORK_OFFLINE`.
-- 4 Duplicate multi-match controls: Abstained with `NON_UNIQUE_CANDIDATE`.
-
----
-
-## 4. Defect Resistance Oracle (Experiment C Live)
-
-Tested live against `ControlledAppServer` on port 4173 with all 6 seeded business defects active:
-1. `DEFECT_INVALID_PAYMENT_ACCEPTED`: Form accepts expired card. Engine abstained; did not alter assertion.
-2. `DEFECT_WRONG_TOTAL`: Cart calculates incorrect discount. Engine abstained; did not alter expected total.
-3. `DEFECT_MISSING_VALIDATION`: Form submits without mandatory email. Engine abstained; reported regression.
-4. `DEFECT_WRONG_RECORD_UPDATED`: Update modifies wrong DB record. Engine abstained.
-5. `DEFECT_UNAUTHORIZED_ACTION`: Non-admin accesses admin action. Engine abstained.
-6. `DEFECT_INCORRECT_WORKFLOW`: State machine skips order state. Engine abstained.
-
-**Result:** 100.0% Defect Detection Rate, 0.0% Defect Masking, 0.0% False Repairs.
+### Tier 3: Negative Controls & Business-Defect Resistance (30 / 30 Abstained — 100.0%)
+- **Backend 500 Server Errors (Scenarios 1–6):** HTTP 500, 502, 503, 504 on application endpoints. Classified as `BACKEND_500` with 100% safe abstention.
+- **Authentication Expired (Scenarios 7–10):** HTTP 401 and 403 on protected routes. Classified as `AUTH_EXPIRED` with 100% safe abstention.
+- **Incomplete Evidence (Scenarios 11–14):** Missing or empty DOM snapshots. Classified as `INCOMPLETE_EVIDENCE` with 100% safe abstention.
+- **Timing Races (Scenarios 15–16):** Detached DOM nodes and destroyed execution contexts. Classified as `TIMING_RACE` with 100% safe abstention.
+- **Seeded Business Defects (Scenarios 17–22 - Experiment C):** 6 business logic defects (wrong total, invalid payment accepted, missing validation, wrong record updated, unauthorized action, incorrect workflow). Assertion failures trigger `ASSERTION_FAILURE` classification with 100% safe abstention and 0.0% bug masking.
+- **Network Offline & Strict Boundaries (Scenarios 23–30):** Network offline (`ERR_INTERNET_DISCONNECTED`), DNS lookup failures (`ENOTFOUND`), and strict mode violations. 100% safe abstention.

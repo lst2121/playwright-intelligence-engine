@@ -1,154 +1,100 @@
 # CLI Reference Guide (`pw-intel`)
 
-This document provides complete reference documentation for the `pw-intel` command-line utility.
+Complete reference documentation for the `pw-intel` command-line utility and testing toolchain.
 
 ---
 
-## 1. Global Usage & Flags
+## 1. Global Usage & Options
 
 ```bash
 npx pw-intel [command] [options]
 ```
 
 ### Global Options
-- `-h, --help`: Displays help information and command summaries.
-- `-v, --version`: Displays the current engine version (e.g. `0.1.0`).
-- `--json`: Formats command output as structured JSON for CI/CD scripting.
-- `--verbose`: Enables debug logging, trace adapter details, and AST node dumps.
+- `-h, --help`: Displays help information and command syntax.
+- `-v, --version`: Displays the current engine version (`0.1.0`).
 
 ---
 
 ## 2. Command Reference
 
 ### 2.1. `pw-intel diagnose`
-Ingests a Playwright `trace.zip` archive and outputs root-cause failure classification with causal graph evidence.
+Ingests a Playwright `trace.zip` archive and outputs root-cause failure classification with action-anchored causal correlation.
 
 ```bash
-npx pw-intel diagnose <tracePath> [options]
+npx pw-intel diagnose <path-to-trace.zip>
 ```
 
-#### Options:
-- `--format <text|json>`: Output format (default: `text`).
-
-#### Example Output:
-```text
-========================================================================
- PLAYWRIGHT INTELLIGENCE ENGINE — DIAGNOSTIC REPORT
-========================================================================
- Trace File      : ./traces/checkout-failure.zip
- Trace Version   : 9 (Playwright v1.42.0)
- Diagnostic Class: LOCATOR_DRIFT (Confidence: 94.2%)
-
- FAILED ACTION:
- • Action        : click
- • Target        : button#submit-order
- • Call ID       : call@14
- • Error         : Timeout 30000ms exceeded waiting for locator('button#submit-order')
-
- CAUSAL EVIDENCE:
- • In-Domain API : 12 requests (100% HTTP 2xx/3xx — Healthy)
- • Excluded Noise: 4 third-party telemetry beacons ignored (Google Analytics, Sentry)
- • DOM Provenance: COMPLETE (Frame: main, Elements resolved: 412)
-
- REMEDY:
- • Status        : Eligible for Automated AST Repair
- • Recommendation: Run 'pw-intel repair' to evaluate candidate locators.
-========================================================================
-```
+#### What It Does:
+1. Inspects the archive with decompression-bomb guards (100 MB max aggregate size, 10:1 compression ratio limit).
+2. Identifies matching stream IDs for `.trace` and `.network` JSONL streams.
+3. Automatically detects trace format versions (v7, v8, v9, v10) through `TraceAdapterRegistry`.
+4. Builds a `DiagnosticContext` with action, network, console, and DOM snapshot provenance.
+5. Evaluates the **Causal Evidence Graph** anchored to the failed action timestamp ($T_{\text{action}}$), ignoring background telemetry noise.
+6. Outputs a formatted terminal report with classification, confidence level, and actionable remediation.
 
 ---
 
-### 2.2. `pw-intel repair`
-Plans, executes, and verifies an automated Page Object repair inside an isolated Git worktree.
+### 2.2. `pw-intel reproduce`
+Executes an isolated diagnostic rerun of a failing test spec without requiring an existing `trace.zip` file.
 
 ```bash
-npx pw-intel repair <tracePath> --target-page <pageObjectPath> [options]
+npx pw-intel reproduce <path-to-spec.ts>
 ```
 
-#### Options:
-- `--target-page <path>`: (Required) Path to the TypeScript Page Object containing the locator.
-- `--spec <path>`: Path to the failing test spec file for Intent Invariant v2 validation.
-- `--dry-run`: Generates candidate scores and unified diff in memory without creating a worktree or executing tests.
-- `--apply`: Explicit human-in-the-loop flag. Atomically writes the verified patch to the active working branch after re-validating the AST baseline and diff allowlist against the current working copy.
-
-#### The `--apply` Execution & Verification Contract:
-To prevent unverified changes or working branch corruption, the engine enforces a strict five-stage verification lifecycle:
-1. **Phase 1: In-Memory Planning & Scoring**: Ingests trace, resolves DOM snapshot, extracts candidates, and scores them using deterministic transformed scores. Zero disk writes occur on the active branch.
-2. **Phase 2: Isolated Worktree Checkout**: Creates a detached Git worktree in `.pw-intelligence/worktrees/*` with shared read-only dependency junctions.
-3. **Phase 3: Worktree Patching & Test Execution**: Applies the candidate patch exclusively within the isolated worktree (`AstPatcher.patchPageObject`). Executes the target test using `execFile` argument arrays.
-4. **Phase 4: Fail-Closed Invariant Validation**: The repair is authorized *only* if the test execution genuinely passes (`executionPassed === true`), exit code is 0, pass count $\ge 1$, and Intent Invariant v2 holds ($V = A \land T \land F \land I \land D \land E$).
-5. **Phase 5: Explicit Human Approval Boundary (`--apply`)**:
-   - Without `--apply`, the engine outputs the verified unified diff for inspection and leaves the active working branch untouched.
-   - When `--apply` is supplied, the engine re-validates the working branch file to ensure the AST baseline has not drifted since planning, checks `validateLocatorGrammar` and `DiffAllowlistValidator`, and atomically writes the patch with immediate rollback protection on I/O error.
-
-#### Example Output:
-```text
-[1/5] Ingesting trace and resolving DOM snapshot... Done.
-[2/5] Extracting semantic candidates... 3 candidates discovered.
-[3/5] Scoring candidates with Calibrated Sigmoid:
-      1. getByRole('button', { name: 'Complete Checkout' }) -> P(valid): 92.4% (Match: 1)
-      2. getByTestId('order-submit-btn')                     -> P(valid): 81.1% (Match: 1)
-      3. locator('.checkout-btn')                            -> P(valid): 54.0% (Match: 2, Ambiguous)
-[4/5] Evaluating Intent Invariant v2:
-      • Assertion Invariant (A) : PASSED (Canonical AST Hash: 8f4e2a...)
-      • Structural Invariant (T): PASSED (Statements: 8 == 8)
-      • Fixture Invariant (F)   : PASSED (Input literals identical)
-      • Identity Invariant (I)  : PASSED (Role: button, Tokens: checkout)
-      • Diff Allowlist (D)      : PASSED (1 Property updated, 0 collateral changes)
-[5/5] Executing test in isolated worktree (.pw-intelligence/worktrees/repair-1730761200000)...
-      Running: npx playwright test tests/e2e/checkout.spec.ts
-      Result: 1 passed (1.4s) — Exit Code: 0
-
-========================================================================
- VERIFIED REPAIR READY FOR REVIEW:
-========================================================================
---- a/src/pages/checkout.page.ts
-+++ b/src/pages/checkout.page.ts
-@@ -14,1 +14,1 @@
--  readonly submitButton = this.page.locator('button#submit-order');
-+  readonly submitButton = this.page.getByRole('button', { name: 'Complete Checkout' });
-
- To apply this patch to your current branch, run:
-   npx pw-intel repair ./traces/checkout-failure.zip --target-page src/pages/checkout.page.ts --apply
-========================================================================
-```
+#### What It Does:
+1. Creates an isolated detached Git worktree (`.pw-intelligence/worktrees/reproduce-*`) with NTFS junctions.
+2. Ingests static AST structure (`StaticAstCollector`), recent git attribute diffs (`GitDiffCollector`), and environment metadata (`EnvironmentCollector`).
+3. Executes Playwright test via `ExecutionRunner` with sanitized environment and 16 MB bounded output buffers.
+4. Gathers Playwright error messages, stacks, frame locations (`ErrorCollector`), and live DOM/network artifacts.
+5. Ingests and redacts sensitive tokens, credit cards, SSNs, and passwords (`EvidenceRedactor`).
+6. Computes the **Multi-Source Evidence Scorecard** across all channels.
+7. Outputs an immediate terminal diagnostic report and cleans up the worktree.
 
 ---
 
-### 2.3. `pw-intel verify`
-Runs test execution verification in an isolated sandbox for an existing spec and config.
+### 2.3. `pw-intel mcp`
+Launches the Model Context Protocol (MCP) JSON-RPC server on `stdio`, enabling AI IDEs and agents (Claude, Gemini, Antigravity) to safely interact with the engine.
 
 ```bash
-npx pw-intel verify <specPath> [--config <configPath>]
+npx pw-intel mcp
 ```
+
+#### Available MCP Tools:
+- `diagnose_trace`: Analyzes a `trace.zip` archive and returns root-cause diagnosis.
+- `plan_repair`: Generates an in-memory surgical locator proposal and evaluates Intent Invariant v2 without modifying disk.
+- `repair_page_object`: Applies a verified repair patch. **Enforces human-in-the-loop cryptographic approval**: without an `approvalToken`, returns a proposal and issues a one-time token; with a verified `approvalToken`, validates token integrity and applies the patch atomically.
+- `list_worktrees`: Lists active detached worktrees in `.pw-intelligence/worktrees/`.
+- `cleanup_worktree`: Safely destroys an isolated worktree and deletes its temporary repair branch.
 
 ---
 
-### 2.4. `pw-intel audit`
-Scans the repository for orphaned Git worktrees, checks NTFS junction integrity, validates package manager compatibility, and purges stale temp branches.
+### 2.4. `pw-intel generate`
+Generates modern, resilient Page Object Model (POM) and test spec scaffolding for a target application feature.
 
 ```bash
-npx pw-intel audit [--clean-worktrees]
+npx pw-intel generate <featureName>
 ```
 
-#### Example Output:
-```text
-[Audit] Scanning Git worktrees...
-• Registered worktrees: 0 active, 0 orphaned.
-• Package Manager: npm (Strategy: IMMUTABLE_SHARED)
-• Windows NTFS Junction Support: Available
-• Stability Ledger: 14 recorded locators (.pw-intelligence/stability-ledger.json)
-• System Status: All systems healthy.
+#### Example:
+```bash
+npx pw-intel generate Checkout
 ```
+Produces:
+- `CheckoutPage.ts`: strongly typed Playwright Page Object utilizing `getByRole` and `getByTestId`.
+- `checkout.spec.ts`: verified test suite boilerplate importing the Page Object.
 
 ---
 
-## 3. CI/CD Exit Codes
+### 2.5. `npm run benchmark`
+Runs the comprehensive 104-scenario empirical benchmark against the in-memory `ControlledAppServer`.
 
-| Exit Code | Meaning | CI Action |
-| :--- | :--- | :--- |
-| `0` | Success / Verified repair generated / Diagnostic complete | Proceed |
-| `1` | Diagnostic abstention (e.g. `BACKEND_500`, `AUTH_EXPIRED`, `ASSERTION_FAILURE`) | Fail CI, notify developer of application bug |
-| `2` | Security violation (Zip-Slip, Decompression Bomb detected) | Block build, alert security team |
-| `3` | Invalid command line arguments or missing required files | Fix configuration |
+```bash
+npm run benchmark
+```
 
+#### What It Evaluates:
+- **Tier 1 (24 Clean Baselines):** Live HTTP workflows against `ControlledAppServer` port 4173.
+- **Tier 2 (50 Structural Mutations):** 5 mutation families (Dynamic IDs, Name Drift, Container Restructure, Utility Classes, Duplicate Controls). Evaluates candidate extraction, calibrated scoring, AST patching, and Intent Invariant v2 pre-flight proof.
+- **Tier 3 (30 Negative Controls):** Backend 500s, 401/403 expirations, incomplete traces, timing races, and 6 seeded business defects. Verifies 100% safe abstention and 0% false repairs.
+- Outputs detailed reports to `artifacts/benchmark-report.json` and `artifacts/benchmark-report.md`.

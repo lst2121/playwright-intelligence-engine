@@ -91,11 +91,50 @@ export class SelectorScorer {
         const origIsNegative = negativeWords.some((t) => origNorm.includes(t));
         const candIsPositive = positiveWords.some((t) => nameNorm.includes(t));
 
-        if ((origIsPositive && candIsNegative) || (origIsNegative && candIsPositive)) {
+        // Differentiating action token conflicts (e.g. continue shopping vs continue checkout)
+        const distinguishingPairs: Array<[string, string]> = [
+          ['shopping', 'checkout'],
+          ['cart', 'checkout'],
+          ['prev', 'next'],
+          ['previous', 'next'],
+          ['first', 'last'],
+          ['left', 'right'],
+          ['up', 'down'],
+          ['yes', 'no'],
+          ['approve', 'reject'],
+          ['accept', 'decline'],
+          ['enable', 'disable'],
+          ['open', 'close'],
+        ];
+
+        let hasDistinguishingConflict = false;
+        for (const [w1, w2] of distinguishingPairs) {
+          if (
+            (origNorm.includes(w1) && nameNorm.includes(w2)) ||
+            (origNorm.includes(w2) && nameNorm.includes(w1))
+          ) {
+            hasDistinguishingConflict = true;
+            break;
+          }
+        }
+
+        if (hasDistinguishingConflict) {
+          identityMatch = 0.1;
+          explanation.push(`Identity Match I: 0.1 (Conflicting action token intent detected)`);
+        } else if ((origIsPositive && candIsNegative) || (origIsNegative && candIsPositive)) {
           identityMatch = 0.0;
           explanation.push(`Identity Match I: 0.0 (Hard contradiction: target has opposing confirmation/cancellation semantics)`);
         } else if (origNorm.includes(nameNorm) || nameNorm.includes(origNorm)) {
           identityMatch = 1.0;
+        } else {
+          // Token overlap
+          const origWords = new Set(origNorm.split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+          const candWords = new Set(nameNorm.split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+          if (origWords.size > 0 && candWords.size > 0) {
+            const intersection = [...origWords].filter((w) => candWords.has(w));
+            const overlap = intersection.length / Math.min(origWords.size, candWords.size);
+            identityMatch = overlap >= 0.5 ? 0.9 : 0.8;
+          }
         }
       }
     }

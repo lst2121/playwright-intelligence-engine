@@ -59,6 +59,8 @@ export const FailedActionSchema = z.object({
   errorStack: z.string().optional(),
   errorMessage: z.string().optional(),
   durationMs: z.number().optional(),
+  timestamp: z.number().optional(),
+  frameId: z.string().optional(),
 });
 
 export type FailedAction = z.infer<typeof FailedActionSchema>;

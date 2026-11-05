@@ -16,7 +16,8 @@ export interface CorrelatedEvidence {
 export class EvidenceCorrelator {
   /**
    * Correlates network and console anomalies within a temporal window leading up to the failure.
-   * Actually applies the temporalWindowMs filter relative to the latest event timestamp in the trace timeline.
+   * Anchors the temporal window to the failed action timestamp (T_action), rather than
+   * max(timestamps) which could be background teardown/logging noise.
    */
   public static correlate(
     context: DiagnosticContext,
@@ -24,20 +25,25 @@ export class EvidenceCorrelator {
   ): CorrelatedEvidence {
     const classification = FailureClassifier.classify(context);
 
-    // Compute trace reference failure timestamp from events
-    const allTimestamps: number[] = [];
-    for (const net of context.networkEvents) {
-      if (typeof net.timestamp === 'number') allTimestamps.push(net.timestamp);
-    }
-    for (const con of context.consoleEvents) {
-      if (typeof con.timestamp === 'number') allTimestamps.push(con.timestamp);
+    // Anchor reference time to failedAction.timestamp if available
+    let refTime: number | undefined = context.failedAction.timestamp;
+
+    if (refTime === undefined) {
+      // Fallback: collect timestamps from network and console events
+      const allTimestamps: number[] = [];
+      for (const net of context.networkEvents) {
+        if (typeof net.timestamp === 'number') allTimestamps.push(net.timestamp);
+      }
+      for (const con of context.consoleEvents) {
+        if (typeof con.timestamp === 'number') allTimestamps.push(con.timestamp);
+      }
+      refTime = allTimestamps.length > 0 ? Math.max(...allTimestamps) : undefined;
     }
 
-    const refTime = allTimestamps.length > 0 ? Math.max(...allTimestamps) : undefined;
     const windowStart = refTime !== undefined ? refTime - windowMs : undefined;
     const windowEnd = refTime !== undefined ? refTime + 1000 : undefined;
 
-    // Filter network events that occurred within the temporal window with error status codes (4xx, 5xx)
+    // Filter network events that occurred within the action-anchored temporal window with error status codes (4xx, 5xx)
     const suspiciousNetworkEvents = context.networkEvents.filter((event) => {
       const isError = event.status >= 400 || Boolean(event.errorText);
       if (!isError) return false;
@@ -48,7 +54,17 @@ export class EvidenceCorrelator {
       return true;
     });
 
-    // Filter console errors within the temporal window
+    // If frameId is specified, sort matching frame events to the front
+    if (context.failedAction.frameId) {
+      const targetFrame = context.failedAction.frameId;
+      suspiciousNetworkEvents.sort((a, b) => {
+        const aMatch = a.frameId === targetFrame ? 1 : 0;
+        const bMatch = b.frameId === targetFrame ? 1 : 0;
+        return bMatch - aMatch;
+      });
+    }
+
+    // Filter console errors within the action-anchored temporal window
     const suspiciousConsoleEvents = context.consoleEvents.filter((event) => {
       const isConsoleError = event.type === 'error' || event.text.toLowerCase().includes('uncaught');
       if (!isConsoleError) return false;

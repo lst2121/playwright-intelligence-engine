@@ -73,8 +73,8 @@ export class RepairPlanner {
    * Generates a modern, user-centric Playwright locator expression prioritizing getByRole and getByTestId.
    * Employs robust string escaping; avoids bare tag fallbacks.
    */
-  public static generateSelectorExpression(el: ResolvedElement): string {
-    return CandidateExtractor.generateLocator(el);
+  public static generateSelectorExpression(el: ResolvedElement, pageProperty = 'this.page'): string {
+    return CandidateExtractor.generateLocator(el, pageProperty);
   }
 
   /**
@@ -82,8 +82,12 @@ export class RepairPlanner {
    * Does NOT modify source files on disk. Does NOT claim repair success.
    */
   public static planRepair(input: RepairPlanInput): RepairProposal {
+    // 0. Read original source and discover page property identifier
+    const origSource = fs.readFileSync(input.pomFilePath, 'utf-8');
+    const pageProperty = CandidateExtractor.discoverPageProperty(origSource);
+
     // 1. Synthesize replacement locator expression with escaping
-    const replacementLocator = RepairPlanner.generateSelectorExpression(input.candidateElement);
+    const replacementLocator = RepairPlanner.generateSelectorExpression(input.candidateElement, pageProperty);
 
     // 2. Validate replacement against Playwright locator grammar
     const grammarCheck = DiffAllowlistValidator.validateLocatorGrammar(replacementLocator);
@@ -95,7 +99,6 @@ export class RepairPlanner {
     const originalCompositeFingerprint = AssertionHasher.computeCompositeFingerprint(input.testFilePath);
 
     // 4. Generate in-memory AST patch without writing to disk
-    const origSource = fs.readFileSync(input.pomFilePath, 'utf-8');
     const patcher = new AstPatcher();
     const inMemPatch = patcher.patchPageObjectInMemory(origSource, {
       className: input.className,

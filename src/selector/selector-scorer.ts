@@ -31,6 +31,18 @@ export interface SelectorProjectContext {
   locatorUsage?: Partial<Record<'getByRole' | 'getByTestId' | 'getByLabel' | 'getByText' | 'locator', number>>;
 }
 
+const SEMANTIC_INTENT_GROUPS: string[][] = [
+  ['login', 'log in', 'signin', 'sign in', 'authenticate'],
+  ['logout', 'log out', 'signout', 'sign out'],
+  ['submit', 'save', 'confirm', 'send', 'apply'],
+  ['cancel', 'close', 'dismiss', 'abort'],
+  ['checkout', 'pay', 'payment', 'order'],
+];
+
+function semanticIntentGroup(value: string): string[] | undefined {
+  return SEMANTIC_INTENT_GROUPS.find((group) => group.some((term) => value.includes(term)));
+}
+
 export class SelectorScorer {
   public static readonly DEFAULT_WEIGHTS: ScorerWeights = {
     wU: 0.25,
@@ -89,6 +101,25 @@ export class SelectorScorer {
       if (originalSelector) {
         const origNorm = originalSelector.toLowerCase().replace(/[-_]/g, ' ');
         const nameNorm = candidate.accessibleName.toLowerCase().replace(/[-_]/g, ' ');
+        const exactIdentityMatch = origNorm.includes(nameNorm) || nameNorm.includes(origNorm);
+
+        const originalIntent = semanticIntentGroup(origNorm);
+        const candidateIntent = semanticIntentGroup(nameNorm);
+        if (exactIdentityMatch) {
+          identityMatch = 1.0;
+          explanation.push('Identity Match I: 1.0 (Exact identity text match detected)');
+        } else if (originalIntent && candidateIntent && originalIntent === candidateIntent) {
+          identityMatch = 0.98;
+          explanation.push('Identity Match I: 0.98 (Equivalent semantic action intent detected)');
+        } else if (originalIntent && candidateIntent && originalIntent !== candidateIntent) {
+          const negativeIntents = new Set(['logout', 'log out', 'signout', 'sign out', 'cancel', 'close', 'dismiss', 'abort']);
+          const originalIsNegative = originalIntent.some((term) => negativeIntents.has(term));
+          const candidateIsNegative = candidateIntent.some((term) => negativeIntents.has(term));
+          if (originalIsNegative !== candidateIsNegative) {
+            identityMatch = 0.0;
+            explanation.push('Identity Match I: 0.0 (Conflicting semantic action intent detected)');
+          }
+        }
 
         // Hard check: Contradictory semantics (submit vs cancel)
         const positiveWords = ['submit', 'login', 'checkout', 'save', 'confirm', 'proceed', 'pay', 'order'];
@@ -130,13 +161,15 @@ export class SelectorScorer {
           }
         }
 
-        if (hasDistinguishingConflict) {
+        if (identityMatch === 0.98 || identityMatch === 0.0) {
+          // Preserve the stronger semantic intent result above.
+        } else if (hasDistinguishingConflict) {
           identityMatch = 0.1;
           explanation.push(`Identity Match I: 0.1 (Conflicting action token intent detected)`);
         } else if ((origIsPositive && candIsNegative) || (origIsNegative && candIsPositive)) {
           identityMatch = 0.0;
           explanation.push(`Identity Match I: 0.0 (Hard contradiction: target has opposing confirmation/cancellation semantics)`);
-        } else if (origNorm.includes(nameNorm) || nameNorm.includes(origNorm)) {
+        } else if (exactIdentityMatch) {
           identityMatch = 1.0;
         } else {
           // Token overlap evaluating composite candidate identity (accessibleName, text, testid, id)

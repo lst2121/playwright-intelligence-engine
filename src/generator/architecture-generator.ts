@@ -241,6 +241,12 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   } else {
     if (!profile) warnings.push('No repository profile supplied; brownfield paths and conventions are conservative defaults.');
     if (profile?.locatorConventions.preferred === 'unknown') warnings.push('No dominant locator convention was detected; locator choices require review.');
+    if (profile?.structure.playwrightTestFiles === 0 && profile.structure.configFiles.length === 0) {
+      warnings.push('No Playwright test source or configuration was detected; generated files require manual integration review.');
+    }
+    if ((profile?.pathConfidence?.testDirectory ?? 1) < 0.5) {
+      warnings.push('Test-directory convention has low confidence because matching files are distributed across the repository.');
+    }
     assumptions.push('Existing project configuration, fixtures, authentication, and test data remain authoritative.');
     assumptions.push('Generated files are additive and do not replace existing files.');
   }

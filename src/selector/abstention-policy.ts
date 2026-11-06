@@ -152,7 +152,9 @@ export class AbstentionPolicy {
     if (sorted.length > 1) {
       const runnerUp = sorted[1]!;
       const delta = parseFloat((top.breakdown.score - runnerUp.breakdown.score).toFixed(3));
-      if (delta < AbstentionPolicy.AMBIGUITY_DELTA_THRESHOLD) {
+      const identitySeparation = top.breakdown.identityMatch - runnerUp.breakdown.identityMatch;
+      const hasStrongIdentitySeparation = top.breakdown.identityMatch >= 0.9 && identitySeparation >= 0.12;
+      if (delta < AbstentionPolicy.AMBIGUITY_DELTA_THRESHOLD && !hasStrongIdentitySeparation) {
         return {
           shouldAbstain: true,
           stage: 'AMBIGUITY_DELTA',

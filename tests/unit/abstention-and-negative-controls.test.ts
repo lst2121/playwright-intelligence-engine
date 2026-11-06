@@ -153,6 +153,15 @@ describe('Abstention Policy and Negative Controls Suite (35 Tests)', () => {
     expect(decision.stage).toBe('AMBIGUITY_DELTA');
   });
 
+  it('AMBIG-03B: strong semantic identity separation may resolve a close score tie', () => {
+    const top = createScoredCandidate({ breakdown: { ...createScoredCandidate().breakdown, score: 0.888, identityMatch: 0.95 } });
+    const runnerUp = createScoredCandidate({ breakdown: { ...createScoredCandidate().breakdown, score: 0.85, identityMatch: 0.8 } });
+
+    const decision = AbstentionPolicy.evaluate([top, runnerUp]);
+    expect(decision.shouldAbstain).toBe(false);
+    expect(decision.selectedCandidate).toBe(top);
+  });
+
   it('AMBIG-04: delta of exactly 0.08 must PASS ambiguity check', () => {
     const top = createScoredCandidate({ breakdown: { ...createScoredCandidate().breakdown, score: 0.88 } });
     const runnerUp = createScoredCandidate({ breakdown: { ...createScoredCandidate().breakdown, score: 0.80 } });

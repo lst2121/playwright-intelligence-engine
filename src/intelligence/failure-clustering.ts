@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 
 export interface FailureObservation {
   id: string;
@@ -70,7 +71,7 @@ function networkSignature(statuses: number[] | undefined): string {
 }
 
 export function fingerprintFailure(observation: FailureObservation): FailureFingerprint {
-  const category = observation.category.trim().toUpperCase() || 'UNKNOWN';
+  const category = normalizeFailureCategory(observation.category);
   const action = normalizeText(observation.action) || 'unknown-action';
   const message = messageSignature(observation);
   const network = networkSignature(observation.networkStatuses);
@@ -111,7 +112,7 @@ export function clusterFailures(observations: FailureObservation[]): FailureClus
     const timestamps = observations.map((observation) => observation.timestamp).filter((value): value is number => typeof value === 'number');
     const repositories = uniqueSorted(observations.map((observation) => observation.repository));
     const tests = uniqueSorted(observations.map((observation) => observation.testTitle));
-    const categoryAgreement = observations.every((observation) => observation.category.trim().toUpperCase() === fingerprint.category) ? 1 : 0.5;
+    const categoryAgreement = observations.every((observation) => normalizeFailureCategory(observation.category) === fingerprint.category) ? 1 : 0.5;
     const actionAgreement = observations.every((observation) => normalizeText(observation.action) === fingerprint.action) ? 1 : 0.5;
     return {
       clusterId: fingerprint.key,

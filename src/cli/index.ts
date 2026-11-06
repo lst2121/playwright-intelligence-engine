@@ -25,6 +25,8 @@ import { recordArchitectureWorkflow, recordCiWorkflow } from '../governance/work
 import { buildTeamDashboard, TeamEvidenceRun } from '../governance/team-dashboard.js';
 import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../diagnostics/external-failure-evidence.js';
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
+import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
+import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
 
 export async function runCli(argv: string[]): Promise<void> {
   const command = argv[2];
@@ -154,12 +156,14 @@ export async function runCli(argv: string[]): Promise<void> {
         const proposedLocator = DiagnosticReportGenerator.extractProposedLocator(correlated, intelligence);
         const shouldAbstain = correlated.classification.shouldAbstain || !proposedLocator;
         const actionOutcome = shouldAbstain ? 'ABSTAIN' : 'REPAIR';
+        const canonicalCategory = normalizeFailureCategory(correlated.classification.category);
         const abstentionReason =
           correlated.classification.abstentionReason ??
           (!proposedLocator ? 'No safe, unique replacement locator candidate discovered in DOM snapshot.' : undefined);
 
         console.log(JSON.stringify({
-          classification: correlated.classification.category,
+          classification: canonicalCategory,
+          rawClassification: correlated.classification.category,
           confidence: correlated.classification.confidence,
           shouldAbstain,
           actionOutcome,
@@ -208,9 +212,13 @@ export async function runCli(argv: string[]): Promise<void> {
         worktreeId: option('--worktree-id'),
         operation,
       });
+      const canonicalClassification = {
+        ...result.correlated.classification,
+        category: normalizeFailureCategory(result.correlated.classification.category),
+      };
       console.log(JSON.stringify({
         status: result.status,
-        classification: result.correlated.classification,
+        classification: canonicalClassification,
         failureFingerprint: result.correlated.failureFingerprint,
         proposedLocator: result.proposedLocator,
         candidate: result.candidate,
@@ -357,6 +365,31 @@ export async function runCli(argv: string[]): Promise<void> {
       console.log(JSON.stringify(report, null, 2));
     } catch (err: any) {
       console.error(`Failure clustering failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (command === 'evaluation-scorecard') {
+    const inputPath = argv[3];
+    if (!inputPath) {
+      console.error('Error: evaluation JSON path required. Usage: pw-intel evaluation-scorecard <results.json> [--out <scorecard.json>]');
+      process.exit(1);
+    }
+    try {
+      const parsed = JSON.parse(await fs.promises.readFile(path.resolve(inputPath), 'utf8')) as EvaluationObservation[] | { observations?: EvaluationObservation[]; diagnosisResults?: EvaluationObservation[] };
+      const observations = Array.isArray(parsed) ? parsed : parsed.observations ?? parsed.diagnosisResults ?? [];
+      const scorecard = buildEvaluationScorecard(observations);
+      const report = { generatedAt: new Date().toISOString(), inputPath: path.resolve(inputPath), ...scorecard };
+      const outputIndex = argv.indexOf('--out');
+      const outputPath = outputIndex >= 0 ? argv[outputIndex + 1] : undefined;
+      if (outputPath) {
+        await fs.promises.mkdir(path.dirname(path.resolve(outputPath)), { recursive: true });
+        await fs.promises.writeFile(path.resolve(outputPath), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+      }
+      console.log(JSON.stringify(report, null, 2));
+    } catch (err: any) {
+      console.error(`Evaluation scorecard failed: ${err?.message ?? String(err)}`);
       process.exit(1);
     }
     return;
@@ -699,6 +732,7 @@ Usage:
   pw-intel init [directory]      Creates or loads the project-local .pie/config.json
   pw-intel profile [directory]   Builds the project repository convention profile
   pw-intel cluster-failures <json> Groups failure observations by deterministic fingerprints
+  pw-intel evaluation-scorecard <json> Reconciles expected/predicted categories, repairs, abstentions, and latency
   pw-intel suite-health <json>    Calculates flaky-test and duration summaries
   pw-intel team-dashboard <json> Aggregates repository CI evidence into a team dashboard
   pw-intel impact <json>         Selects impacted tests from changed files and repository imports

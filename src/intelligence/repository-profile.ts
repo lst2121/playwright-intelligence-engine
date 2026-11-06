@@ -19,6 +19,8 @@ export interface RepositoryConventionProfile {
   };
   structure: {
     testFiles: number;
+    /** Test files whose source explicitly references Playwright. */
+    playwrightTestFiles?: number | undefined;
     pageObjectFiles: number;
     fixtureFiles: number;
     configFiles: string[];
@@ -32,6 +34,11 @@ export interface RepositoryConventionProfile {
     pageObjectDirectory?: string | undefined;
     fixtureDirectory?: string | undefined;
   };
+  pathConfidence?: {
+    testDirectory: number;
+    pageObjectDirectory: number;
+    fixtureDirectory: number;
+  } | undefined;
   locatorConventions: {
     getByRole: number;
     getByTestId: number;
@@ -112,6 +119,22 @@ function mostCommonDirectory(filePaths: string[], root: string, fallback: string
   return winner?.[0] ?? fallback;
 }
 
+function directoryConfidence(filePaths: string[], root: string): number {
+  if (filePaths.length === 0) return 0;
+  const counts = new Map<string, number>();
+  for (const filePath of filePaths) {
+    const relativeDirectory = path.relative(root, path.dirname(filePath)).replace(/\\/g, '/');
+    counts.set(relativeDirectory, (counts.get(relativeDirectory) ?? 0) + 1);
+  }
+  const strongest = Math.max(...counts.values());
+  return Number((strongest / filePaths.length).toFixed(3));
+}
+
+function isPlaywrightTestSource(filePath: string, content: string): boolean {
+  return /\.(?:spec|test)\.[^.]+$/i.test(filePath) &&
+    /(?:@playwright\/test|['"]playwright(?:\/test)?['"]|\b(?:test|expect)\s*\.)/.test(content);
+}
+
 /** Computes a cheap change detector without rereading source contents. */
 export async function computeRepositoryProfileFingerprint(root: string): Promise<string> {
   const projectRoot = path.resolve(root);
@@ -133,13 +156,14 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
   const manifest = await inspectRepository(root);
   const sourceFiles = await listSourceFiles(path.resolve(root));
   const sourceFingerprint = await computeRepositoryProfileFingerprint(root);
-  const sourceContents = (await Promise.all(sourceFiles.map(async (file) => {
+  const sourceRecords = await Promise.all(sourceFiles.map(async (file) => {
     try {
-      return await fs.readFile(file, 'utf8');
+      return [file, await fs.readFile(file, 'utf8')] as const;
     } catch {
-      return '';
+      return [file, ''] as const;
     }
-  }))).join('\n');
+  }));
+  const sourceContents = sourceRecords.map(([, content]) => content).join('\n');
   const locatorCounts = {
     getByRole: countMatches(sourceContents, /\bgetByRole\s*\(/g),
     getByTestId: countMatches(sourceContents, /\bgetByTestId\s*\(/g),
@@ -149,6 +173,12 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
     cssOrXpath: countMatches(sourceContents, /(?:xpath=|css=|page\.locator\s*\(\s*['"`][#.\[])/g),
   };
   const testFiles = sourceFiles.filter((file) => /\.(?:spec|test)\.[^.]+$/i.test(file));
+  const playwrightTestFiles = sourceRecords
+    .filter(([file, content]) => isPlaywrightTestSource(file, content))
+    .map(([file]) => file);
+  const profileTestFiles = playwrightTestFiles.length > 0
+    ? playwrightTestFiles
+    : testFiles;
   const pageObjectFiles = sourceFiles.filter((file) => /(?:page|page-object)\.[^.]+$/i.test(file) || /pages?[\\/]/i.test(file));
   const fixtureFiles = sourceFiles.filter((file) => /fixture\.[^.]+$/i.test(file) || /fixtures?[\\/]/i.test(file));
   const tags = [...new Set([...sourceContents.matchAll(/(@[A-Za-z][\w-]*)/g)].map((match) => match[1]!))].sort();
@@ -158,6 +188,8 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
   if (/\b(?:request|apiRequestContext|APIRequestContext)\b/i.test(sourceContents)) evidence.push('API/request helpers detected');
   if (/storageState|storage-state/i.test(sourceContents)) evidence.push('Playwright storage state detected');
   if (manifest.playwrightConfigs.length > 0) evidence.push('Playwright configuration detected');
+  if (playwrightTestFiles.length > 0) evidence.push(`${playwrightTestFiles.length} Playwright test source(s) detected`);
+  else evidence.push('No Playwright test source detected; generic test files were not treated as Playwright conventions');
 
   return {
     version: REPOSITORY_PROFILE_VERSION,
@@ -172,6 +204,7 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
     },
     structure: {
       testFiles: manifest.testFiles,
+      playwrightTestFiles: playwrightTestFiles.length,
       pageObjectFiles: manifest.pageObjectFiles,
       fixtureFiles: manifest.fixtureFiles,
       configFiles: manifest.playwrightConfigs,
@@ -181,9 +214,14 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
       usesStorageState: /storageState|storage-state/i.test(sourceContents),
     },
     paths: {
-      testDirectory: mostCommonDirectory(testFiles, path.resolve(root), 'tests'),
+      testDirectory: mostCommonDirectory(profileTestFiles, path.resolve(root), 'tests'),
       pageObjectDirectory: mostCommonDirectory(pageObjectFiles, path.resolve(root), 'tests/pages'),
       fixtureDirectory: mostCommonDirectory(fixtureFiles, path.resolve(root), 'tests/fixtures'),
+    },
+    pathConfidence: {
+      testDirectory: directoryConfidence(profileTestFiles, path.resolve(root)),
+      pageObjectDirectory: directoryConfidence(pageObjectFiles, path.resolve(root)),
+      fixtureDirectory: directoryConfidence(fixtureFiles, path.resolve(root)),
     },
     locatorConventions: { ...locatorCounts, preferred: preferredLocator(locatorCounts) },
     testConventions: {

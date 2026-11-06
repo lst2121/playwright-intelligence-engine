@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { DiagnosticContext, FailureCategory, FailureCategorySchema } from '../core/types/diagnostic-context.js';
+import { DiagnosticContext, FailureCategorySchema } from '../core/types/diagnostic-context.js';
 import { ClassificationResult } from './failure-classifier.js';
+import { normalizeTypedFailureCategory } from './failure-category.js';
 
 export const DiagnosticRecommendationSchema = z.enum([
   'REPAIR_CANDIDATE',
@@ -61,7 +62,7 @@ export function createDiagnosticDecision(
   classification: ClassificationResult,
 ): DiagnosticDecision {
   return DiagnosticDecisionSchema.parse({
-    category: classification.category as FailureCategory,
+    category: normalizeTypedFailureCategory(classification.category),
     confidence: classification.confidence,
     shouldAbstain: classification.shouldAbstain,
     reason: classification.reason,

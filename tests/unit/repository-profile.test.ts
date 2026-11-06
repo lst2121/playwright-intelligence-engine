@@ -56,4 +56,20 @@ describe('repository convention profile', () => {
     expect(await computeRepositoryProfileFingerprint(root)).toBe(second.profile?.sourceFingerprint);
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it('prefers Playwright test sources over unrelated monorepo test directories', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pie-profile-playwright-sources-'));
+    await fs.mkdir(path.join(root, 'packages', 'unit-tests'), { recursive: true });
+    await fs.mkdir(path.join(root, 'e2e'), { recursive: true });
+    await fs.writeFile(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { '@playwright/test': '^1.60.0' } }), 'utf8');
+    await fs.writeFile(path.join(root, 'package-lock.json'), '{}', 'utf8');
+    await fs.writeFile(path.join(root, 'packages', 'unit-tests', 'thing.test.ts'), 'describe("unit", () => {});', 'utf8');
+    await fs.writeFile(path.join(root, 'e2e', 'login.spec.ts'), 'import { test } from "@playwright/test"; test("login", async () => {});', 'utf8');
+
+    const profile = await buildRepositoryProfile(root);
+    expect(profile.structure.playwrightTestFiles).toBe(1);
+    expect(profile.paths?.testDirectory).toBe('e2e');
+    expect(profile.evidence).toContain('1 Playwright test source(s) detected');
+    await fs.rm(root, { recursive: true, force: true });
+  });
 });

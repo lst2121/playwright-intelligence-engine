@@ -27,6 +27,7 @@ import { recordArchitectureWorkflow, recordCiWorkflow } from '../governance/work
 import { buildTeamDashboard, TeamEvidenceRun } from '../governance/team-dashboard.js';
 import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../diagnostics/external-failure-evidence.js';
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
+import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { runTraceProposalWorkflow } from '../intelligence/trace-proposal-workflow.js';
 
 export interface JsonRpcRequest {
@@ -375,13 +376,18 @@ export class McpServer {
         const intelligence = await bootstrapProjectIntelligence(this.workspaceRoot);
         await recordProjectFailure(this.workspaceRoot, context.failedAction.selector, correlated.classification.category);
         const report = DiagnosticReportGenerator.generateTerminalReport(correlated, undefined, intelligence);
+        const canonicalClassification = {
+          ...correlated.classification,
+          category: normalizeFailureCategory(correlated.classification.category),
+        };
 
         return {
           jsonrpc: '2.0',
           id,
           result: {
             content: [{ type: 'text', text: report }],
-            classification: correlated.classification,
+            classification: canonicalClassification,
+            rawClassification: correlated.classification.category,
             failureFingerprint: correlated.failureFingerprint,
             failureObservation: correlated.failureObservation,
             causalGraph: correlated.classification.causalGraph,
@@ -411,7 +417,10 @@ export class McpServer {
 
         const response = {
           status: result.status,
-          classification: result.correlated.classification,
+          classification: {
+            ...result.correlated.classification,
+            category: normalizeFailureCategory(result.correlated.classification.category),
+          },
           failureFingerprint: result.correlated.failureFingerprint,
           failureObservation: result.correlated.failureObservation,
           failedAction: result.correlated.context.failedAction,

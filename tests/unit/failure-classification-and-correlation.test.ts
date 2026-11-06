@@ -176,6 +176,32 @@ describe('Failure Classification and Causal Correlation Suite (40 Tests)', () =>
     expect(result.abstentionReason).toContain('403');
   });
 
+  it('AUTH-03: should prefer an explicit assertion mismatch over a related HTTP 401', () => {
+    const context = createBaseContext({
+      failedAction: {
+        callId: 'call@assert-auth',
+        action: 'expect',
+        selector: '.alert-danger',
+        errorMessage: 'Expect failed: Invalid credentials shown locator(\'.alert-danger\') with timeout 5000ms',
+        logs: [
+          'locator resolved to <div role="alert">Invalid credentials</div>',
+          'unexpected value "Invalid credentials"',
+        ],
+      },
+      networkEvents: [{
+        url: 'https://api.example.com/login',
+        method: 'POST',
+        status: 401,
+        statusText: 'Unauthorized',
+        timestamp: 1500,
+      }],
+    });
+
+    const result = FailureClassifier.classify(context);
+    expect(result.category).toBe('ASSERTION_FAILURE');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
   const assertionErrors = [
     "expect(received).toBe(expected)\nExpected: 200\nReceived: 500",
     "expect(locator).toHaveText(expected)\nExpected: 'Welcome back'\nReceived: 'Login'",

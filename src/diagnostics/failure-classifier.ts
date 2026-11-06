@@ -224,6 +224,26 @@ export class FailureClassifier {
     );
     const supportingEvidence: string[] = [];
 
+    // An assertion can legitimately observe an authentication response (for
+    // example, an invalid-login test expecting an error banner). Explicit
+    // assertion mismatch evidence is stronger than the surrounding HTTP
+    // status and must be classified before auth/backend heuristics.
+    const explicitAssertionMismatch =
+      /unexpected value|(?:^|\s)(?:expected|received):|expect\(received\)|to have (?:text|value|attribute|class|count)/i.test(diagnosticText) &&
+      (action.includes('expect') || action.includes('assert') || !context.failedAction.selector);
+    if (explicitAssertionMismatch) {
+      supportingEvidence.push(`Assertion mismatch detected: ${context.failedAction.errorMessage}`);
+      return {
+        category: 'ASSERTION_FAILURE',
+        confidence: 0.95,
+        reason: 'Test assertion failed against verified element state or business logic outcome',
+        shouldAbstain: true,
+        abstentionReason: 'Engine strictly prohibits modifying test assertions to force a passing test run.',
+        supportingEvidence,
+        causalGraph: FailureClassifier.buildCausalEvidenceGraph(context),
+      };
+    }
+
     // Step 1: Build causal evidence graph
     const causalGraph = FailureClassifier.buildCausalEvidenceGraph(context);
 

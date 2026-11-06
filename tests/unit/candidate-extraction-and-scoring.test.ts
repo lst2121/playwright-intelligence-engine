@@ -200,6 +200,12 @@ describe('Candidate Extraction and Multi-Factor Scoring Suite (35 Tests)', () =>
     expect(score.identityMatch).toBe(0.5);
   });
 
+  it('SCORE-ID-05: should recognize login and sign-in as equivalent intent', () => {
+    const candidate = createCandidate({ accessibleName: 'Login' });
+    const score = SelectorScorer.score(candidate, [candidate], "getByRole('button', { name: 'Sign in to Portal' })");
+    expect(score.identityMatch).toBe(0.98);
+  });
+
   it('SCORE-WEIGHTS-01: should support custom weights configuration', () => {
     const candidate = createCandidate();
     const customWeights: ScorerWeights = {

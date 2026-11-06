@@ -20,6 +20,7 @@ export * from './diagnostics/failure-classifier.js';
 export * from './diagnostics/evidence-correlator.js';
 export * from './diagnostics/diagnostic-report.js';
 export * from './diagnostics/diagnostic-contract.js';
+export * from './diagnostics/failure-category.js';
 export * from './diagnostics/external-failure-evidence.js';
 
 // Selector Intelligence & Abstention
@@ -78,6 +79,7 @@ export * from './governance/team-dashboard.js';
 export * from './repair/workflow-plan.js';
 export * from './evaluation/repository-inspector.js';
 export * from './evaluation/repository-runner.js';
+export * from './evaluation/evaluation-scorecard.js';
 
 // Framework & MCP
 export * from './framework/config-adapter.js';

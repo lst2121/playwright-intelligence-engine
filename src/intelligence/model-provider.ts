@@ -1,4 +1,5 @@
 import { AgentResponseParseResult, EvidenceBundle, parseAgentResponse, parseLlmRepairProposal, ProposalParseResult } from './llm-proposal.js';
+import { AnthropicResponsePayload, ModelCapabilities, ModelResponseEnvelope, OpenAiCompatibleResponsePayload, normalizeAnthropicResponse, normalizeOpenAiResponse } from './model-contract.js';
 
 export interface ProposalProvider {
   propose(bundle: EvidenceBundle): Promise<ProposalParseResult>;
@@ -23,6 +24,7 @@ export interface OpenAiCompatibleProviderOptions {
   apiKey?: string | undefined;
   timeoutMs?: number | undefined;
   maxOutputTokens?: number | undefined;
+  capabilities?: Partial<ModelCapabilities> | undefined;
   fetchImpl?: typeof fetch | undefined;
   onUsage?: ((usage: ModelUsage) => void) | undefined;
 }
@@ -47,12 +49,8 @@ export interface AnthropicCompatibleProviderOptions {
   inputCostPerMillionTokens?: number | undefined;
   outputCostPerMillionTokens?: number | undefined;
   fetchImpl?: typeof fetch | undefined;
+  capabilities?: Partial<ModelCapabilities> | undefined;
   onUsage?: ((usage: ModelUsage) => void) | undefined;
-}
-
-interface ChatCompletionResponse {
-  choices?: Array<{ message?: { content?: string | Array<{ type?: string; text?: string }> } }>;
-  output_text?: string;
 }
 
 /**
@@ -65,6 +63,16 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
 
   public constructor(options: OpenAiCompatibleProviderOptions) {
     this.options = options;
+  }
+
+  public getCapabilities(): ModelCapabilities {
+    return {
+      transport: 'openai-compatible',
+      structuredOutput: 'json_object',
+      reasoning: 'unknown',
+      toolCalls: 'native',
+      ...this.options.capabilities,
+    };
   }
 
   public async propose(bundle: EvidenceBundle): Promise<ProposalParseResult> {
@@ -87,7 +95,7 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
         body: JSON.stringify({
           model: this.options.model,
           temperature: 0,
-          max_tokens: this.options.maxOutputTokens ?? 2048,
+          ...(this.options.maxOutputTokens !== undefined ? { max_tokens: this.options.maxOutputTokens } : {}),
           response_format: { type: 'json_object' },
           messages: [
             {
@@ -100,19 +108,10 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
       });
 
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const payload = (await response.json()) as ChatCompletionResponse;
-      const usage = (payload as ChatCompletionResponse & { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }).usage;
-      this.options.onUsage?.({
-        provider: 'openai-compatible',
-        model: this.options.model,
-        inputTokens: usage?.prompt_tokens,
-        outputTokens: usage?.completion_tokens,
-        totalTokens: usage?.total_tokens,
-        durationMs: Date.now() - started,
-      });
-      const content = this.extractContent(payload);
-      if (!content) return { isValid: false, errors: ['Model endpoint returned no JSON proposal content'] };
-      return parseLlmRepairProposal(content);
+      const envelope = normalizeOpenAiResponse(await response.json() as OpenAiCompatibleResponsePayload);
+      this.recordUsage(envelope, started);
+      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final JSON content'] };
+      return parseLlmRepairProposal(envelope.finalText);
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -138,7 +137,7 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
         body: JSON.stringify({
           model: this.options.model,
           temperature: 0,
-          max_tokens: this.options.maxOutputTokens ?? 2048,
+          ...(this.options.maxOutputTokens !== undefined ? { max_tokens: this.options.maxOutputTokens } : {}),
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: agentSystemPrompt() },
@@ -147,11 +146,10 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
         }),
       });
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const payload = (await response.json()) as ChatCompletionResponse;
-      this.recordUsage(payload, started);
-      const content = this.extractContent(payload);
-      if (!content) return { isValid: false, errors: ['Model endpoint returned no agent response content'] };
-      return parseAgentResponse(content);
+      const envelope = normalizeOpenAiResponse(await response.json() as OpenAiCompatibleResponsePayload);
+      this.recordUsage(envelope, started);
+      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] };
+      return parseAgentResponse(envelope.finalText);
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -160,30 +158,16 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
     }
   }
 
-  private recordUsage(payload: ChatCompletionResponse, started: number): void {
-    const usage = (payload as ChatCompletionResponse & { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } }).usage;
+  private recordUsage(envelope: ModelResponseEnvelope, started: number): void {
     this.options.onUsage?.({
       provider: 'openai-compatible',
       model: this.options.model,
-      inputTokens: usage?.prompt_tokens,
-      outputTokens: usage?.completion_tokens,
-      totalTokens: usage?.total_tokens,
+      inputTokens: envelope.usage?.inputTokens,
+      outputTokens: envelope.usage?.outputTokens,
+      totalTokens: envelope.usage?.totalTokens,
       durationMs: Date.now() - started,
     });
   }
-
-  private extractContent(payload: ChatCompletionResponse): string | undefined {
-    if (typeof payload.output_text === 'string') return payload.output_text;
-    const content = payload.choices?.[0]?.message?.content;
-    if (typeof content === 'string') return content;
-    if (Array.isArray(content)) return content.map((part) => part.text ?? '').join('');
-    return undefined;
-  }
-}
-
-interface AnthropicResponse {
-  content?: Array<{ type?: string; text?: string }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
 }
 
 /** Calls an Anthropic Messages-compatible endpoint without coupling PIE to an SDK. */
@@ -192,6 +176,16 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
 
   public constructor(options: AnthropicCompatibleProviderOptions) {
     this.options = options;
+  }
+
+  public getCapabilities(): ModelCapabilities {
+    return {
+      transport: 'anthropic-compatible',
+      structuredOutput: 'prompt_only',
+      reasoning: 'separate_channel',
+      toolCalls: 'native',
+      ...this.options.capabilities,
+    };
   }
 
   public async propose(bundle: EvidenceBundle): Promise<ProposalParseResult> {
@@ -211,24 +205,17 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
         },
         body: JSON.stringify({
           model: this.options.model,
-          max_tokens: this.options.maxTokens ?? 2048,
+          ...(this.options.maxTokens !== undefined ? { max_tokens: this.options.maxTokens } : {}),
           temperature: 0,
           system: proposalSystemPrompt(),
           messages: [{ role: 'user', content: JSON.stringify(bundle) }],
         }),
       });
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const payload = await response.json() as AnthropicResponse;
-      const inputTokens = payload.usage?.input_tokens;
-      const outputTokens = payload.usage?.output_tokens;
-      const totalTokens = inputTokens === undefined && outputTokens === undefined ? undefined : (inputTokens ?? 0) + (outputTokens ?? 0);
-      const estimatedCostUsd = inputTokens === undefined && outputTokens === undefined
-        ? undefined
-        : (inputTokens ?? 0) / 1_000_000 * (this.options.inputCostPerMillionTokens ?? 0) + (outputTokens ?? 0) / 1_000_000 * (this.options.outputCostPerMillionTokens ?? 0);
-      this.options.onUsage?.({ provider: 'anthropic-compatible', model: this.options.model, inputTokens, outputTokens, totalTokens, estimatedCostUsd, durationMs: Date.now() - started });
-      const content = payload.content?.filter((part) => part.type === 'text').map((part) => part.text ?? '').join('');
-      if (!content) return { isValid: false, errors: ['Model endpoint returned no JSON proposal content'] };
-      return parseLlmRepairProposal(content);
+      const envelope = normalizeAnthropicResponse(await response.json() as AnthropicResponsePayload);
+      this.recordAnthropicUsage(envelope, started);
+      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final JSON content'] };
+      return parseLlmRepairProposal(envelope.finalText);
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -254,18 +241,17 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
         },
         body: JSON.stringify({
           model: this.options.model,
-          max_tokens: this.options.maxTokens ?? 2048,
+          ...(this.options.maxTokens !== undefined ? { max_tokens: this.options.maxTokens } : {}),
           temperature: 0,
           system: agentSystemPrompt(),
           messages: [{ role: 'user', content: JSON.stringify(input) }],
         }),
       });
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const payload = await response.json() as AnthropicResponse;
-      this.recordAnthropicUsage(payload, started);
-      const content = payload.content?.filter((part) => part.type === 'text').map((part) => part.text ?? '').join('');
-      if (!content) return { isValid: false, errors: ['Model endpoint returned no agent response content'] };
-      return parseAgentResponse(content);
+      const envelope = normalizeAnthropicResponse(await response.json() as AnthropicResponsePayload);
+      this.recordAnthropicUsage(envelope, started);
+      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] };
+      return parseAgentResponse(envelope.finalText);
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -274,10 +260,10 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
     }
   }
 
-  private recordAnthropicUsage(payload: AnthropicResponse, started: number): void {
-    const inputTokens = payload.usage?.input_tokens;
-    const outputTokens = payload.usage?.output_tokens;
-    const totalTokens = inputTokens === undefined && outputTokens === undefined ? undefined : (inputTokens ?? 0) + (outputTokens ?? 0);
+  private recordAnthropicUsage(envelope: ModelResponseEnvelope, started: number): void {
+    const inputTokens = envelope.usage?.inputTokens;
+    const outputTokens = envelope.usage?.outputTokens;
+    const totalTokens = envelope.usage?.totalTokens;
     const estimatedCostUsd = inputTokens === undefined && outputTokens === undefined
       ? undefined
       : (inputTokens ?? 0) / 1_000_000 * (this.options.inputCostPerMillionTokens ?? 0) + (outputTokens ?? 0) / 1_000_000 * (this.options.outputCostPerMillionTokens ?? 0);

@@ -111,7 +111,8 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
     context,
     bundle,
     provider: input.provider ?? configuredProvider(),
-    maxSteps: 4,
+    // Step budget prevents deadlocks; token limits remain provider/user controlled.
+    maxSteps: 6,
     actionHandlers: {
       inspect_evidence: async () => ({
         category: correlated.classification.category,

@@ -18,6 +18,7 @@ describe('provider-neutral model integration', () => {
       endpoint: 'http://localhost:9999/v1/messages',
       model: 'test-model',
       apiKey: 'test-key',
+      maxTokens: 2048,
       inputCostPerMillionTokens: 3,
       outputCostPerMillionTokens: 15,
       onUsage: (value) => { usage = value; },

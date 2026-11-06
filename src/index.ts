@@ -61,6 +61,7 @@ export * from './generator/architecture-generator.js';
 export * from './config/project-config.js';
 export * from './intelligence/llm-proposal.js';
 export * from './intelligence/model-provider.js';
+export * from './intelligence/model-contract.js';
 export * from './intelligence/evidence-bundle.js';
 export * from './intelligence/repair-agent.js';
 export * from './intelligence/trace-proposal-workflow.js';

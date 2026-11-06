@@ -131,6 +131,13 @@ describe('bounded reasoning-and-action LLM loop', () => {
     }));
     expect(wrongTypedTarget.isValid).toBe(true);
     if (wrongTypedTarget.response?.responseType === 'STEP') expect(wrongTypedTarget.response.action.target).toBeUndefined();
+
+    const stringAction = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'STEP', status: 'CONTINUE', action: 'inspect_evidence',
+    }));
+    expect(stringAction.isValid).toBe(true);
+    if (stringAction.response?.responseType === 'STEP') expect(stringAction.response.action.kind).toBe('inspect_evidence');
+    expect(stringAction.normalizationNotes).toContain('Normalized a recognized string action into the PIE action object schema.');
   });
 
   it('fails closed on recognized sparse final variants', () => {

@@ -328,11 +328,14 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
 
     return { candidate: input, notes };
   }
-  if (source.responseType !== 'STEP' || source.status !== 'CONTINUE' || !source.action || typeof source.action !== 'object') {
+  if (source.responseType !== 'STEP' || source.status !== 'CONTINUE' || !source.action
+    || (typeof source.action !== 'object' && typeof source.action !== 'string')) {
     return { candidate: input, notes: [] };
   }
 
-  const rawAction = source.action as Record<string, unknown>;
+  const rawAction = typeof source.action === 'string'
+    ? { kind: source.action }
+    : source.action as Record<string, unknown>;
   const kind = rawAction.kind;
   const allowedActionFields = ['kind', 'selector', 'target', 'locator', 'sourceFile', 'className', 'memberName', 'reason'];
   const action: Record<string, unknown> = {};
@@ -340,6 +343,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
     if (typeof rawAction[field] === 'string' && rawAction[field].length > 0) action[field] = rawAction[field];
   }
   const notes: string[] = [];
+  if (typeof source.action === 'string') notes.push('Normalized a recognized string action into the PIE action object schema.');
   const legacyProposal = rawAction.proposal;
   if (legacyProposal && typeof legacyProposal === 'object') {
     const legacy = legacyProposal as Record<string, unknown>;

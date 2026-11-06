@@ -15,7 +15,7 @@ import { inspectTestbed } from '../evaluation/repository-inspector.js';
 import { RepositoryRunner } from '../evaluation/repository-runner.js';
 import { initProjectConfig } from '../config/project-config.js';
 import { buildRepositoryProfile, writeRepositoryProfile } from '../intelligence/repository-profile.js';
-import { bootstrapProjectIntelligence, recordProjectFailure, recordProjectRepairAccepted } from '../intelligence/project-intelligence.js';
+import { bootstrapProjectIntelligence, recordProjectFailure, recordProjectRepairAccepted, recordProjectRepairFeedback } from '../intelligence/project-intelligence.js';
 import { clusterFailures, FailureObservation } from '../intelligence/failure-clustering.js';
 import { analyzeTestStability, analyzeRepositoryImpact, TestRunObservation } from '../intelligence/suite-intelligence.js';
 import { planArchitecture, writeArchitecturePlan, ArchitectureMode, ArchitectureGenerationInput } from '../generator/architecture-generator.js';
@@ -428,6 +428,24 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'stability-feedback') {
+    const selector = argv[3];
+    const outcomeIndex = argv.indexOf('--outcome');
+    const outcome = outcomeIndex >= 0 ? argv[outcomeIndex + 1] : undefined;
+    if (!selector || (outcome !== 'accepted' && outcome !== 'rejected')) {
+      console.error('Error: selector and outcome are required. Usage: pw-intel stability-feedback <selector> --outcome accepted|rejected');
+      process.exit(1);
+    }
+    try {
+      await recordProjectRepairFeedback(process.cwd(), selector, outcome);
+      console.log(JSON.stringify({ selector, outcome, recorded: true }));
+    } catch (err: any) {
+      console.error(`Stability feedback failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
   if (command === 'suite-health') {
     const inputPath = argv[3];
     if (!inputPath) {
@@ -767,6 +785,7 @@ Usage:
   pw-intel cluster-failures <json> Groups failure observations by deterministic fingerprints
   pw-intel evaluation-scorecard <json> Reconciles expected/predicted categories, repairs, abstentions, and latency
   pw-intel plan-test-intelligence <requirements.json> Plans coverage, missing scenarios, and duplicate tests
+  pw-intel stability-feedback <selector> --outcome accepted|rejected Records operator repair feedback
   pw-intel suite-health <json>    Calculates flaky-test and duration summaries
   pw-intel team-dashboard <json> Aggregates repository CI evidence into a team dashboard
   pw-intel impact <json>         Selects impacted tests from changed files and repository imports

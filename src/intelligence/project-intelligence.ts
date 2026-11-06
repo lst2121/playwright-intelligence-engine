@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildRepositoryProfile, computeRepositoryProfileFingerprint, RepositoryConventionProfile } from './repository-profile.js';
-import { StabilityLedger, StabilityLedgerData } from '../memory/stability-ledger.js';
+import { effectiveReliabilityScore, StabilityLedger, StabilityLedgerData, RepairFeedbackOutcome } from '../memory/stability-ledger.js';
 
 export interface ProjectIntelligenceSnapshot {
   projectRoot: string;
@@ -86,6 +86,16 @@ export function getHistoricalSelectorScore(snapshot: ProjectIntelligenceSnapshot
   return undefined;
 }
 
+/** Reads project memory with time decay for ranking while retaining raw history for audit. */
+export function getDecayedHistoricalSelectorScore(snapshot: ProjectIntelligenceSnapshot | undefined, selector: string, now = Date.now()): number | undefined {
+  if (!snapshot) return undefined;
+  for (const variant of selectorLookupVariants(selector)) {
+    const record = snapshot.ledger.selectors[variant];
+    if (record) return effectiveReliabilityScore(record, now);
+  }
+  return undefined;
+}
+
 export function shouldLearnFromFailure(category: string): boolean {
   return new Set(['LOCATOR_DRIFT', 'AMBIGUOUS_MATCH', 'TIMING_RACE', 'DYNAMIC_CONTENT_SLOW']).has(category);
 }
@@ -115,4 +125,11 @@ export async function recordProjectRepairAccepted(projectRoot: string, selector:
   const ledger = new StabilityLedger(path.resolve(projectRoot));
   await ledger.init();
   await ledger.recordRepairAccepted(selector);
+}
+
+export async function recordProjectRepairFeedback(projectRoot: string, selector: string | undefined, outcome: RepairFeedbackOutcome): Promise<void> {
+  if (!selector) return;
+  const ledger = new StabilityLedger(path.resolve(projectRoot));
+  await ledger.init();
+  await ledger.recordRepairFeedback(selector, outcome);
 }

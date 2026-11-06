@@ -25,6 +25,23 @@ export interface StabilityLedgerData {
   selectors: Record<string, SelectorHistoryRecord>;
 }
 
+export type RepairFeedbackOutcome = 'accepted' | 'rejected';
+
+/** Applies bounded time decay toward the neutral prior without mutating history. */
+export function effectiveReliabilityScore(
+  record: SelectorHistoryRecord,
+  now = Date.now(),
+  halfLifeMs = 30 * 24 * 60 * 60 * 1000,
+): number {
+  if (record.falseRepairIncidents > 0) return 0.1;
+  const latestEvidence = Math.max(record.lastSuccess ?? 0, record.lastFailure ?? 0);
+  if (latestEvidence <= 0 || halfLifeMs <= 0) return record.reliabilityScore;
+  const ageMs = Math.max(0, now - latestEvidence);
+  const decay = Math.exp(-ageMs / halfLifeMs);
+  const score = 0.8 + (record.reliabilityScore - 0.8) * decay;
+  return Number(Math.max(0, Math.min(1, score)).toFixed(3));
+}
+
 export class StabilityLedger {
   private readonly ledgerPath: string;
   private data: StabilityLedgerData | null = null;
@@ -67,6 +84,12 @@ export class StabilityLedger {
     const record = this.data.selectors[selector];
     if (!record) return 0.8;
     return record.reliabilityScore;
+  }
+
+  public getEffectiveScore(selector: string, now = Date.now(), halfLifeMs?: number): number {
+    if (!this.data) return 0.8;
+    const record = this.data.selectors[selector];
+    return record ? effectiveReliabilityScore(record, now, halfLifeMs) : 0.8;
   }
 
   public async recordSuccess(selector: string): Promise<void> {
@@ -174,6 +197,12 @@ export class StabilityLedger {
     existing.historicalExecutionReliability = existing.reliabilityScore;
     this.data!.selectors[selector] = existing;
     await this.save();
+  }
+
+  /** Records operator review feedback without erasing the underlying history. */
+  public async recordRepairFeedback(selector: string, outcome: RepairFeedbackOutcome): Promise<void> {
+    if (outcome === 'accepted') await this.recordRepairAccepted(selector);
+    else await this.recordFalseRepairIncident(selector);
   }
 
   private computeScore(record: { successes: number; failures: number; falseRepairIncidents: number }): number {

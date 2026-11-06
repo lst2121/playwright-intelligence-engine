@@ -1,4 +1,4 @@
-import { ProjectIntelligenceSnapshot, getHistoricalSelectorScore } from '../intelligence/project-intelligence.js';
+import { ProjectIntelligenceSnapshot, getDecayedHistoricalSelectorScore } from '../intelligence/project-intelligence.js';
 import { CandidateExtractor } from './candidate-extractor.js';
 import { ResolvedElement } from '../trace/snapshot-resolver.js';
 import { ScoredCandidate } from './abstention-policy.js';
@@ -35,7 +35,7 @@ export class RepairCandidateRanker {
           candidate,
           candidates,
           originalSelector,
-          getHistoricalSelectorScore(intelligence, locatorExpression),
+          getDecayedHistoricalSelectorScore(intelligence, locatorExpression),
           undefined,
           projectContext,
         );

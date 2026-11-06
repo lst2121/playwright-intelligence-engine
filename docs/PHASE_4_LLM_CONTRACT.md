@@ -9,6 +9,10 @@
 - Kept the provider boundary free of OpenAI/cloud dependencies.
 - Added an OpenAI-compatible HTTP provider that still returns proposals only
   through the PIE schema gate.
+- Added an Anthropic Messages-compatible provider with the same strict proposal
+  boundary and redaction requirements.
+- Added optional provider usage telemetry for token counts, estimated cost, and
+  request latency.
 - Added a redaction-attested evidence-bundle builder.
 - Added a bounded repair-proposal agent that runs deterministic classification
   first, refuses model calls for hard abstentions, validates proposal semantics,
@@ -42,6 +46,6 @@ deterministic verifier. It may only return structured hypotheses.
 ## Deferred
 
 - Multimodal model calls and richer redacted artifact summaries.
-- Cost, latency, and model-quality evaluation.
+- Model-quality evaluation against the external repository testbed.
 - Worktree execution and approval orchestration after a proposal is received.
 

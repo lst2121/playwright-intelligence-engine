@@ -13,6 +13,10 @@
 - Repository convention profiles carry a source-tree fingerprint and refresh
   automatically when test or Page Object metadata changes.
 - Preserved severe false-repair penalties.
+- Added time-decayed reliability scores for ranking while preserving raw audit
+  history.
+- Added accepted/rejected operator repair feedback ingestion through the
+  project API and `pw-intel stability-feedback`.
 
 ## Verified
 
@@ -24,6 +28,6 @@
 ## Deferred
 
 - Cross-repository memory partitioning.
-- Time-decay and browser/project-specific reliability models.
 - Feedback ingestion from approved or rejected pull requests.
+- Browser-specific reliability models.
 

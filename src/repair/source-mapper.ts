@@ -18,8 +18,13 @@ interface AstPayload {
 }
 
 async function listSourceFiles(root: string, depth = 0): Promise<string[]> {
-  if (depth > 10) return [];
-  const ignored = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', 'test-results', 'playwright-report', '.next']);
+  if (depth > 6) return [];
+  const ignored = new Set([
+    'node_modules', '.git', 'dist', 'build', 'coverage', 'test-results',
+    'playwright-report', '.next', '.turbo', '.pie', '.pw-intelligence',
+    'repositories', 'pie-evaluation', 'generation', 'repair-worktrees',
+    'temp', 'tmp'
+  ]);
   let entries;
   try {
     entries = await fs.readdir(root, { withFileTypes: true });

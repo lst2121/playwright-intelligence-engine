@@ -18,8 +18,9 @@
   first, refuses model calls for hard abstentions, validates proposal semantics,
   and never executes or promotes model output.
 - Added a protocol-v2 reasoning-and-action loop with strict `STEP` and `FINAL`
-  responses, fenced-JSON recovery, allowlisted PIE action handlers, a six-step
-  maximum, and per-step audit records.
+  responses, an explicit schema contract in the provider prompt, fenced-JSON
+  recovery, allowlisted PIE action handlers, a six-step maximum, no-progress
+  termination, and per-step audit records.
 - Added redacted diagnostic summaries to evidence bundles so an optional
   provider receives useful action, DOM, network, and console context without
   receiving unredacted evidence.
@@ -27,6 +28,11 @@
   conventions, Page Object/fixture usage, domain vocabulary, and historical
   selector reliability when available. This is metadata, not unrestricted
   repository source access.
+- Added compact follow-up evidence and bounded Page Object source snippets.
+- Added a high-confidence single-shot proposal path.
+- Added an explicit, host-allowlisted browser-state observation action.
+- Added a bridge that sends validated LLM operations through the deterministic
+  repair workflow.
 - Added `propose_repair` as a bounded MCP workflow backed by an optional
   OpenAI-compatible endpoint configured through `PIE_LLM_ENDPOINT` and
   `PIE_LLM_MODEL`.
@@ -52,5 +58,6 @@ deterministic verifier. It may only return structured hypotheses.
 
 - Multimodal model calls and richer redacted artifact summaries.
 - Model-quality evaluation against the external repository testbed.
-- Worktree execution and approval orchestration after a loop proposal is received.
+- Multi-operation worktree execution remains deferred until combined
+  convergence and assertion-proof semantics are implemented.
 

@@ -190,7 +190,7 @@ export class McpServer {
               },
               {
                 name: 'propose_repair',
-                description: 'Runs one bounded, redaction-aware optional model proposal step after deterministic PIE classification; never executes or promotes model output.',
+                description: 'Runs a bounded, redaction-aware optional model proposal workflow after deterministic PIE classification; never executes or promotes model output.',
                 inputSchema: {
                   type: 'object',
                   properties: {
@@ -198,6 +198,9 @@ export class McpServer {
                     errorContextPath: { type: 'string', description: 'Optional Playwright error-context.md path' },
                     executionId: { type: 'string' },
                     testIdentity: { type: 'string' },
+                    enableBrowserInvestigation: { type: 'boolean', description: 'Explicitly opt in to read-only browser-state investigation when the model requests it' },
+                    browserUrl: { type: 'string', description: 'Browser URL for opt-in investigation' },
+                    browserAllowedHosts: { type: 'array', items: { type: 'string' }, description: 'Explicit host allowlist required for browser investigation' },
                   },
                   required: ['tracePath'],
                 },
@@ -476,6 +479,9 @@ export class McpServer {
           errorContextPath: typeof args?.errorContextPath === 'string' ? args.errorContextPath : undefined,
           executionId: typeof args?.executionId === 'string' ? args.executionId : undefined,
           testIdentity: typeof args?.testIdentity === 'string' ? args.testIdentity : undefined,
+          enableBrowserInvestigation: args?.enableBrowserInvestigation === true,
+          browserUrl: typeof args?.browserUrl === 'string' ? args.browserUrl : undefined,
+          browserAllowedHosts: Array.isArray(args?.browserAllowedHosts) ? args.browserAllowedHosts.filter((host: unknown): host is string => typeof host === 'string') : undefined,
         });
         return {
           jsonrpc: '2.0',

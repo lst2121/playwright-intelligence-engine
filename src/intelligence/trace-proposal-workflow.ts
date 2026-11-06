@@ -24,6 +24,7 @@ export interface TraceProposalWorkflowInput {
   testIdentity?: string | undefined;
   enableBrowserInvestigation?: boolean | undefined;
   browserUrl?: string | undefined;
+  browserAllowedHosts?: string[] | undefined;
   provider?: ProposalProvider | undefined;
 }
 
@@ -154,6 +155,15 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
         }
         if (!input.browserUrl) {
           return { status: 'INSUFFICIENT_EVIDENCE', reason: 'No explicit browser URL was supplied.' };
+        }
+        let browserHost: string;
+        try {
+          browserHost = new URL(input.browserUrl).hostname;
+        } catch {
+          return { status: 'INSUFFICIENT_EVIDENCE', reason: 'The supplied browser URL is invalid.' };
+        }
+        if (!input.browserAllowedHosts?.includes(browserHost)) {
+          return { status: 'POLICY_BLOCKED', reason: 'Browser investigation requires an explicit allowed-host list.' };
         }
         const investigation = await DirectBrowserInvestigator.investigateUrl({
           url: input.browserUrl,

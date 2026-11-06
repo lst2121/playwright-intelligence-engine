@@ -13,17 +13,21 @@ unrestricted autonomous coding agent.
 4. An optional provider may return either a strict `LlmRepairProposal` or a
    bounded protocol-v2 `STEP`/`FINAL` response.
 5. Every loop action is one of PIE's allowlisted actions: evidence inspection,
-   source mapping, candidate ranking, proposal construction, verification
-   request, or abstention.
-6. PIE executes at most six model steps per case, records every step and
-   observation, and rejects malformed operations or proposals whose failure
-   kind conflicts with deterministic classification.
-7. `PROPOSAL_RECEIVED` is not a repair success. Worktree execution, intent and
+   explicitly permitted browser-state inspection, source mapping, candidate
+   ranking, proposal construction, verification request, or abstention.
+6. High-confidence locator drift uses a single-shot proposal path. Complex
+   cases use the bounded loop, which executes at most six model steps and
+   stops on repeated actions with unchanged observations.
+7. Browser investigation is opt-in, requires an explicit URL and allowed-host
+   list, is read-only by default, and returns clipped evidence rather than a
+   direct patch.
+8. `PROPOSAL_RECEIVED` is not a repair success. Worktree execution, intent and
    oracle verification, approval, and promotion remain separate gates.
 
-The implementation is in `src/intelligence/repair-agent.ts` and
-`src/intelligence/evidence-bundle.ts`. Trace-backed invocation is exposed by
-the MCP `propose_repair` tool. The provider remains optional and
+The implementation is in `src/intelligence/repair-agent.ts`,
+`src/intelligence/evidence-bundle.ts`, and
+`src/intelligence/verified-llm-repair-workflow.ts`. Trace-backed invocation is
+exposed by the MCP `propose_repair` tool. The provider remains optional and
 caller-configured; there is still no mandatory cloud model or built-in model
 credential.
 

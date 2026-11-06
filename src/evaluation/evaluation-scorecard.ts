@@ -4,6 +4,7 @@ export interface EvaluationObservation {
   id?: string | undefined;
   repository?: string | undefined;
   expectedCategory?: string | undefined;
+  rawPredictedCategory?: string | undefined;
   predictedCategory?: string | undefined;
   pieNormalizedCategory?: string | undefined;
   isGroundTruthVerified?: boolean | undefined;
@@ -64,7 +65,9 @@ export interface EvaluationScorecard {
     observations: number;
     accuracyCases: number;
     exactMatches: number;
+    semanticMatches: number;
     semanticAccuracy: number;
+    exactAccuracy: number;
     safeAbstentionRate: number;
     meanLatencyMs?: number;
   }>;
@@ -117,6 +120,8 @@ export function buildEvaluationScorecard(observations: EvaluationObservation[]):
   const accuracyObservations = observations.filter((observation) => observation.isGroundTruthVerified !== false && roleOf(observation) === 'primary');
   const expected = accuracyObservations.map((observation) => categoryOf(observation.expectedCategory));
   const predicted = accuracyObservations.map((observation) => categoryOf(observation.predictedCategory ?? observation.pieNormalizedCategory));
+  const rawExpected = accuracyObservations.map((observation) => (observation.expectedCategory ?? '').trim().toUpperCase());
+  const rawPredicted = accuracyObservations.map((observation) => (observation.rawPredictedCategory ?? observation.predictedCategory ?? observation.pieNormalizedCategory ?? '').trim().toUpperCase());
   const categories = [...new Set([...expected, ...predicted])].sort();
   const confusionMatrix: Record<string, Record<string, number>> = {};
   for (const expectedCategory of categories) {
@@ -141,27 +146,29 @@ export function buildEvaluationScorecard(observations: EvaluationObservation[]):
   const byRepository: EvaluationScorecard['byRepository'] = {};
   for (const observation of observations) {
     const repository = observation.repository ?? 'unknown';
-    const current = byRepository[repository] ?? { observations: 0, accuracyCases: 0, exactMatches: 0, semanticAccuracy: 0, safeAbstentionRate: 1 };
+    const current = byRepository[repository] ?? { observations: 0, accuracyCases: 0, exactMatches: 0, semanticMatches: 0, semanticAccuracy: 0, exactAccuracy: 0, safeAbstentionRate: 1 };
     current.observations += 1;
     if (roleOf(observation) === 'primary' && observation.isGroundTruthVerified !== false) {
       current.accuracyCases += 1;
-      if (categoryOf(observation.expectedCategory) === categoryOf(observation.predictedCategory ?? observation.pieNormalizedCategory)) current.exactMatches += 1;
+      if ((observation.expectedCategory ?? '').trim().toUpperCase() === (observation.rawPredictedCategory ?? observation.predictedCategory ?? observation.pieNormalizedCategory ?? '').trim().toUpperCase()) current.exactMatches += 1;
+      if (categoryOf(observation.expectedCategory) === categoryOf(observation.predictedCategory ?? observation.pieNormalizedCategory)) current.semanticMatches += 1;
     }
     const latency = observation.meanDurationMs ?? observation.durationMs;
     if (typeof latency === 'number') current.meanLatencyMs = ((current.meanLatencyMs ?? 0) * (current.observations - 1) + latency) / current.observations;
     byRepository[repository] = current;
   }
   for (const summary of Object.values(byRepository)) {
-    summary.semanticAccuracy = summary.accuracyCases > 0 ? round(summary.exactMatches / summary.accuracyCases) : 0;
+    summary.semanticAccuracy = summary.accuracyCases > 0 ? round(summary.semanticMatches / summary.accuracyCases) : 0;
+    summary.exactAccuracy = summary.accuracyCases > 0 ? round(summary.exactMatches / summary.accuracyCases) : 0;
     if (summary.meanLatencyMs !== undefined) summary.meanLatencyMs = round(summary.meanLatencyMs);
   }
 
   return {
     observationCount: observations.length,
     accuracyCaseCount: accuracyObservations.length,
-    exactMatches: expected.filter((value, index) => value === predicted[index]).length,
+    exactMatches: rawExpected.filter((value, index) => value === rawPredicted[index]).length,
     semanticAccuracy: round(expected.length > 0 ? expected.filter((value, index) => value === predicted[index]).length / expected.length : 0),
-    exactAccuracy: round(expected.length > 0 ? expected.filter((value, index) => value === predicted[index]).length / expected.length : 0),
+    exactAccuracy: round(rawExpected.length > 0 ? rawExpected.filter((value, index) => value === rawPredicted[index]).length / rawExpected.length : 0),
     confusionMatrix,
     perCategory: Object.fromEntries(categories.map((category) => [category, metricFor(category, expected, predicted)])),
     negativeControlCount: negativeControls.length,

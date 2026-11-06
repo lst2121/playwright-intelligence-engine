@@ -17,7 +17,8 @@ unrestricted autonomous coding agent.
    ranking, proposal construction, verification request, or abstention.
 6. High-confidence locator drift uses a single-shot proposal path. Complex
    cases use the bounded loop, which executes at most six model steps and
-   stops on repeated actions with unchanged observations.
+   stops on repeated actions with unchanged observations or the configured
+   elapsed-time budget.
 7. Browser investigation is opt-in, requires an explicit URL and allowed-host
    list, is read-only by default, and returns clipped evidence rather than a
    direct patch.

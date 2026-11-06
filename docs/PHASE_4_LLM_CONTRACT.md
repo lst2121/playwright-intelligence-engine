@@ -20,7 +20,7 @@
 - Added a protocol-v2 reasoning-and-action loop with strict `STEP` and `FINAL`
   responses, an explicit schema contract in the provider prompt, fenced-JSON
   recovery, allowlisted PIE action handlers, a six-step maximum, no-progress
-  termination, and per-step audit records.
+  termination, an elapsed-time budget, and per-step audit records.
 - Added redacted diagnostic summaries to evidence bundles so an optional
   provider receives useful action, DOM, network, and console context without
   receiving unredacted evidence.

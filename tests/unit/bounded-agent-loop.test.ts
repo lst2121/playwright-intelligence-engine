@@ -291,4 +291,18 @@ describe('bounded reasoning-and-action LLM loop', () => {
     expect(result.state).toBe('AGENT_NO_PROGRESS');
     expect(result.steps).toHaveLength(3);
   });
+
+  it('stops before a model call when the elapsed-time budget is exhausted', async () => {
+    const provider: ProposalProvider & AgentStepProvider = {
+      propose: async () => ({ isValid: false, errors: ['not used'] }),
+      proposeStep: async () => parseAgentResponse(JSON.stringify({
+        protocolVersion: '2', responseType: 'FINAL', status: 'ABSTAIN',
+        classification: { category: 'LOCATOR_DRIFT', confidence: 0 },
+        reasoningSummary: 'unused', evidenceReferences: [], humanApprovalRequired: true,
+      })),
+    };
+    const result = await runRepairProposalAgent({ context: context(), bundle: bundle(), provider, maxDurationMs: 0 });
+    expect(result.state).toBe('AGENT_TIME_BUDGET');
+    expect(result.steps).toHaveLength(0);
+  });
 });

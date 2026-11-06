@@ -139,6 +139,10 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
       && Boolean(deterministicProposedLocator)
       ? 'single-shot'
       : 'agent',
+    maxDurationMs: (() => {
+      const raw = Number(process.env.PIE_LLM_AGENT_MAX_DURATION_MS ?? 180000);
+      return Number.isFinite(raw) && raw > 0 ? raw : 180000;
+    })(),
     // Step budget prevents deadlocks; token limits remain provider/user controlled.
     maxSteps: 6,
     actionHandlers: {

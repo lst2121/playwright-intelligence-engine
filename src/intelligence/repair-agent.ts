@@ -11,6 +11,7 @@ export type RepairAgentState =
   | 'PROPOSAL_REJECTED'
   | 'MODEL_ABSTAINED'
   | 'AGENT_NO_PROGRESS'
+  | 'AGENT_TIME_BUDGET'
   | 'AGENT_MAX_STEPS';
 
 export interface RepairAgentStepRecord {
@@ -28,6 +29,7 @@ export interface RepairAgentInput {
   provider?: ProposalProvider | undefined;
   strategy?: 'auto' | 'single-shot' | 'agent' | undefined;
   maxSteps?: number | undefined;
+  maxDurationMs?: number | undefined;
   actionHandlers?: Partial<Record<AgentAction['kind'], RepairAgentActionHandler>> | undefined;
 }
 
@@ -94,6 +96,7 @@ async function runBoundedAgentLoop(
   provider: ProposalProvider & AgentStepProvider,
 ): Promise<RepairAgentResult> {
   const maxSteps = Math.max(1, Math.min(input.maxSteps ?? 4, 6));
+  const startedAt = Date.now();
   const steps: RepairAgentStepRecord[] = [];
   let previousActionSignature: string | undefined;
   let previousObservationSignature: string | undefined;
@@ -106,6 +109,15 @@ async function runBoundedAgentLoop(
   };
 
   for (let stepIndex = 0; stepIndex < maxSteps; stepIndex += 1) {
+    if (input.maxDurationMs !== undefined && Date.now() - startedAt >= input.maxDurationMs) {
+      return {
+        state: 'AGENT_TIME_BUDGET',
+        classification,
+        modelInvoked: true,
+        errors: [`Agent reached the elapsed-time budget of ${input.maxDurationMs}ms`],
+        steps,
+      };
+    }
     const started = Date.now();
     const request: AgentStepRequest = {
       bundle: input.bundle,

@@ -69,6 +69,7 @@ export * from './intelligence/project-intelligence.js';
 export * from './intelligence/failure-clustering.js';
 export * from './intelligence/suite-intelligence.js';
 export * from './intelligence/business-intent.js';
+export * from './intelligence/test-intelligence.js';
 export * from './integrations/ci-summary.js';
 export * from './integrations/quality-gate.js';
 export * from './integrations/playwright-report-adapter.js';

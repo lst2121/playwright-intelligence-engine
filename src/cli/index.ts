@@ -27,6 +27,7 @@ import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../di
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
+import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput } from '../intelligence/test-intelligence.js';
 
 export async function runCli(argv: string[]): Promise<void> {
   const command = argv[2];
@@ -395,6 +396,38 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'plan-test-intelligence') {
+    const requirementsPath = argv[3];
+    if (!requirementsPath) {
+      console.error('Error: requirements JSON path required. Usage: pw-intel plan-test-intelligence <requirements.json> [--tests <tests.json>] [--out <plan.json>]');
+      process.exit(1);
+    }
+    try {
+      const requirementsRaw = JSON.parse(await fs.promises.readFile(path.resolve(requirementsPath), 'utf8')) as RequirementInput[] | { requirements?: RequirementInput[] };
+      const requirements = Array.isArray(requirementsRaw) ? requirementsRaw : requirementsRaw.requirements ?? [];
+      const testsIndex = argv.indexOf('--tests');
+      const testsPath = testsIndex >= 0 ? argv[testsIndex + 1] : undefined;
+      let existingTests: ExistingTestInput[] = [];
+      if (testsPath) {
+        const testsRaw = JSON.parse(await fs.promises.readFile(path.resolve(testsPath), 'utf8')) as ExistingTestInput[] | { tests?: ExistingTestInput[] };
+        existingTests = Array.isArray(testsRaw) ? testsRaw : testsRaw.tests ?? [];
+      }
+      const plan = buildTestIntelligencePlan(requirements, existingTests);
+      const report = { generatedAt: new Date().toISOString(), requirementsPath: path.resolve(requirementsPath), testsPath: testsPath ? path.resolve(testsPath) : undefined, ...plan };
+      const outputIndex = argv.indexOf('--out');
+      const outputPath = outputIndex >= 0 ? argv[outputIndex + 1] : undefined;
+      if (outputPath) {
+        await fs.promises.mkdir(path.dirname(path.resolve(outputPath)), { recursive: true });
+        await fs.promises.writeFile(path.resolve(outputPath), `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+      }
+      console.log(JSON.stringify(report, null, 2));
+    } catch (err: any) {
+      console.error(`Test intelligence planning failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
   if (command === 'suite-health') {
     const inputPath = argv[3];
     if (!inputPath) {
@@ -733,6 +766,7 @@ Usage:
   pw-intel profile [directory]   Builds the project repository convention profile
   pw-intel cluster-failures <json> Groups failure observations by deterministic fingerprints
   pw-intel evaluation-scorecard <json> Reconciles expected/predicted categories, repairs, abstentions, and latency
+  pw-intel plan-test-intelligence <requirements.json> Plans coverage, missing scenarios, and duplicate tests
   pw-intel suite-health <json>    Calculates flaky-test and duration summaries
   pw-intel team-dashboard <json> Aggregates repository CI evidence into a team dashboard
   pw-intel impact <json>         Selects impacted tests from changed files and repository imports

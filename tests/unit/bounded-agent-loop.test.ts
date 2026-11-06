@@ -265,4 +265,30 @@ describe('bounded reasoning-and-action LLM loop', () => {
     expect(observations).toEqual([{ status: 'FOUND', className: 'CheckoutPage', memberName: 'submit' }]);
     expect(result.proposal?.operations[0]?.kind).toBe('replace_locator');
   });
+
+  it('stops when the model repeats an action without new evidence', async () => {
+    const provider: ProposalProvider & AgentStepProvider = {
+      propose: async () => ({ isValid: false, errors: ['not used'] }),
+      proposeStep: async () => parseAgentResponse(JSON.stringify({
+        protocolVersion: '2',
+        responseType: 'STEP',
+        status: 'CONTINUE',
+        decision: 'INSPECT_EVIDENCE',
+        confidence: 0.5,
+        reasoningSummary: 'Inspect the same evidence.',
+        evidenceReferences: [],
+        action: { kind: 'inspect_evidence' },
+        requiredObservation: 'Return inspection evidence.',
+      })),
+    };
+    const result = await runRepairProposalAgent({
+      context: context(),
+      bundle: bundle(),
+      provider,
+      maxSteps: 6,
+      actionHandlers: { inspect_evidence: async () => ({ status: 'UNCHANGED' }) },
+    });
+    expect(result.state).toBe('AGENT_NO_PROGRESS');
+    expect(result.steps).toHaveLength(3);
+  });
 });

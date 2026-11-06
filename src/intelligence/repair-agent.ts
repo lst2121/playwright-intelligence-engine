@@ -10,6 +10,7 @@ export type RepairAgentState =
   | 'PROPOSAL_RECEIVED'
   | 'PROPOSAL_REJECTED'
   | 'MODEL_ABSTAINED'
+  | 'AGENT_NO_PROGRESS'
   | 'AGENT_MAX_STEPS';
 
 export interface RepairAgentStepRecord {
@@ -93,6 +94,8 @@ async function runBoundedAgentLoop(
 ): Promise<RepairAgentResult> {
   const maxSteps = Math.max(1, Math.min(input.maxSteps ?? 4, 6));
   const steps: RepairAgentStepRecord[] = [];
+  let previousActionSignature: string | undefined;
+  let previousObservationSignature: string | undefined;
   let observation: unknown = {
     phase: 'deterministic_diagnosis',
     category: classification.category,
@@ -193,9 +196,22 @@ async function runBoundedAgentLoop(
         steps,
       };
     }
+    const actionSignature = serializeProgressValue(response.action);
+    const observationSignature = serializeProgressValue(observation);
+    if (previousActionSignature === actionSignature && previousObservationSignature === observationSignature) {
+      return {
+        state: 'AGENT_NO_PROGRESS',
+        classification,
+        modelInvoked: true,
+        errors: [`Agent repeated action '${response.action.kind}' without a new observation`],
+        steps,
+      };
+    }
     try {
       observation = await handler(response.action);
       stepRecord.observation = observation;
+      previousActionSignature = actionSignature;
+      previousObservationSignature = observationSignature;
     } catch (error) {
       return {
         state: 'PROPOSAL_REJECTED',
@@ -214,6 +230,14 @@ async function runBoundedAgentLoop(
     errors: [`Agent reached the maximum step budget of ${maxSteps}`],
     steps,
   };
+}
+
+function serializeProgressValue(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 /** Re-validates a serialized provider response at the orchestration boundary. */

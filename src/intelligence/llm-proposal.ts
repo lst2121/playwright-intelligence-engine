@@ -155,6 +155,19 @@ export interface AgentResponseParseResult {
   response?: AgentResponse;
   errors: string[];
   normalizationNotes?: string[] | undefined;
+  /** Recognized transport metadata removed before strict protocol validation. */
+  protocolMetadata?: AgentProtocolMetadata | undefined;
+}
+
+export interface AgentProtocolMetadata {
+  callId?: string | undefined;
+  requestId?: string | undefined;
+  responseId?: string | undefined;
+  messageId?: string | undefined;
+  model?: string | undefined;
+  provider?: string | undefined;
+  finishReason?: string | undefined;
+  usage?: unknown;
 }
 
 function extractJsonCandidate(input: string): string {
@@ -175,13 +188,25 @@ function parseJsonInput(input: unknown): { candidate?: unknown; errors: string[]
   }
 }
 
-function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: string[] } {
+function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: string[]; metadata?: AgentProtocolMetadata | undefined } {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { candidate: input, notes: [] };
-  const source = input as Record<string, unknown>;
+  const envelope = normalizeAgentEnvelope(input as Record<string, unknown>);
+  const source = envelope.candidate as Record<string, unknown>;
+  const withEnvelope = (candidate: unknown, notes: string[] = []) => ({
+    candidate,
+    notes: [...envelope.notes, ...notes],
+    ...(envelope.metadata ? { metadata: envelope.metadata } : {}),
+  });
   if (source.responseType === 'FINAL') {
+    const allowedFinalKeys = new Set([
+      'protocolVersion', 'responseType', 'status', 'classification',
+      'reasoningSummary', 'evidenceReferences', 'proposal', 'verification',
+      'humanApprovalRequired',
+    ]);
+    if (Object.keys(source).some((key) => !allowedFinalKeys.has(key))) return withEnvelope(source);
     // Accept a complete PIE final response unchanged. Compatibility handling
     // below is deliberately limited to documented sparse-final variants.
-    if (AgentFinalResponseSchema.safeParse(input).success) return { candidate: input, notes: [] };
+    if (AgentFinalResponseSchema.safeParse(source).success) return withEnvelope(source);
 
     const notes: string[] = [];
     const classification = source.classification && typeof source.classification === 'object' && !Array.isArray(source.classification)
@@ -203,8 +228,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
 
     if (source.status === 'ABSTAIN') {
       notes.push('Normalized sparse FINAL ABSTAIN response with conservative classification and approval defaults.');
-      return {
-        candidate: {
+      return withEnvelope({
           protocolVersion: '2',
           responseType: 'FINAL',
           status: 'ABSTAIN',
@@ -212,9 +236,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
           reasoningSummary,
           evidenceReferences,
           humanApprovalRequired,
-        },
-        notes,
-      };
+        }, notes);
     }
 
     if (source.status === 'PROPOSAL' && source.proposal && typeof source.proposal === 'object' && !Array.isArray(source.proposal)) {
@@ -225,8 +247,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
         && typeof (target as Record<string, unknown>).filePath === 'string'
         && typeof locator === 'string' && locator.length > 0) {
         notes.push('Mapped recognized legacy FINAL PROPOSAL shape to BLOCKED because it lacks a safe old-locator operation.');
-        return {
-          candidate: {
+        return withEnvelope({
             protocolVersion: '2',
             responseType: 'FINAL',
             status: 'BLOCKED',
@@ -234,9 +255,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
             reasoningSummary: 'The model returned a source-location proposal without a complete PIE repair operation; no mutation was synthesized.',
             evidenceReferences,
             humanApprovalRequired: true,
-          },
-          notes,
-        };
+          }, notes);
       }
     }
 
@@ -285,8 +304,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
 
       if ((failureCategory === 'LOCATOR_DRIFT' || inferredLocatorDrift) && target && locator) {
         notes.push('Normalized recognized legacy locator proposal into the PIE replacement-operation schema.');
-        return {
-          candidate: {
+        return withEnvelope({
             protocolVersion: '2',
             responseType: 'FINAL',
             status: 'PROPOSAL_READY',
@@ -304,15 +322,12 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
               evidenceReferences,
             },
             humanApprovalRequired: true,
-          },
-          notes,
-        };
+          }, notes);
       }
 
       if (hasLegacyLocatorShape) {
         notes.push('Mapped an incomplete or non-locator legacy final proposal to BLOCKED; no mutation operation was synthesized.');
-        return {
-          candidate: {
+        return withEnvelope({
             protocolVersion: '2',
             responseType: 'FINAL',
             status: 'BLOCKED',
@@ -320,17 +335,22 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
             reasoningSummary: 'The legacy proposal did not contain a safe LOCATOR_DRIFT replacement operation; no mutation was synthesized.',
             evidenceReferences,
             humanApprovalRequired: true,
-          },
-          notes,
-        };
+          }, notes);
       }
     }
 
-    return { candidate: input, notes };
+    return withEnvelope(source, notes);
+  }
+  if (source.responseType === 'STEP') {
+    const allowedStepKeys = new Set([
+      'protocolVersion', 'responseType', 'status', 'decision', 'confidence',
+      'reasoningSummary', 'evidenceReferences', 'action', 'requiredObservation',
+    ]);
+    if (Object.keys(source).some((key) => !allowedStepKeys.has(key))) return withEnvelope(source);
   }
   if (source.responseType !== 'STEP' || source.status !== 'CONTINUE' || !source.action
     || (typeof source.action !== 'object' && typeof source.action !== 'string')) {
-    return { candidate: input, notes: [] };
+    return withEnvelope(source);
   }
 
   const rawAction = typeof source.action === 'string'
@@ -385,7 +405,54 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
   if (source.reasoningSummary === undefined) notes.push('Applied a neutral reasoning summary because none was returned.');
   if (source.evidenceReferences === undefined) notes.push('Applied an empty evidence-reference list because none was returned.');
   if (source.requiredObservation === undefined) notes.push('Applied a default observation requirement because none was returned.');
-  return { candidate: normalized, notes };
+  return withEnvelope(normalized, notes);
+}
+
+/**
+ * Some OpenAI-compatible endpoints and models place correlation metadata next
+ * to the PIE response object. These fields are transport metadata, not model
+ * instructions. Remove only this explicit allowlist before strict validation;
+ * every other unknown field remains an error.
+ */
+function normalizeAgentEnvelope(input: Record<string, unknown>): {
+  candidate: Record<string, unknown>;
+  notes: string[];
+  metadata?: AgentProtocolMetadata | undefined;
+} {
+  const metadataKeys = [
+    'callId', 'requestId', 'responseId', 'messageId', 'model', 'provider',
+    'finishReason', 'finish_reason', 'usage', 'id',
+  ] as const;
+  const candidate = { ...input };
+  const metadata: AgentProtocolMetadata = {};
+  const notes: string[] = [];
+  for (const key of metadataKeys) {
+    if (!(key in candidate)) continue;
+    const value = candidate[key];
+    delete candidate[key];
+    if (key === 'finish_reason') {
+      if (typeof value === 'string') metadata.finishReason = value;
+    } else if (key === 'usage') {
+      metadata.usage = value;
+    } else if (typeof value === 'string') {
+      switch (key) {
+        case 'callId': metadata.callId = value; break;
+        case 'requestId': metadata.requestId = value; break;
+        case 'responseId': metadata.responseId = value; break;
+        case 'messageId': metadata.messageId = value; break;
+        case 'model': metadata.model = value; break;
+        case 'provider': metadata.provider = value; break;
+        case 'finishReason': metadata.finishReason = value; break;
+        case 'id': metadata.responseId = value; break;
+      }
+    }
+    notes.push(`Normalized recognized response envelope metadata '${key}'.`);
+  }
+  return {
+    candidate,
+    notes,
+    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+  };
 }
 
 export function parseLlmRepairProposal(input: unknown): ProposalParseResult {
@@ -420,12 +487,17 @@ export function parseAgentResponse(input: unknown): AgentResponseParseResult {
   if (parsedInput.errors.length > 0) return { isValid: false, errors: parsedInput.errors };
   const normalized = normalizeAgentCandidate(parsedInput.candidate);
   const parsed = AgentResponseSchema.safeParse(normalized.candidate);
-  if (!parsed.success) return { isValid: false, errors: parsed.error.issues.map((issue) => issue.message), normalizationNotes: normalized.notes };
+  if (!parsed.success) return {
+    isValid: false,
+    errors: parsed.error.issues.map((issue) => issue.message),
+    normalizationNotes: normalized.notes,
+    protocolMetadata: normalized.metadata,
+  };
   if (parsed.data.responseType === 'FINAL' && parsed.data.proposal) {
     const proposal = parseLlmRepairProposal(parsed.data.proposal);
-    if (!proposal.isValid || !proposal.proposal) return { isValid: false, errors: proposal.errors, normalizationNotes: normalized.notes };
-    return { isValid: true, response: { ...parsed.data, proposal: proposal.proposal }, errors: [], normalizationNotes: normalized.notes };
+    if (!proposal.isValid || !proposal.proposal) return { isValid: false, errors: proposal.errors, normalizationNotes: normalized.notes, protocolMetadata: normalized.metadata };
+    return { isValid: true, response: { ...parsed.data, proposal: proposal.proposal }, errors: [], normalizationNotes: normalized.notes, protocolMetadata: normalized.metadata };
   }
-  return { isValid: true, response: parsed.data, errors: [], normalizationNotes: normalized.notes };
+  return { isValid: true, response: parsed.data, errors: [], normalizationNotes: normalized.notes, protocolMetadata: normalized.metadata };
 }
 

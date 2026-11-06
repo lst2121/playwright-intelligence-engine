@@ -1,4 +1,5 @@
 import { FailureClassifier, ClassificationResult } from '../diagnostics/failure-classifier.js';
+import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { DiagnosticContext } from '../core/types/diagnostic-context.js';
 import { AgentAction, AgentFinalResponse, AgentResponse, EvidenceBundle, LlmRepairProposal, parseLlmRepairProposal, ProposalParseResult } from './llm-proposal.js';
 import { AgentStepProvider, AgentStepRequest, ProposalProvider } from './model-provider.js';
@@ -45,8 +46,8 @@ export interface RepairAgentResult {
 
 function proposalMatchesClassification(proposal: LlmRepairProposal, classification: ClassificationResult, failedSelector?: string): string | undefined {
   if (proposal.decision === 'ABSTAIN') return undefined;
-  const proposalKind = proposal.failureKind.trim().toUpperCase();
-  const classifiedKind = classification.category.trim().toUpperCase();
+  const proposalKind = normalizeFailureCategory(proposal.failureKind);
+  const classifiedKind = normalizeFailureCategory(classification.category);
   if (proposalKind !== classifiedKind && proposalKind !== 'LOCATOR_DRIFT') {
     return `Model failureKind '${proposal.failureKind}' conflicts with deterministic classification '${classification.category}'`;
   }
@@ -106,6 +107,8 @@ async function runBoundedAgentLoop(
   const steps: RepairAgentStepRecord[] = [];
   let previousActionSignature: string | undefined;
   let previousObservationSignature: string | undefined;
+  let previousResultSignature: string | undefined;
+  const seenTransitions = new Set<string>();
   let observation: unknown = {
     phase: 'deterministic_diagnosis',
     category: classification.category,
@@ -227,10 +230,25 @@ async function runBoundedAgentLoop(
       };
     }
     try {
-      observation = await handler(response.action);
-      stepRecord.observation = observation;
+      const nextObservation = await handler(response.action);
+      const nextObservationSignature = serializeProgressValue(nextObservation);
+      const transitionSignature = `${actionSignature}\n${nextObservationSignature}`;
+      if (seenTransitions.has(transitionSignature)
+        || (previousActionSignature === actionSignature && previousResultSignature === nextObservationSignature)) {
+        return {
+          state: 'AGENT_NO_PROGRESS',
+          classification,
+          modelInvoked: true,
+          errors: [`Agent repeated action '${response.action.kind}' with no new observation`],
+          steps,
+        };
+      }
+      seenTransitions.add(transitionSignature);
+      observation = nextObservation;
+      stepRecord.observation = nextObservation;
       previousActionSignature = actionSignature;
       previousObservationSignature = observationSignature;
+      previousResultSignature = nextObservationSignature;
     } catch (error) {
       return {
         state: 'PROPOSAL_REJECTED',

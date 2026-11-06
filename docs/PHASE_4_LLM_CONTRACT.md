@@ -21,6 +21,10 @@
   responses, an explicit schema contract in the provider prompt, fenced-JSON
   recovery, allowlisted PIE action handlers, a six-step maximum, no-progress
   termination, an elapsed-time budget, and per-step audit records.
+- Added generic response-envelope normalization for explicitly recognized
+  transport metadata (`callId`, request/response IDs, model/provider, finish
+  reason, and usage). These fields are captured as sanitized metadata before
+  strict validation; all other unknown response fields remain rejected.
 - Added redacted diagnostic summaries to evidence bundles so an optional
   provider receives useful action, DOM, network, and console context without
   receiving unredacted evidence.
@@ -49,6 +53,8 @@ deterministic verifier. It may only return structured hypotheses.
 - Environment failures do not cross the model boundary.
 - Unredacted bundles are rejected before provider invocation.
 - Model proposals that conflict with deterministic classification are rejected.
+- Compatibility category aliases are normalized before proposal/classification
+  comparison, while the original model label remains available for reporting.
 - Bounded loop can execute a source-mapping observation before accepting a final
   schema-validated proposal.
 - Trace-to-proposal workflow returns `MODEL_NOT_CONFIGURED` without invoking a

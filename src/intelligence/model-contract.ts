@@ -49,6 +49,8 @@ export interface ModelResponseDiagnostics {
   candidateDecision?: string | undefined;
   candidateActionKind?: string | undefined;
   candidateProposalVersion?: string | undefined;
+  /** Transport metadata keys recognized and removed before protocol validation. */
+  recognizedResponseMetadataKeys: string[];
   validationErrors: string[];
   normalizationNotes: string[];
   redactedPreview?: string | undefined;
@@ -165,6 +167,7 @@ export function createModelResponseDiagnostics(
   requestKind: ModelRequestKind,
   validationErrors: string[] = [],
   normalizationNotes: string[] = [],
+  recognizedResponseMetadataKeys: string[] = [],
   includePreview = false,
 ): ModelResponseDiagnostics {
   const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
@@ -193,6 +196,7 @@ export function createModelResponseDiagnostics(
     candidateDecision: candidate.decision,
     candidateActionKind: candidate.actionKind,
     candidateProposalVersion: candidate.proposalVersion,
+    recognizedResponseMetadataKeys,
     validationErrors,
     normalizationNotes,
   };

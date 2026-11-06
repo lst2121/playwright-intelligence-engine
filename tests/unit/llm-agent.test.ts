@@ -52,6 +52,28 @@ class DualProvider extends FakeProvider implements AgentStepProvider {
 }
 
 describe('bounded LLM repair proposal agent', () => {
+  it('normalizes recognized response-envelope metadata without accepting arbitrary fields', () => {
+    const parsed = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'FINAL', status: 'ABSTAIN',
+      classification: { category: 'AMBIGUOUS_MATCH', confidence: 0.9 },
+      reasoningSummary: 'The controls cannot be distinguished safely.',
+      evidenceReferences: [], humanApprovalRequired: true,
+      callId: 'model-call-4', usage: { total_tokens: 123 },
+    }));
+    expect(parsed.isValid).toBe(true);
+    expect(parsed.protocolMetadata).toMatchObject({ callId: 'model-call-4' });
+    expect(parsed.normalizationNotes).toContain("Normalized recognized response envelope metadata 'callId'.");
+
+    const unknown = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'FINAL', status: 'ABSTAIN',
+      classification: { category: 'AMBIGUOUS_MATCH', confidence: 0.9 },
+      reasoningSummary: 'The controls cannot be distinguished safely.',
+      evidenceReferences: [], humanApprovalRequired: true, unsupportedField: true,
+    }));
+    expect(unknown.isValid).toBe(false);
+    expect(unknown.errors.join(' ')).toContain('unsupportedField');
+  });
+
   it('does not invoke a model for deterministic environment failures', async () => {
     const provider = new FakeProvider({ isValid: false, errors: ['must not be called'] });
     const failed = context('page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/');
@@ -107,6 +129,20 @@ describe('bounded LLM repair proposal agent', () => {
     expect(result.state).toBe('PROPOSAL_RECEIVED');
     expect(provider.calls).toBe(1);
     expect(provider.stepCalls).toBe(0);
+  });
+
+  it('stops a repeated agent transition when the observation does not change', async () => {
+    const failed = context();
+    const provider = new DualProvider({ isValid: false, errors: [] });
+    const result = await runRepairProposalAgent({
+      context: failed,
+      bundle: bundleFor(failed),
+      provider,
+      strategy: 'agent',
+      actionHandlers: { inspect_evidence: async () => ({ status: 'unchanged' }) },
+    });
+    expect(result.state).toBe('AGENT_NO_PROGRESS');
+    expect(result.steps).toHaveLength(2);
   });
 
   it('validates a multi-locator LLM plan without executing it', () => {

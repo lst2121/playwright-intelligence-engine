@@ -296,7 +296,7 @@ describe('bounded reasoning-and-action LLM loop', () => {
       actionHandlers: { inspect_evidence: async () => ({ status: 'UNCHANGED' }) },
     });
     expect(result.state).toBe('AGENT_NO_PROGRESS');
-    expect(result.steps).toHaveLength(3);
+    expect(result.steps).toHaveLength(2);
   });
 
   it('stops before a model call when the elapsed-time budget is exhausted', async () => {

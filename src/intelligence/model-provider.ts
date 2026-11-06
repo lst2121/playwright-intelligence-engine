@@ -118,7 +118,7 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
       const result = !envelope.finalText
         ? { isValid: false, errors: ['Model endpoint returned no final JSON content'] }
         : parseLlmRepairProposal(envelope.finalText);
-      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'proposal', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'proposal', result.errors, result.normalizationNotes ?? [], [], this.options.captureResponsePreview ?? false));
       return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
@@ -163,7 +163,15 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
       const result = !envelope.finalText
         ? { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] }
         : parseAgentResponse(envelope.finalText);
-      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'agent_step', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      this.options.onResponse?.(createModelResponseDiagnostics(
+        payload,
+        envelope,
+        'agent_step',
+        result.errors,
+        result.normalizationNotes ?? [],
+        result.protocolMetadata ? Object.keys(result.protocolMetadata) : [],
+        this.options.captureResponsePreview ?? false,
+      ));
       return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
@@ -233,7 +241,7 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
       const result = !envelope.finalText
         ? { isValid: false, errors: ['Model endpoint returned no final JSON content'] }
         : parseLlmRepairProposal(envelope.finalText);
-      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'proposal', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'proposal', result.errors, result.normalizationNotes ?? [], [], this.options.captureResponsePreview ?? false));
       return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
@@ -273,7 +281,15 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
       const result = !envelope.finalText
         ? { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] }
         : parseAgentResponse(envelope.finalText);
-      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'agent_step', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      this.options.onResponse?.(createModelResponseDiagnostics(
+        payload,
+        envelope,
+        'agent_step',
+        result.errors,
+        result.normalizationNotes ?? [],
+        result.protocolMetadata ? Object.keys(result.protocolMetadata) : [],
+        this.options.captureResponsePreview ?? false,
+      ));
       return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';

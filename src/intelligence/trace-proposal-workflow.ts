@@ -14,6 +14,7 @@ import { DiagnosticContext } from '../core/types/diagnostic-context.js';
 import { bootstrapProjectIntelligence, getHistoricalSelectorScore } from './project-intelligence.js';
 import { DiagnosticReportGenerator } from '../diagnostics/diagnostic-report.js';
 import { discoverRepairSourceMapping } from '../repair/source-mapper.js';
+import { DirectBrowserInvestigator } from '../reproduce/direct-browser-investigator.js';
 
 export interface TraceProposalWorkflowInput {
   tracePath: string;
@@ -21,6 +22,8 @@ export interface TraceProposalWorkflowInput {
   errorContextPath?: string | undefined;
   executionId?: string | undefined;
   testIdentity?: string | undefined;
+  enableBrowserInvestigation?: boolean | undefined;
+  browserUrl?: string | undefined;
   provider?: ProposalProvider | undefined;
 }
 
@@ -79,6 +82,8 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
   const correlated = EvidenceCorrelator.correlate(context);
   const intelligence = await bootstrapProjectIntelligence(workspaceRoot);
   const deterministicProposedLocator = DiagnosticReportGenerator.extractProposedLocator(correlated, intelligence);
+  const sourceMapping = await discoverRepairSourceMapping({ workspaceRoot, failedAction: correlated.context.failedAction });
+  const sourceContext: EvidenceBundle['sourceContext'] = [];
   const profile = intelligence.profile;
   const projectContext = profile
     ? {
@@ -92,16 +97,33 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
           : {}),
       }
     : undefined;
+  if (projectContext) {
+    sourceContext.push({ filePath: '.pie/project-intelligence.json', content: JSON.stringify(projectContext, null, 2) });
+  }
+  if (sourceMapping?.pomFilePath) {
+    try {
+      const source = await fs.readFile(sourceMapping.pomFilePath, 'utf8');
+      const lines = source.split(/\r?\n/);
+      const center = correlated.context.failedAction.line ?? 1;
+      const start = Math.max(0, center - 8);
+      const end = Math.min(lines.length, center + 8);
+      sourceContext.push({
+        filePath: path.relative(workspaceRoot, sourceMapping.pomFilePath),
+        startLine: start + 1,
+        endLine: end,
+        content: lines.slice(start, end).join('\n'),
+      });
+    } catch {
+      // Source mapping remains available as an action observation even when a snippet cannot be read.
+    }
+  }
   const bundle = buildEvidenceBundle({
     executionId: input.executionId ?? `trace-${Date.now()}`,
     testIdentity: input.testIdentity ?? context.failedAction.sourceFile ?? 'unknown-test',
     context,
     failureCategory: correlated.classification.category,
     redactionComplete: true,
-    sourceContext: projectContext ? [{
-      filePath: '.pie/project-intelligence.json',
-      content: JSON.stringify(projectContext, null, 2),
-    }] : [],
+    sourceContext,
     artifacts: [
       { kind: 'trace', reference: path.relative(workspaceRoot, tracePath), redacted: true },
       ...(networkEntryName ? [{ kind: 'network' as const, reference: path.relative(workspaceRoot, networkEntryName), redacted: true }] : []),
@@ -111,6 +133,11 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
     context,
     bundle,
     provider: input.provider ?? configuredProvider(),
+    strategy: correlated.classification.category === 'LOCATOR_DRIFT'
+      && correlated.classification.confidence >= 0.85
+      && Boolean(deterministicProposedLocator)
+      ? 'single-shot'
+      : 'agent',
     // Step budget prevents deadlocks; token limits remain provider/user controlled.
     maxSteps: 6,
     actionHandlers: {
@@ -121,7 +148,33 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
         networkEvents: correlated.context.networkEvents.length,
         consoleEvents: correlated.context.consoleEvents.length,
       }),
-      discover_source_mapping: async () => discoverRepairSourceMapping({ workspaceRoot, failedAction: correlated.context.failedAction }) ?? {
+      inspect_browser_state: async () => {
+        if (input.enableBrowserInvestigation !== true) {
+          return { status: 'DISABLED', reason: 'Browser investigation requires explicit opt-in.' };
+        }
+        if (!input.browserUrl) {
+          return { status: 'INSUFFICIENT_EVIDENCE', reason: 'No explicit browser URL was supplied.' };
+        }
+        const investigation = await DirectBrowserInvestigator.investigateUrl({
+          url: input.browserUrl,
+          executionId: `${input.executionId ?? 'trace'}-browser-investigation`,
+          timeoutMs: 10000,
+        });
+        const clip = (value: unknown, limit: number): string | undefined => {
+          const text = typeof value === 'string' ? value : value === undefined ? undefined : JSON.stringify(value);
+          if (text === undefined || text.length <= limit) return text;
+          return `${text.slice(0, limit)}\n[PIE browser evidence clipped]`;
+        };
+        return {
+          status: investigation.status,
+          pageUrl: investigation.pageUrl,
+          error: investigation.error,
+          domSnapshot: clip(investigation.domSnapshotRecord?.payload, 8000),
+          ariaSnapshot: clip(investigation.ariaSnapshotRecord?.payload, 8000),
+          recordKinds: investigation.records.map((record) => record.evidenceType).slice(0, 20),
+        };
+      },
+      discover_source_mapping: async () => sourceMapping ?? {
         status: 'NOT_FOUND',
         reason: 'No unique source mapping was discovered.',
       },

@@ -26,6 +26,7 @@ export interface RepairAgentInput {
   context: DiagnosticContext;
   bundle: EvidenceBundle;
   provider?: ProposalProvider | undefined;
+  strategy?: 'auto' | 'single-shot' | 'agent' | undefined;
   maxSteps?: number | undefined;
   actionHandlers?: Partial<Record<AgentAction['kind'], RepairAgentActionHandler>> | undefined;
 }
@@ -70,7 +71,7 @@ export async function runRepairProposalAgent(input: RepairAgentInput): Promise<R
     return { state: 'MODEL_NOT_CONFIGURED', classification, modelInvoked: false, errors: ['No proposal provider is configured'] };
   }
 
-  if (isAgentStepProvider(input.provider)) {
+  if (input.strategy !== 'single-shot' && isAgentStepProvider(input.provider)) {
     return runBoundedAgentLoop(input, classification, input.provider);
   }
 

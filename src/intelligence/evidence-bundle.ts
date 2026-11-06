@@ -66,7 +66,10 @@ export function buildEvidenceBundle(input: EvidenceBundleBuildInput): EvidenceBu
     testIdentity: input.testIdentity,
     failedActionId: input.context.failedAction.callId,
     failureCategory: input.failureCategory,
-    sourceContext: input.sourceContext ?? [],
+    sourceContext: (input.sourceContext ?? []).map((source) => ({
+      ...source,
+      content: EvidenceRedactor.redactText(source.content).redactedText,
+    })),
     artifacts: input.artifacts ?? [],
     diagnostic,
     redactionComplete: input.redactionComplete,

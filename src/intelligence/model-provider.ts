@@ -149,7 +149,10 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: agentSystemPrompt() },
-            { role: 'user', content: JSON.stringify(input) },
+            { role: 'user', content: JSON.stringify({
+              ...input,
+              bundle: input.stepIndex === 0 ? input.bundle : compactAgentBundle(input.bundle),
+            }) },
           ],
         }),
       });
@@ -292,10 +295,38 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
 }
 
 function proposalSystemPrompt(): string {
-  return 'Return exactly one JSON object matching the PIE LlmRepairProposal schema. Do not use Markdown, code fences, explanations, patch objects, filePath fields, or extra keys. Use proposalVersion "1". decision must be PROPOSE or ABSTAIN. Every operation must use only the PIE allowlisted operation schema. Never return source code outside an operation.';
+  return 'Return exactly one JSON object and nothing else. Do not use Markdown, code fences, or chain-of-thought. Use exactly these required top-level keys: proposalVersion:"1", decision:"PROPOSE" or "ABSTAIN", failureKind, confidence (0..1), reasoningSummary (short), operations (array of PIE allowlisted operations), requiredVerification (string array), and evidenceReferences (string array). For replace_locator use only kind, target, locator, and optional reason. Do not return filePath, line, column, oldText, newText, patches, source code, or extra keys. If evidence is insufficient, return decision ABSTAIN with one abstain operation.';
 }
 
 function agentSystemPrompt(): string {
-  return 'Return exactly one JSON object and nothing else. Do not use Markdown, code fences, or chain-of-thought. Use protocolVersion "2" and no extra keys. For STEP, include every required key: responseType:"STEP", status:"CONTINUE", decision (one of INSPECT_EVIDENCE, DISCOVER_SOURCE_MAPPING, RANK_LOCATOR_CANDIDATES, BUILD_REPAIR_PROPOSAL, VERIFY_REPAIR, ABSTAIN), confidence (number 0..1), reasoningSummary (short summary), evidenceReferences (string array), action (one allowlisted kind: inspect_evidence, discover_source_mapping, rank_locator_candidates, build_repair_proposal, verify_repair, abstain), and requiredObservation (short string). For FINAL, include every required key: responseType:"FINAL", status (PROPOSAL_READY, VERIFIED_READY_FOR_APPROVAL, ABSTAIN, BLOCKED, or REJECTED), classification:{category,confidence}, reasoningSummary, evidenceReferences, and humanApprovalRequired:boolean. Include proposal only for a valid proposal and use proposalVersion:"1", decision PROPOSE or ABSTAIN, failureKind, confidence, reasoningSummary, operations, requiredVerification, and evidenceReferences. Every operation must use only the PIE allowlisted repair schema. If evidence is insufficient, return FINAL ABSTAIN. Keep summaries concise and never invent tools, source edits, file paths, or unsupported fields.';
+  return 'Return exactly one JSON object and nothing else. Do not use Markdown, code fences, or chain-of-thought. Use protocolVersion "2" and no extra keys. For STEP, include every required key: responseType:"STEP", status:"CONTINUE", decision (one of INSPECT_EVIDENCE, INSPECT_BROWSER_STATE, DISCOVER_SOURCE_MAPPING, RANK_LOCATOR_CANDIDATES, BUILD_REPAIR_PROPOSAL, VERIFY_REPAIR, ABSTAIN), confidence (number 0..1), reasoningSummary (short summary), evidenceReferences (string array), action (one allowlisted kind: inspect_evidence, inspect_browser_state, discover_source_mapping, rank_locator_candidates, build_repair_proposal, verify_repair, abstain), and requiredObservation (short string). For FINAL, include every required key: responseType:"FINAL", status (PROPOSAL_READY, VERIFIED_READY_FOR_APPROVAL, ABSTAIN, BLOCKED, or REJECTED), classification:{category,confidence}, reasoningSummary, evidenceReferences, and humanApprovalRequired:boolean. Include proposal only for a valid proposal and use proposalVersion:"1", decision PROPOSE or ABSTAIN, failureKind, confidence, reasoningSummary, operations, requiredVerification, and evidenceReferences. Every operation must use only the PIE allowlisted repair schema. If evidence is insufficient, return FINAL ABSTAIN. Keep summaries concise and never invent tools, source edits, file paths, or unsupported fields.';
+}
+
+function compactAgentBundle(bundle: EvidenceBundle): EvidenceBundle {
+  const clip = (value: string | undefined, limit: number): string | undefined => {
+    if (value === undefined || value.length <= limit) return value;
+    return `${value.slice(0, limit)}\n[PIE evidence clipped after ${limit} characters]`;
+  };
+  const diagnostic = bundle.diagnostic;
+  return {
+    ...bundle,
+    sourceContext: bundle.sourceContext.map((source) => ({ ...source, content: clip(source.content, 2500) ?? '' })),
+    diagnostic: diagnostic ? {
+      ...diagnostic,
+      failedAction: {
+        ...diagnostic.failedAction,
+        errorStack: clip(diagnostic.failedAction.errorStack, 2500),
+        logs: diagnostic.failedAction.logs?.slice(0, 20).map((log) => clip(log, 500) ?? ''),
+      },
+      snapshots: {
+        before: clip(diagnostic.snapshots.before, 5000),
+        action: clip(diagnostic.snapshots.action, 7000),
+        after: clip(diagnostic.snapshots.after, 5000),
+      },
+      networkEvents: diagnostic.networkEvents.slice(0, 20),
+      consoleEvents: diagnostic.consoleEvents.slice(0, 20).map((event) => ({ ...event, text: clip(event.text, 500) ?? '' })),
+    } : undefined,
+    limitations: [...new Set([...bundle.limitations, 'Evidence was compacted after the first agent step'])],
+  };
 }
 

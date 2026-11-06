@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { DiagnosticContext } from '../../src/core/types/diagnostic-context.js';
 import { buildEvidenceBundle } from '../../src/intelligence/evidence-bundle.js';
 import { runRepairProposalAgent } from '../../src/intelligence/repair-agent.js';
-import { ProposalProvider } from '../../src/intelligence/model-provider.js';
+import { AgentStepProvider, ProposalProvider } from '../../src/intelligence/model-provider.js';
+import { parseAgentResponse } from '../../src/intelligence/llm-proposal.js';
+import { validateLlmRepairPlan } from '../../src/intelligence/verified-llm-repair-workflow.js';
 import { ProposalParseResult } from '../../src/intelligence/llm-proposal.js';
 
 function context(errorMessage = 'Timeout waiting for locator("button.checkout")'): DiagnosticContext {
@@ -34,6 +36,18 @@ class FakeProvider implements ProposalProvider {
   public async propose(): Promise<ProposalParseResult> {
     this.calls += 1;
     return this.result;
+  }
+}
+
+class DualProvider extends FakeProvider implements AgentStepProvider {
+  public stepCalls = 0;
+  public async proposeStep(): ReturnType<AgentStepProvider['proposeStep']> {
+    this.stepCalls += 1;
+    return Promise.resolve(parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'STEP', status: 'CONTINUE',
+      decision: 'INSPECT_EVIDENCE', confidence: 0.5, reasoningSummary: 'unused', evidenceReferences: [],
+      action: { kind: 'inspect_evidence' }, requiredObservation: 'unused',
+    })));
   }
 }
 
@@ -75,6 +89,38 @@ describe('bounded LLM repair proposal agent', () => {
     expect(result.state).toBe('PROPOSAL_RECEIVED');
     expect(result.proposal?.operations[0]?.kind).toBe('replace_locator');
     expect(provider.calls).toBe(1);
+  });
+
+  it('uses the single-shot path when explicitly requested', async () => {
+    const failed = context();
+    const provider = new DualProvider({
+      isValid: true,
+      errors: [],
+      proposal: {
+        proposalVersion: '1', decision: 'PROPOSE', failureKind: 'LOCATOR_DRIFT', confidence: 0.9,
+        reasoningSummary: 'Stable replacement.',
+        operations: [{ kind: 'replace_locator', target: 'button.checkout', locator: "getByRole('button', { name: 'Checkout' })" }],
+        requiredVerification: ['isolated target test'], evidenceReferences: [],
+      },
+    });
+    const result = await runRepairProposalAgent({ context: failed, bundle: bundleFor(failed), provider, strategy: 'single-shot' });
+    expect(result.state).toBe('PROPOSAL_RECEIVED');
+    expect(provider.calls).toBe(1);
+    expect(provider.stepCalls).toBe(0);
+  });
+
+  it('validates a multi-locator LLM plan without executing it', () => {
+    const plan = validateLlmRepairPlan({
+      proposalVersion: '1', decision: 'PROPOSE', failureKind: 'LOCATOR_DRIFT', confidence: 0.9,
+      reasoningSummary: 'The login form locators changed together.',
+      operations: [
+        { kind: 'replace_locator', target: '#old-user', locator: "getByLabel('Username')" },
+        { kind: 'replace_locator', target: '#old-submit', locator: "getByRole('button', { name: 'Login' })" },
+      ],
+      requiredVerification: ['all affected tests pass', 'assertions unchanged'], evidenceReferences: [],
+    });
+    expect(plan.isValid).toBe(true);
+    expect(plan.workflowPlan?.steps).toHaveLength(2);
   });
 
   it('rejects a model proposal that conflicts with deterministic classification', async () => {

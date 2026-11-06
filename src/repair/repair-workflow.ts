@@ -28,6 +28,7 @@ export interface RepairWorkflowInput {
   execute?: boolean | undefined;
   worktreeId?: string | undefined;
   operation?: unknown;
+  requireOperationTargetMatch?: boolean | undefined;
 }
 
 export interface RepairWorkflowResult {
@@ -114,6 +115,16 @@ export async function runRepairWorkflow(input: RepairWorkflowInput): Promise<Rep
   const candidate = { locatorExpression: selected.locatorExpression, score: selected.breakdown.score, element: selected.element };
   let explicitReplacement: string | undefined;
   if (input.operation !== undefined) {
+    if (input.requireOperationTargetMatch === true) {
+      const operation = input.operation && typeof input.operation === 'object' ? input.operation as Record<string, unknown> : undefined;
+      const failedSelector = correlated.context.failedAction.selector?.trim();
+      const operationTarget = typeof operation?.target === 'string' ? operation.target.trim() : undefined;
+      if (!failedSelector || !operationTarget || operationTarget !== failedSelector) {
+        const result = { status: 'ABSTAINED' as const, correlated, proposedLocator: selected.locatorExpression, candidate, reason: 'The proposed operation target does not exactly match the deterministic failed selector.' };
+        await recordRepairWorkflow(workspaceRoot, { status: result.status, category: correlated.classification.category });
+        return result;
+      }
+    }
     const compiled = compileSafeRepairOperation(input.operation);
     if (compiled.readiness === 'ABSTAIN') {
       const result = { status: 'ABSTAINED' as const, correlated, proposedLocator: selected.locatorExpression, candidate, reason: compiled.reason };

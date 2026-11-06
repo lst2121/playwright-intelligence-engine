@@ -80,6 +80,7 @@ export interface ProposalParseResult {
 
 export const AgentActionKindSchema = z.enum([
   'inspect_evidence',
+  'inspect_browser_state',
   'discover_source_mapping',
   'rank_locator_candidates',
   'build_repair_proposal',
@@ -113,6 +114,7 @@ const AgentStepResponseSchema = z.object({
   status: z.literal('CONTINUE'),
   decision: z.enum([
     'INSPECT_EVIDENCE',
+    'INSPECT_BROWSER_STATE',
     'DISCOVER_SOURCE_MAPPING',
     'RANK_LOCATOR_CANDIDATES',
     'BUILD_REPAIR_PROPOSAL',
@@ -356,6 +358,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
 
   const decisionByAction: Record<string, string> = {
     inspect_evidence: 'INSPECT_EVIDENCE',
+    inspect_browser_state: 'INSPECT_BROWSER_STATE',
     discover_source_mapping: 'DISCOVER_SOURCE_MAPPING',
     rank_locator_candidates: 'RANK_LOCATOR_CANDIDATES',
     build_repair_proposal: 'BUILD_REPAIR_PROPOSAL',

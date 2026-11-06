@@ -10,11 +10,15 @@ unrestricted autonomous coding agent.
    `DETERMINISTIC_ABSTAIN`; the model is not invoked.
 3. The caller must provide an `EvidenceBundle` whose `redactionComplete` flag
    is explicitly true.
-4. An optional `ProposalProvider` may return only the strict
-   `LlmRepairProposal` schema.
-5. PIE rejects malformed operations and proposals whose failure kind conflicts
-   with deterministic classification.
-6. `PROPOSAL_RECEIVED` is not a repair success. Worktree execution, intent and
+4. An optional provider may return either a strict `LlmRepairProposal` or a
+   bounded protocol-v2 `STEP`/`FINAL` response.
+5. Every loop action is one of PIE's allowlisted actions: evidence inspection,
+   source mapping, candidate ranking, proposal construction, verification
+   request, or abstention.
+6. PIE executes at most six model steps per case, records every step and
+   observation, and rejects malformed operations or proposals whose failure
+   kind conflicts with deterministic classification.
+7. `PROPOSAL_RECEIVED` is not a repair success. Worktree execution, intent and
    oracle verification, approval, and promotion remain separate gates.
 
 The implementation is in `src/intelligence/repair-agent.ts` and
@@ -25,13 +29,14 @@ credential.
 
 ## Why this is agentic, but controlled
 
-The agent can make a bounded reasoning decision after observing normalized
-evidence, but it cannot freely edit files, execute arbitrary commands, weaken
-assertions, or approve its own patch. The trace-to-repair workflow can consume
-structured allowlisted operations, including constrained browser state waits,
-while worktree verification and explicit approval remain separate gates before
-promotion. Arbitrary wait strings, page evaluation, and free-form interaction
-are rejected or remain proposal-only.
+The agent can make a bounded reasoning decision, request a PIE observation,
+and revise its proposal after receiving that observation. It cannot freely edit
+files, execute arbitrary commands, weaken assertions, or approve its own patch.
+The trace-to-repair workflow can consume structured allowlisted operations,
+including constrained browser state waits, while worktree verification and
+explicit approval remain separate gates before promotion. Arbitrary wait
+strings, page evaluation, and free-form interaction are rejected or remain
+proposal-only.
 
 ## External failure bundles
 

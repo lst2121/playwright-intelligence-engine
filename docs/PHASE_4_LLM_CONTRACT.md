@@ -17,6 +17,9 @@
 - Added a bounded repair-proposal agent that runs deterministic classification
   first, refuses model calls for hard abstentions, validates proposal semantics,
   and never executes or promotes model output.
+- Added a protocol-v2 reasoning-and-action loop with strict `STEP` and `FINAL`
+  responses, fenced-JSON recovery, allowlisted PIE action handlers, a six-step
+  maximum, and per-step audit records.
 - Added redacted diagnostic summaries to evidence bundles so an optional
   provider receives useful action, DOM, network, and console context without
   receiving unredacted evidence.
@@ -40,6 +43,8 @@ deterministic verifier. It may only return structured hypotheses.
 - Environment failures do not cross the model boundary.
 - Unredacted bundles are rejected before provider invocation.
 - Model proposals that conflict with deterministic classification are rejected.
+- Bounded loop can execute a source-mapping observation before accepting a final
+  schema-validated proposal.
 - Trace-to-proposal workflow returns `MODEL_NOT_CONFIGURED` without invoking a
   provider when no endpoint is configured.
 
@@ -47,5 +52,5 @@ deterministic verifier. It may only return structured hypotheses.
 
 - Multimodal model calls and richer redacted artifact summaries.
 - Model-quality evaluation against the external repository testbed.
-- Worktree execution and approval orchestration after a proposal is received.
+- Worktree execution and approval orchestration after a loop proposal is received.
 

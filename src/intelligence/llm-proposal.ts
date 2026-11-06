@@ -77,15 +77,104 @@ export interface ProposalParseResult {
   errors: string[];
 }
 
-export function parseLlmRepairProposal(input: unknown): ProposalParseResult {
-  let candidate: unknown = input;
-  if (typeof input === 'string') {
-    try {
-      candidate = JSON.parse(input);
-    } catch (error) {
-      return { isValid: false, errors: [`Proposal is not valid JSON: ${String(error)}`] };
-    }
+export const AgentActionKindSchema = z.enum([
+  'inspect_evidence',
+  'discover_source_mapping',
+  'rank_locator_candidates',
+  'build_repair_proposal',
+  'verify_repair',
+  'abstain',
+]);
+
+export type AgentActionKind = z.infer<typeof AgentActionKindSchema>;
+
+export const AgentActionSchema = z.object({
+  kind: AgentActionKindSchema,
+  selector: z.string().min(1).optional(),
+  target: z.string().min(1).optional(),
+  locator: z.string().min(1).optional(),
+  sourceFile: z.string().min(1).optional(),
+  className: z.string().min(1).optional(),
+  memberName: z.string().min(1).optional(),
+  reason: z.string().min(1).optional(),
+}).strict();
+
+export type AgentAction = z.infer<typeof AgentActionSchema>;
+
+const AgentClassificationSchema = z.object({
+  category: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+}).strict();
+
+const AgentStepResponseSchema = z.object({
+  protocolVersion: z.literal('2'),
+  responseType: z.literal('STEP'),
+  status: z.literal('CONTINUE'),
+  decision: z.enum([
+    'INSPECT_EVIDENCE',
+    'DISCOVER_SOURCE_MAPPING',
+    'RANK_LOCATOR_CANDIDATES',
+    'BUILD_REPAIR_PROPOSAL',
+    'VERIFY_REPAIR',
+    'ABSTAIN',
+  ]),
+  confidence: z.number().min(0).max(1),
+  reasoningSummary: z.string().min(1),
+  evidenceReferences: z.array(z.string()),
+  action: AgentActionSchema,
+  requiredObservation: z.string().min(1),
+}).strict();
+
+const AgentFinalResponseSchema = z.object({
+  protocolVersion: z.literal('2'),
+  responseType: z.literal('FINAL'),
+  status: z.enum(['PROPOSAL_READY', 'VERIFIED_READY_FOR_APPROVAL', 'ABSTAIN', 'BLOCKED', 'REJECTED']),
+  classification: AgentClassificationSchema,
+  reasoningSummary: z.string().min(1),
+  evidenceReferences: z.array(z.string()),
+  proposal: LlmRepairProposalSchema.optional(),
+  verification: z.object({
+    isolatedTestPassed: z.boolean().optional(),
+    assertionsChanged: z.boolean().optional(),
+    unrelatedFilesChanged: z.boolean().optional(),
+  }).strict().optional(),
+  humanApprovalRequired: z.boolean(),
+}).strict();
+
+export const AgentResponseSchema = z.discriminatedUnion('responseType', [AgentStepResponseSchema, AgentFinalResponseSchema]);
+
+export type AgentStepResponse = z.infer<typeof AgentStepResponseSchema>;
+export type AgentFinalResponse = z.infer<typeof AgentFinalResponseSchema>;
+export type AgentResponse = z.infer<typeof AgentResponseSchema>;
+
+export interface AgentResponseParseResult {
+  isValid: boolean;
+  response?: AgentResponse;
+  errors: string[];
+}
+
+function extractJsonCandidate(input: string): string {
+  const trimmed = input.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) return fenced[1].trim();
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  return start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
+}
+
+function parseJsonInput(input: unknown): { candidate?: unknown; errors: string[] } {
+  if (typeof input !== 'string') return { candidate: input, errors: [] };
+  try {
+    return { candidate: JSON.parse(extractJsonCandidate(input)), errors: [] };
+  } catch (error) {
+    return { errors: [`Response is not valid JSON: ${String(error)}`] };
   }
+}
+
+export function parseLlmRepairProposal(input: unknown): ProposalParseResult {
+  const parsedInput = parseJsonInput(input);
+  if (parsedInput.errors.length > 0) return { isValid: false, errors: parsedInput.errors.map((error) => error.replace(/^Response/, 'Proposal')) };
+  const candidate = parsedInput.candidate;
 
   const parsed = LlmRepairProposalSchema.safeParse(candidate);
   if (!parsed.success) {
@@ -107,5 +196,18 @@ export function parseLlmRepairProposal(input: unknown): ProposalParseResult {
 
 export function proposalOperations(proposal: LlmRepairProposal): RepairOperation[] {
   return proposal.operations;
+}
+
+export function parseAgentResponse(input: unknown): AgentResponseParseResult {
+  const parsedInput = parseJsonInput(input);
+  if (parsedInput.errors.length > 0) return { isValid: false, errors: parsedInput.errors };
+  const parsed = AgentResponseSchema.safeParse(parsedInput.candidate);
+  if (!parsed.success) return { isValid: false, errors: parsed.error.issues.map((issue) => issue.message) };
+  if (parsed.data.responseType === 'FINAL' && parsed.data.proposal) {
+    const proposal = parseLlmRepairProposal(parsed.data.proposal);
+    if (!proposal.isValid || !proposal.proposal) return { isValid: false, errors: proposal.errors };
+    return { isValid: true, response: { ...parsed.data, proposal: proposal.proposal }, errors: [] };
+  }
+  return { isValid: true, response: parsed.data, errors: [] };
 }
 

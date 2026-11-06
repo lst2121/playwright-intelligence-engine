@@ -1,19 +1,32 @@
 import { FailureClassifier, ClassificationResult } from '../diagnostics/failure-classifier.js';
 import { DiagnosticContext } from '../core/types/diagnostic-context.js';
-import { EvidenceBundle, LlmRepairProposal, parseLlmRepairProposal, ProposalParseResult } from './llm-proposal.js';
-import { ProposalProvider } from './model-provider.js';
+import { AgentAction, AgentFinalResponse, AgentResponse, EvidenceBundle, LlmRepairProposal, parseLlmRepairProposal, ProposalParseResult } from './llm-proposal.js';
+import { AgentStepProvider, AgentStepRequest, ProposalProvider } from './model-provider.js';
 
 export type RepairAgentState =
   | 'DETERMINISTIC_ABSTAIN'
   | 'MODEL_NOT_CONFIGURED'
   | 'EVIDENCE_NOT_REDACTED'
   | 'PROPOSAL_RECEIVED'
-  | 'PROPOSAL_REJECTED';
+  | 'PROPOSAL_REJECTED'
+  | 'MODEL_ABSTAINED'
+  | 'AGENT_MAX_STEPS';
+
+export interface RepairAgentStepRecord {
+  stepIndex: number;
+  response: AgentResponse;
+  observation?: unknown;
+  durationMs: number;
+}
+
+export type RepairAgentActionHandler = (action: AgentAction) => Promise<unknown>;
 
 export interface RepairAgentInput {
   context: DiagnosticContext;
   bundle: EvidenceBundle;
   provider?: ProposalProvider | undefined;
+  maxSteps?: number | undefined;
+  actionHandlers?: Partial<Record<AgentAction['kind'], RepairAgentActionHandler>> | undefined;
 }
 
 export interface RepairAgentResult {
@@ -22,6 +35,8 @@ export interface RepairAgentResult {
   modelInvoked: boolean;
   proposal?: LlmRepairProposal | undefined;
   errors: string[];
+  steps?: RepairAgentStepRecord[] | undefined;
+  finalResponse?: AgentFinalResponse | undefined;
 }
 
 function proposalMatchesClassification(proposal: LlmRepairProposal, classification: ClassificationResult): string | undefined {
@@ -54,6 +69,10 @@ export async function runRepairProposalAgent(input: RepairAgentInput): Promise<R
     return { state: 'MODEL_NOT_CONFIGURED', classification, modelInvoked: false, errors: ['No proposal provider is configured'] };
   }
 
+  if (isAgentStepProvider(input.provider)) {
+    return runBoundedAgentLoop(input, classification, input.provider);
+  }
+
   const result: ProposalParseResult = await input.provider.propose(input.bundle);
   if (!result.isValid || !result.proposal) {
     return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: result.errors.length > 0 ? result.errors : ['Provider returned no valid proposal'] };
@@ -61,6 +80,140 @@ export async function runRepairProposalAgent(input: RepairAgentInput): Promise<R
   const semanticError = proposalMatchesClassification(result.proposal, classification);
   if (semanticError) return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: [semanticError] };
   return { state: 'PROPOSAL_RECEIVED', classification, modelInvoked: true, proposal: result.proposal, errors: [] };
+}
+
+function isAgentStepProvider(provider: ProposalProvider): provider is ProposalProvider & AgentStepProvider {
+  return typeof (provider as Partial<AgentStepProvider>).proposeStep === 'function';
+}
+
+async function runBoundedAgentLoop(
+  input: RepairAgentInput,
+  classification: ClassificationResult,
+  provider: ProposalProvider & AgentStepProvider,
+): Promise<RepairAgentResult> {
+  const maxSteps = Math.max(1, Math.min(input.maxSteps ?? 4, 6));
+  const steps: RepairAgentStepRecord[] = [];
+  let observation: unknown = {
+    phase: 'deterministic_diagnosis',
+    category: classification.category,
+    confidence: classification.confidence,
+    shouldAbstain: classification.shouldAbstain,
+    evidenceCompleteness: input.bundle.diagnostic?.evidenceCompleteness,
+  };
+
+  for (let stepIndex = 0; stepIndex < maxSteps; stepIndex += 1) {
+    const started = Date.now();
+    const request: AgentStepRequest = {
+      bundle: input.bundle,
+      deterministicCategory: classification.category,
+      deterministicConfidence: classification.confidence,
+      observation,
+      stepIndex,
+      maxSteps,
+    };
+    const result = await provider.proposeStep(request);
+    const durationMs = Date.now() - started;
+    if (!result.isValid || !result.response) {
+      return {
+        state: 'PROPOSAL_REJECTED',
+        classification,
+        modelInvoked: true,
+        errors: result.errors.length > 0 ? result.errors : ['Provider returned no valid agent response'],
+        steps,
+      };
+    }
+
+    const response = result.response;
+    if (response.responseType === 'FINAL') {
+      steps.push({ stepIndex, response, durationMs });
+      if (response.status === 'ABSTAIN' || response.status === 'BLOCKED' || response.status === 'REJECTED' || !response.proposal) {
+        return {
+          state: 'MODEL_ABSTAINED',
+          classification,
+          modelInvoked: true,
+          errors: [response.reasoningSummary],
+          steps,
+          finalResponse: response,
+        };
+      }
+      const proposalResult = parseLlmRepairProposal(response.proposal);
+      if (!proposalResult.isValid || !proposalResult.proposal) {
+        return {
+          state: 'PROPOSAL_REJECTED',
+          classification,
+          modelInvoked: true,
+          errors: proposalResult.errors,
+          steps,
+          finalResponse: response,
+        };
+      }
+      if (proposalResult.proposal.decision === 'ABSTAIN') {
+        return {
+          state: 'MODEL_ABSTAINED',
+          classification,
+          modelInvoked: true,
+          errors: [proposalResult.proposal.reasoningSummary],
+          steps,
+          finalResponse: response,
+        };
+      }
+      const semanticError = proposalMatchesClassification(proposalResult.proposal, classification);
+      if (semanticError) {
+        return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: [semanticError], steps, finalResponse: response };
+      }
+      return {
+        state: 'PROPOSAL_RECEIVED',
+        classification,
+        modelInvoked: true,
+        proposal: proposalResult.proposal,
+        errors: [],
+        steps,
+        finalResponse: response,
+      };
+    }
+
+    const stepRecord: RepairAgentStepRecord = { stepIndex, response, durationMs };
+    steps.push(stepRecord);
+    if (response.action.kind === 'abstain' || response.decision === 'ABSTAIN') {
+      return {
+        state: 'MODEL_ABSTAINED',
+        classification,
+        modelInvoked: true,
+        errors: [response.action.reason ?? response.reasoningSummary],
+        steps,
+      };
+    }
+    const handler = input.actionHandlers?.[response.action.kind];
+    if (!handler) {
+      return {
+        state: 'PROPOSAL_REJECTED',
+        classification,
+        modelInvoked: true,
+        errors: [`No PIE action handler is configured for '${response.action.kind}'`],
+        steps,
+      };
+    }
+    try {
+      observation = await handler(response.action);
+      stepRecord.observation = observation;
+    } catch (error) {
+      return {
+        state: 'PROPOSAL_REJECTED',
+        classification,
+        modelInvoked: true,
+        errors: [`PIE action '${response.action.kind}' failed: ${error instanceof Error ? error.message : String(error)}`],
+        steps,
+      };
+    }
+  }
+
+  return {
+    state: 'AGENT_MAX_STEPS',
+    classification,
+    modelInvoked: true,
+    errors: [`Agent reached the maximum step budget of ${maxSteps}`],
+    steps,
+  };
 }
 
 /** Re-validates a serialized provider response at the orchestration boundary. */

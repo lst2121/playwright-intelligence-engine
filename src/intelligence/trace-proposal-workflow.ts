@@ -12,6 +12,8 @@ import { EvidenceBundle } from './llm-proposal.js';
 import { CorrelatedEvidence } from '../diagnostics/evidence-correlator.js';
 import { DiagnosticContext } from '../core/types/diagnostic-context.js';
 import { bootstrapProjectIntelligence, getHistoricalSelectorScore } from './project-intelligence.js';
+import { DiagnosticReportGenerator } from '../diagnostics/diagnostic-report.js';
+import { discoverRepairSourceMapping } from '../repair/source-mapper.js';
 
 export interface TraceProposalWorkflowInput {
   tracePath: string;
@@ -76,6 +78,7 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
 
   const correlated = EvidenceCorrelator.correlate(context);
   const intelligence = await bootstrapProjectIntelligence(workspaceRoot);
+  const deterministicProposedLocator = DiagnosticReportGenerator.extractProposedLocator(correlated, intelligence);
   const profile = intelligence.profile;
   const projectContext = profile
     ? {
@@ -104,6 +107,38 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
       ...(networkEntryName ? [{ kind: 'network' as const, reference: path.relative(workspaceRoot, networkEntryName), redacted: true }] : []),
     ],
   });
-  const agent = await runRepairProposalAgent({ context, bundle, provider: input.provider ?? configuredProvider() });
+  const agent = await runRepairProposalAgent({
+    context,
+    bundle,
+    provider: input.provider ?? configuredProvider(),
+    maxSteps: 4,
+    actionHandlers: {
+      inspect_evidence: async () => ({
+        category: correlated.classification.category,
+        failedAction: correlated.context.failedAction,
+        evidenceCompleteness: correlated.context.evidenceCompleteness,
+        networkEvents: correlated.context.networkEvents.length,
+        consoleEvents: correlated.context.consoleEvents.length,
+      }),
+      discover_source_mapping: async () => discoverRepairSourceMapping({ workspaceRoot, failedAction: correlated.context.failedAction }) ?? {
+        status: 'NOT_FOUND',
+        reason: 'No unique source mapping was discovered.',
+      },
+      rank_locator_candidates: async () => ({
+        status: deterministicProposedLocator ? 'CANDIDATE_AVAILABLE' : 'NO_SAFE_CANDIDATE',
+        proposedLocator: deterministicProposedLocator ?? null,
+      }),
+      build_repair_proposal: async (action) => ({
+        status: 'PROPOSAL_ONLY',
+        target: action.target ?? null,
+        locator: action.locator ?? deterministicProposedLocator ?? null,
+        message: 'PIE has not modified or executed any source. The model must return the final schema-validated proposal.',
+      }),
+      verify_repair: async () => ({
+        status: 'NOT_EXECUTED',
+        reason: 'Trace proposal workflow is proposal-only. Isolated verification requires the repair workflow and explicit execution policy.',
+      }),
+    },
+  });
   return { context, correlated, bundle, agent };
 }

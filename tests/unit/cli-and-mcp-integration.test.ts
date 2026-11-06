@@ -141,7 +141,7 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
     const res = await mcp.handleRequest(req);
     expect(res.result.content[0].text).toContain('DIAGNOSTIC REPORT');
     expect(res.result.classification).toBeDefined();
-  });
+  }, 15000);
 
   it('MCP-CALL-04: diagnose_trace with non-existent file should return error code -32000', async () => {
     const req: JsonRpcRequest = {

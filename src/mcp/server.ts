@@ -12,7 +12,7 @@ import { DiffAllowlistValidator } from '../repair/diff-allowlist.js';
 import { ApprovalService } from '../repair/approval-service.js';
 import { WorkspacePromoter } from '../repair/workspace-promoter.js';
 import { TestGenerator } from '../generator/test-generator.js';
-import { ENGINE_MILESTONE, PACKAGE_VERSION } from '../core/version.js';
+import { ENGINE_MILESTONE, getRuntimeProvenance, PACKAGE_VERSION } from '../core/version.js';
 import { bootstrapProjectIntelligence, recordProjectFailure, recordProjectRepairAccepted } from '../intelligence/project-intelligence.js';
 import { initProjectConfig } from '../config/project-config.js';
 import { buildRepositoryProfile, writeRepositoryProfile } from '../intelligence/repository-profile.js';
@@ -388,6 +388,7 @@ export class McpServer {
             content: [{ type: 'text', text: report }],
             classification: canonicalClassification,
             rawClassification: correlated.classification.category,
+            provenance: getRuntimeProvenance(this.workspaceRoot),
             failureFingerprint: correlated.failureFingerprint,
             failureObservation: correlated.failureObservation,
             causalGraph: correlated.classification.causalGraph,
@@ -421,6 +422,7 @@ export class McpServer {
             ...result.correlated.classification,
             category: normalizeFailureCategory(result.correlated.classification.category),
           },
+          provenance: getRuntimeProvenance(this.workspaceRoot),
           failureFingerprint: result.correlated.failureFingerprint,
           failureObservation: result.correlated.failureObservation,
           failedAction: result.correlated.context.failedAction,
@@ -764,6 +766,7 @@ export class McpServer {
           result: {
             packageVersion: PACKAGE_VERSION,
             engineeringMilestone: ENGINE_MILESTONE,
+            provenance: getRuntimeProvenance(this.workspaceRoot),
             safetyMode: 'fail-closed',
             mutationPolicy: 'approval-required',
             llmPolicy: 'provider-neutral-proposals-only',

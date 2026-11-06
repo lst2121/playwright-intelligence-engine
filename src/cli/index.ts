@@ -10,7 +10,7 @@ import { TestGenerator } from '../generator/test-generator.js';
 import { DiagnosticRerunner } from '../reproduce/diagnostic-rerunner.js';
 import { ApprovalService } from '../repair/approval-service.js';
 import { WorkspacePromoter } from '../repair/workspace-promoter.js';
-import { PACKAGE_VERSION } from '../core/version.js';
+import { getRuntimeProvenance, PACKAGE_VERSION } from '../core/version.js';
 import { inspectTestbed } from '../evaluation/repository-inspector.js';
 import { RepositoryRunner } from '../evaluation/repository-runner.js';
 import { initProjectConfig } from '../config/project-config.js';
@@ -163,6 +163,7 @@ export async function runCli(argv: string[]): Promise<void> {
           (!proposedLocator ? 'No safe, unique replacement locator candidate discovered in DOM snapshot.' : undefined);
 
         console.log(JSON.stringify({
+          provenance: getRuntimeProvenance(process.cwd()),
           classification: canonicalCategory,
           rawClassification: correlated.classification.category,
           confidence: correlated.classification.confidence,
@@ -218,6 +219,7 @@ export async function runCli(argv: string[]): Promise<void> {
         category: normalizeFailureCategory(result.correlated.classification.category),
       };
       console.log(JSON.stringify({
+        provenance: getRuntimeProvenance(process.cwd()),
         status: result.status,
         classification: canonicalClassification,
         failureFingerprint: result.correlated.failureFingerprint,

@@ -97,11 +97,13 @@ function renderLocator(step: GeneratedStep, preferredLocator: string): string {
 
 function renderPageObject(className: string, baseUrl: string, steps: GeneratedStep[], preferredLocator: string): string {
   const declarations: string[] = [];
+  const assignments: string[] = [];
   const methods: string[] = [];
   steps.forEach((step, index) => {
     if (step.action !== 'click' && step.action !== 'fill') return;
     const property = step.action === 'click' ? `actionButton${index + 1}` : `inputField${index + 1}`;
-    declarations.push(`  readonly ${property} = ${renderLocator(step, preferredLocator)};`);
+    declarations.push(`  readonly ${property}: Locator;`);
+    assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator)};`);
     if (step.action === 'click') {
       methods.push(`  async click${index + 1}(): Promise<void> {\n    await this.${property}.click();\n  }`);
     } else {
@@ -109,14 +111,14 @@ function renderPageObject(className: string, baseUrl: string, steps: GeneratedSt
     }
   });
 
-  return `import type { Page } from '@playwright/test';
+  return `import type { Page, Locator } from '@playwright/test';
 
 export class ${className} {
   readonly page: Page;
 ${declarations.length > 0 ? `\n${declarations.join('\n')}\n` : ''}
   constructor(page: Page) {
     this.page = page;
-  }
+${assignments.length > 0 ? `${assignments.join('\n')}\n` : ''}  }
 
   async goto(): Promise<void> {
     await this.page.goto(${quote(baseUrl)});
@@ -163,6 +165,8 @@ export { expect } from '@playwright/test';
 
 function renderPlaywrightConfig(baseUrl: string, testDirectory: string): string {
   return `import { defineConfig, devices } from '@playwright/test';
+
+declare const process: { env: Record<string, string | undefined> };
 
 export default defineConfig({
   testDir: ${quote(`./${testDirectory}`)},

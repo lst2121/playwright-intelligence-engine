@@ -114,8 +114,8 @@ describe('bounded LLM repair proposal agent', () => {
       proposalVersion: '1', decision: 'PROPOSE', failureKind: 'LOCATOR_DRIFT', confidence: 0.9,
       reasoningSummary: 'The login form locators changed together.',
       operations: [
-        { kind: 'replace_locator', target: '#old-user', locator: "getByLabel('Username')" },
-        { kind: 'replace_locator', target: '#old-submit', locator: "getByRole('button', { name: 'Login' })" },
+        { kind: 'replace_locator', target: '#old-user', locator: "page.getByLabel('Username')" },
+        { kind: 'replace_locator', target: '#old-submit', locator: "page.getByRole('button', { name: 'Login' })" },
       ],
       requiredVerification: ['all affected tests pass', 'assertions unchanged'], evidenceReferences: [],
     });

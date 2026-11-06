@@ -124,6 +124,111 @@ export class SnapshotResolver {
   }
 
   /**
+   * Traverses and collects all nodes in depth-first order as Playwright's snapshotNodes does.
+   */
+  public static snapshotNodes(snap: any): any[] {
+    if (!snap) return [];
+    if (snap._nodes) return snap._nodes;
+    const nodes: any[] = [];
+    const visit = (n: any) => {
+      if (typeof n === 'string' || typeof n === 'number') {
+        nodes.push(n);
+      } else if (Array.isArray(n) && typeof n[0] === 'string') {
+        const [, , ...children] = n;
+        for (const child of children) visit(child);
+        nodes.push(n);
+      }
+    };
+    if (snap.html) visit(snap.html);
+    else if (snap.node) visit(snap.node);
+    snap._nodes = nodes;
+    return nodes;
+  }
+
+  /**
+   * Resolves a modern Playwright differential snapshot node with support for subtree references [ [ delta, nodeIndex ] ].
+   */
+  public static resolveDifferentialNode(
+    n: any,
+    snapshotIndex: number,
+    allSnapshots: any[],
+    unresolvedRefs?: string[]
+  ): ResolvedElement | string | null {
+    if (typeof n === 'string' || typeof n === 'number') {
+      return String(n);
+    }
+
+    // Check for Playwright subtree reference [ [ delta, nodeIndex ] ]
+    if (
+      Array.isArray(n) &&
+      n.length === 1 &&
+      Array.isArray(n[0]) &&
+      n[0].length === 2 &&
+      typeof n[0][0] === 'number' &&
+      typeof n[0][1] === 'number'
+    ) {
+      const referenceIndex = snapshotIndex - n[0][0];
+      if (referenceIndex >= 0 && referenceIndex < allSnapshots.length) {
+        const nodes = SnapshotResolver.snapshotNodes(allSnapshots[referenceIndex]);
+        const nodeIndex = n[0][1];
+        if (nodeIndex >= 0 && nodeIndex < nodes.length) {
+          return SnapshotResolver.resolveDifferentialNode(
+            nodes[nodeIndex],
+            referenceIndex,
+            allSnapshots,
+            unresolvedRefs
+          );
+        }
+      }
+      unresolvedRefs?.push(`Subtree reference out of bounds: [${n[0][0]}, ${n[0][1]}]`);
+      return null;
+    }
+
+    if (!Array.isArray(n) || n.length < 2 || typeof n[0] !== 'string') {
+      return null;
+    }
+
+    const tag = (n[0] as string).toLowerCase();
+    const attributes = (n[1] as Record<string, string>) ?? {};
+    const rawChildren = n.slice(2);
+
+    const children: ResolvedElement[] = [];
+    let textAccumulator = '';
+
+    for (const child of rawChildren) {
+      const resolved = SnapshotResolver.resolveDifferentialNode(
+        child,
+        snapshotIndex,
+        allSnapshots,
+        unresolvedRefs
+      );
+      if (typeof resolved === 'string') {
+        textAccumulator += resolved.trim() + ' ';
+      } else if (resolved && typeof resolved === 'object' && 'tag' in resolved) {
+        children.push(resolved as ResolvedElement);
+        textAccumulator += (resolved as ResolvedElement).text + ' ';
+      }
+    }
+
+    const role = attributes['role'] ?? SnapshotResolver.inferRoleFromTag(tag, attributes);
+    const accessibleName =
+      attributes['aria-label'] ??
+      attributes['alt'] ??
+      attributes['title'] ??
+      attributes['placeholder'] ??
+      textAccumulator.trim();
+
+    return {
+      tag,
+      attributes,
+      text: textAccumulator.trim(),
+      children,
+      role,
+      accessibleName: accessibleName || undefined,
+    };
+  }
+
+  /**
    * Serializes a resolved element tree back into clean, formatted HTML.
    */
   public static toHtml(element: ResolvedElement, indent = 0): string {

@@ -61,6 +61,14 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
     expect(tool.inputSchema.required).toContain('className');
   });
 
+  it('MCP-TOOLS-03A: tools/list should include the trace-to-repair workflow', async () => {
+    const req: JsonRpcRequest = { jsonrpc: '2.0', id: 401, method: 'tools/list' };
+    const res = await mcp.handleRequest(req);
+    const tool = res.result.tools.find((t: any) => t.name === 'repair_trace');
+    expect(tool).toBeDefined();
+    expect(tool.inputSchema.required).toContain('tracePath');
+  });
+
   it('MCP-TOOLS-04: tools/list should include generate_playwright_test tool with schema', async () => {
     const req: JsonRpcRequest = { jsonrpc: '2.0', id: 5, method: 'tools/list' };
     const res = await mcp.handleRequest(req);
@@ -229,6 +237,52 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
     expect(applyRes.result.content[0].text).toContain('Successfully applied authorized repair');
     const patchedPom = await fs.readFile(pomPath, 'utf8');
     expect(patchedPom).toContain("this.page.getByRole('button', { name: 'New' })");
+  });
+
+  it('MCP-CALL-05A: repair_trace should stage a proposal without modifying the workspace', async () => {
+    const scopedMcp = new McpServer(tmpDir);
+    const zipPath = path.resolve(tmpDir, 'repair-trace.zip');
+    const pomPath = path.resolve(tmpDir, 'LoginPage.ts');
+    const specPath = path.resolve(tmpDir, 'login.spec.ts');
+    const originalPom = `export class LoginPage { readonly submit = this.page.locator('#old-submit'); }`;
+    await fs.writeFile(pomPath, originalPom);
+    await fs.writeFile(specPath, `import { expect, test } from '@playwright/test';\ntest('login', async ({ page }) => { await expect(page).toBeDefined(); });`);
+
+    const zip = new AdmZip();
+    zip.addFile(
+      '0-trace.trace',
+      Buffer.from(
+        [
+          JSON.stringify({ type: 'version', version: 10 }),
+          JSON.stringify({ type: 'before', callId: 'click@repair', apiName: 'page.click', params: { selector: '#old-submit' }, stack: [{ file: specPath, line: 3, column: 1 }] }),
+          JSON.stringify({ type: 'frame-snapshot', snapshot: { callId: 'click@repair', node: ['html', {}, ['body', {}, ['button', { id: 'new-submit', role: 'button' }, 'Sign in']]] } }),
+          JSON.stringify({ type: 'after', callId: 'click@repair', error: { message: 'Timeout 30000ms exceeded while waiting for locator("#old-submit")' } }),
+        ].join('\n'),
+      ),
+    );
+    zip.writeZip(zipPath);
+
+    const res = await scopedMcp.handleRequest({
+      jsonrpc: '2.0',
+      id: 402,
+      method: 'tools/call',
+      params: {
+        name: 'repair_trace',
+        arguments: {
+          tracePath: zipPath,
+          testPath: specPath,
+          pomPath,
+          className: 'LoginPage',
+          memberName: 'submit',
+        },
+      },
+    });
+
+    expect(res.error).toBeUndefined();
+    expect(res.result.status).toBe('PROPOSAL_READY');
+    expect(res.result.proposalId).toBeDefined();
+    expect(res.result.proposal.fullDiff).toContain("getByRole('button', { name: 'Sign in' })");
+    expect(await fs.readFile(pomPath, 'utf8')).toBe(originalPom);
   });
 
   it('MCP-CALL-06: calling unknown tool should return error code -32602', async () => {

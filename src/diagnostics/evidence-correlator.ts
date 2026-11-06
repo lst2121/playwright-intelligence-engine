@@ -4,10 +4,13 @@ import {
   ConsoleEvent,
 } from '../core/types/diagnostic-context.js';
 import { FailureClassifier, ClassificationResult } from './failure-classifier.js';
+import { FailureFingerprint, FailureObservation, fingerprintFailure } from '../intelligence/failure-clustering.js';
 
 export interface CorrelatedEvidence {
   context: DiagnosticContext;
   classification: ClassificationResult;
+  failureObservation: FailureObservation;
+  failureFingerprint: FailureFingerprint;
   suspiciousNetworkEvents: NetworkEvent[];
   suspiciousConsoleEvents: ConsoleEvent[];
   temporalWindowMs: number;
@@ -48,7 +51,13 @@ export class EvidenceCorrelator {
       if (!isError) return false;
 
       if (windowStart !== undefined && windowEnd !== undefined && typeof event.timestamp === 'number') {
-        return event.timestamp >= windowStart && event.timestamp <= windowEnd;
+        const sameScale =
+          (refTime! > 1e11 && event.timestamp > 1e11) ||
+          (refTime! < 1e11 && event.timestamp < 1e11);
+
+        if (sameScale) {
+          return event.timestamp >= windowStart && event.timestamp <= windowEnd;
+        }
       }
       return true;
     });
@@ -82,10 +91,24 @@ export class EvidenceCorrelator {
     };
 
     const classification = FailureClassifier.classify(windowedContext);
+    const failureObservation: FailureObservation = {
+      id: context.failedAction.callId,
+      category: classification.category,
+      action: context.failedAction.action,
+      selector: context.failedAction.selector,
+      sourceFile: context.failedAction.sourceFile,
+      errorMessage: context.failedAction.errorMessage,
+      errorStack: context.failedAction.errorStack,
+      networkStatuses: suspiciousNetworkEvents.map((event) => event.status),
+      timestamp: context.failedAction.timestamp,
+      durationMs: context.failedAction.durationMs,
+    };
 
     return {
       context,
       classification,
+      failureObservation,
+      failureFingerprint: fingerprintFailure(failureObservation),
       suspiciousNetworkEvents,
       suspiciousConsoleEvents,
       temporalWindowMs: windowMs,

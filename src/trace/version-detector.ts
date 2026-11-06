@@ -8,8 +8,9 @@ export interface TraceVersionInfo {
 
 export class VersionDetector {
   // Known supported Playwright trace format versions
-  // v1.38-v1.40 uses version 5/6; v1.41-v1.50 uses version 7/8/9; v1.60+ uses version 10
-  public static readonly SUPPORTED_FORMAT_VERSIONS = [5, 6, 7, 8, 9, 10];
+  // Playwright 1.32-era archives use v4; v1.38-v1.40 uses v5/6;
+  // v1.41-v1.50 uses v7/8/9; v1.60+ uses v10.
+  public static readonly SUPPORTED_FORMAT_VERSIONS = [4, 5, 6, 7, 8, 9, 10];
 
   /**
    * Detects the trace format version from raw JSONL event lines or an archive entry.

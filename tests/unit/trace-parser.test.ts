@@ -44,6 +44,47 @@ describe('TraceParser & FailureClassifier Unit Tests', () => {
     expect(classification.shouldAbstain).toBe(false);
   });
 
+  it('should prefer the actionable failed step over an earlier fixture failure candidate', () => {
+    const traceLines = [
+      JSON.stringify({ type: 'version', version: 10 }),
+      JSON.stringify({ type: 'before', callId: 'fixture@1', apiName: 'fixture', title: 'Fixture "page"', startTime: 100, stack: [] }),
+      JSON.stringify({ type: 'after', callId: 'fixture@1', endTime: 200, error: { message: 'fixture setup warning' } }),
+      JSON.stringify({ type: 'before', callId: 'click@1', apiName: 'page.click', params: { selector: '#submit' }, startTime: 300, stack: [{ file: 'tests/login.spec.ts', line: 12, column: 5 }] }),
+      JSON.stringify({ type: 'after', callId: 'click@1', endTime: 5300, error: { message: 'Timeout waiting for locator("#submit")' } }),
+    ];
+
+    const context = TraceParser.assembleDiagnosticContext(traceLines, []);
+    expect(context.failedAction.callId).toBe('click@1');
+    expect(context.failedAction.selector).toBe('#submit');
+  });
+
+  it('should preserve standalone error trace records as failed-action evidence', () => {
+    const traceLines = [
+      JSON.stringify({ type: 'version', version: 10 }),
+      JSON.stringify({ type: 'error', callId: 'error@1', apiName: 'page.goto', message: 'net::ERR_CONNECTION_REFUSED', stack: [{ file: 'tests/setup.ts', line: 4 }] }),
+    ];
+
+    const context = TraceParser.assembleDiagnosticContext(traceLines, []);
+    expect(context.failedAction.callId).toBe('error@1');
+    expect(context.failedAction.errorMessage).toContain('ERR_CONNECTION_REFUSED');
+    expect(FailureClassifier.classify(context).category).toBe('ENVIRONMENT_FAILURE');
+  });
+
+  it('should infer an assertion action from a parent test-step error', () => {
+    const traceLines = [
+      JSON.stringify({ type: 'version', version: 10 }),
+      JSON.stringify({ type: 'before', callId: 'step@1', title: 'Administrator logged in!' }),
+      JSON.stringify({
+        type: 'after',
+        callId: 'step@1',
+        error: { message: "Expect failed: getByRole('link', { name: 'Rooms' }) with timeout 5000ms" },
+      }),
+    ];
+
+    const context = TraceParser.assembleDiagnosticContext(traceLines, []);
+    expect(context.failedAction.action).toBe('expect');
+  });
+
   it('NEGATIVE CONTROL 1: should strictly ABSTAIN when backend returns HTTP 500', () => {
     const traceLines = [
       JSON.stringify({ type: 'version', version: 6 }),

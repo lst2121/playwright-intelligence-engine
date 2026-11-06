@@ -10,6 +10,7 @@ export interface StaticAstInput {
 }
 
 export interface ExtractedLocatorAst {
+  className: string | undefined;
   propertyName: string;
   method: string;
   selectorText: string;
@@ -96,6 +97,7 @@ export class StaticAstCollector implements EvidenceCollector<StaticAstInput> {
         const init = prop.getInitializer();
         if (init && (init.getText().includes('.locator(') || init.getText().includes('.getBy'))) {
           locators.push({
+            className: cls.getName(),
             propertyName: prop.getName(),
             method: this.extractLocatorMethod(init.getText()),
             selectorText: init.getText(),
@@ -112,6 +114,7 @@ export class StaticAstCollector implements EvidenceCollector<StaticAstInput> {
           const expr = returnStmt.getExpression();
           if (expr && (expr.getText().includes('.locator(') || expr.getText().includes('.getBy'))) {
             locators.push({
+              className: cls.getName(),
               propertyName: getProp.getName(),
               method: this.extractLocatorMethod(expr.getText()),
               selectorText: expr.getText(),
@@ -130,6 +133,7 @@ export class StaticAstCollector implements EvidenceCollector<StaticAstInput> {
             const parts = text.split('=');
             const propName = (parts[0] ?? '').replace('this.', '').trim();
             locators.push({
+              className: cls.getName(),
               propertyName: propName,
               method: this.extractLocatorMethod(text),
               selectorText: text,
@@ -150,6 +154,7 @@ export class StaticAstCollector implements EvidenceCollector<StaticAstInput> {
       const isInsideClass = call.getFirstAncestorByKind(SyntaxKind.ClassDeclaration);
       if (!isInsideClass && (exprText.endsWith('.locator') || exprText.includes('.getBy'))) {
         locators.push({
+          className: undefined,
           propertyName: 'inline',
           method: this.extractLocatorMethod(call.getText()),
           selectorText: call.getText(),

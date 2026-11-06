@@ -110,6 +110,7 @@ export class FailureClassifier {
       const isTelemetry = FailureClassifier.TELEMETRY_PATTERNS.some((p) => p.test(net.url));
       const isServerError = net.status >= 500 && net.status <= 599;
       const isAuthError = net.status === 401 || net.status === 403;
+      const isClientApiError = (net.status === 400 || net.status === 404 || net.status === 429) && !isTelemetry;
 
       let isCausallyRelevant = false;
       let relevanceReason = '';
@@ -117,12 +118,12 @@ export class FailureClassifier {
       if (isTelemetry) {
         isCausallyRelevant = false;
         relevanceReason = 'Ignored: background telemetry/analytics or non-critical resource';
-      } else if (isServerError || isAuthError) {
-        // Business endpoint returning 5xx or 401/403
+      } else if (isServerError || isAuthError || isClientApiError) {
+        // Business endpoint returning 5xx, 401/403, or client API failure 400/404/429
         isCausallyRelevant = true;
         relevanceReason = `Causally relevant: HTTP ${net.status} on application endpoint ${net.method} ${net.url}`;
 
-        if (isServerError) {
+        if (isServerError || isClientApiError) {
           hasCausallyRelevantServerError = true;
           offendingNetworkEvent = net;
         }
@@ -211,7 +212,16 @@ export class FailureClassifier {
    */
   public static classify(context: DiagnosticContext): ClassificationResult {
     const errorMsg = (context.failedAction.errorMessage ?? '').toLowerCase();
-    const action = context.failedAction.action.toLowerCase();
+    const action = (context.failedAction.action ?? '').toLowerCase();
+    const actionLogs = (context.failedAction.logs ?? []).join('\n').toLowerCase();
+    // Playwright may embed the browser launch command in an error. That command
+    // contains tokens such as "lens-overlay" and "popup-blocking" which can
+    // look like actionability evidence. Remove that operational noise before
+    // applying root-cause patterns; retain the actual Call log after shutdown.
+    const diagnosticText = `${errorMsg}\n${actionLogs}`.replace(
+      /<launching>[\s\S]*?<gracefully close start>/gi,
+      '',
+    );
     const supportingEvidence: string[] = [];
 
     // Step 1: Build causal evidence graph
@@ -219,9 +229,12 @@ export class FailureClassifier {
 
     // Step 2: Check for Network Offline / DNS resolution failures
     const hasNetworkOffline = context.networkEvents.some(
-      (req) => req.errorText?.includes('net::ERR_INTERNET_DISCONNECTED') || req.errorText?.includes('ENOTFOUND')
+      (req) => /err_internet_disconnected|enotfound|err_name_not_resolved|dns_probe_finished_nxdomain|eai_again|eai_fail/i.test(req.errorText ?? '')
     );
-    if (hasNetworkOffline || errorMsg.includes('err_internet_disconnected') || errorMsg.includes('enotfound')) {
+    if (
+      hasNetworkOffline ||
+      /err_internet_disconnected|enotfound|err_name_not_resolved|dns_probe_finished_nxdomain|eai_again|eai_fail/i.test(errorMsg)
+    ) {
       supportingEvidence.push('Network transport offline or DNS lookup failure detected');
       return {
         category: 'NETWORK_OFFLINE',
@@ -234,7 +247,26 @@ export class FailureClassifier {
       };
     }
 
-    // Step 3: Causal Server Errors (Negative Control: MUST ABSTAIN)
+    // Step 3: Environment/service availability failures. These are distinct
+    // from an offline host: the machine has a network stack, but the target
+    // application/service is unavailable or the connection was interrupted.
+    const hasEnvironmentFailure =
+      /(?:net::)?err_connection_refused|econnrefused|connection refused|(?:net::)?err_connection_reset|econnreset|(?:net::)?err_connection_closed|ehostunreach|connection reset by peer/i.test(diagnosticText) ||
+      context.networkEvents.some((request) => /(?:err_connection_refused|econnrefused|err_connection_reset|econnreset|ehostunreach)/i.test(request.errorText ?? ''));
+    if (hasEnvironmentFailure) {
+      supportingEvidence.push('Target application or dependent service refused or reset the connection');
+      return {
+        category: 'ENVIRONMENT_FAILURE',
+        confidence: 0.99,
+        reason: 'The target application or a required service was unavailable during the test',
+        shouldAbstain: true,
+        abstentionReason: 'Environment failure detected. UI locator repair cannot restore an unavailable service.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    // Step 4: Causal Server Errors (Negative Control: MUST ABSTAIN)
     // Only triggers on causally relevant application endpoints, ignoring background analytics 500s
     if (causalGraph.hasCausallyRelevantServerError && causalGraph.offendingNetworkEvent) {
       const offending = causalGraph.offendingNetworkEvent;
@@ -253,7 +285,7 @@ export class FailureClassifier {
       };
     }
 
-    // Step 4: Causal Auth Expiration / 401 / 403 (Negative Control: MUST ABSTAIN)
+    // Step 5: Causal Auth Expiration / 401 / 403 (Negative Control: MUST ABSTAIN)
     if (causalGraph.hasCausallyRelevantAuthError && causalGraph.offendingNetworkEvent) {
       const offending = causalGraph.offendingNetworkEvent;
       supportingEvidence.push(`HTTP ${offending.status} on authenticated application endpoint: ${offending.url}`);
@@ -268,13 +300,43 @@ export class FailureClassifier {
       };
     }
 
-    // Step 5: Assertion Failure (e.g. expect(received).toBe(expected)) (Negative Control: MUST ABSTAIN)
-    if (
-      action.includes('expect') ||
-      errorMsg.includes('expect(') ||
+    // Step 6: Assertion Failure (e.g. expect(received).toBe(expected)) (Negative Control: MUST ABSTAIN)
+    // Negative control: engine strictly prohibits modifying test assertions to force a passing test run.
+    const isValueAssertionAction =
+      /tohavetext|tocontaintext|tohavevalue|tohaveattribute|tohaveclass|tohavecount|tohavetitle|tohaveurl|tobechecked|tobeenabled|tobedisabled/i.test(action) ||
+      /tohavetext|tocontaintext|tohavevalue|tohaveattribute|tohaveclass|tohavecount/i.test(errorMsg);
+
+    const hasUnexpectedValueInLog =
+      (context.failedAction.logs ?? []).some((l) => /unexpected value/i.test(l)) ||
+      /unexpected value/i.test(errorMsg);
+
+    const hasValueMismatch =
       errorMsg.includes('received:') ||
+      errorMsg.includes('expected:') ||
+      hasUnexpectedValueInLog;
+
+    const isAssertionMethod =
+      action === 'expect' ||
+      action.startsWith('expect ') ||
+      action.includes('expect.') ||
+      action.includes('assert') ||
+      isValueAssertionAction;
+
+    const hasAssertionErrorPattern =
+      errorMsg.includes('expect(received)') ||
+      errorMsg.includes('to have attribute') ||
       errorMsg.includes('to have text') ||
-      errorMsg.includes('to be visible')
+      errorMsg.includes('to have value') ||
+      errorMsg.includes('to have class') ||
+      errorMsg.includes('to have count') ||
+      (errorMsg.includes('to be visible') && !context.failedAction.selector);
+
+    if (
+      hasValueMismatch ||
+      isValueAssertionAction ||
+      hasAssertionErrorPattern ||
+      (isAssertionMethod && !context.failedAction.selector) ||
+      (action.includes('expect') && (errorMsg.includes('expect(') || errorMsg.includes('received:')))
     ) {
       supportingEvidence.push(`Assertion failed: ${context.failedAction.errorMessage}`);
       return {
@@ -288,11 +350,90 @@ export class FailureClassifier {
       };
     }
 
-    // Step 6: Ambiguous Match / Strict Mode Violation
+    // Step 7: Actionability and browser-context failures. These categories
+    // are intentionally abstaining: they explain the failure without claiming
+    // that changing the locator would make the application correct.
+    const isAssertionAction = action.includes('expect') || action.includes('assert');
+    if (!isAssertionAction && /intercepts pointer events|another element would receive|element is obscured|element is covered|overlay.*blocking|blocking.*overlay|subtree intercepts pointer events/i.test(diagnosticText)) {
+      supportingEvidence.push('A different element or overlay intercepted the intended pointer action');
+      return {
+        category: 'OBSTRUCTED_ELEMENT',
+        confidence: 0.96,
+        reason: 'The target action was obstructed by another element or overlay',
+        shouldAbstain: true,
+        abstentionReason: 'Actionability failure detected. Changing the locator could mask an obstructed application state.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    if (!isAssertionAction && /element is not enabled|element is disabled|locator is disabled|button is disabled|aria-disabled["'= ]+true/i.test(diagnosticText)) {
+      supportingEvidence.push('The target element was present but disabled by the application');
+      return {
+        category: 'DISABLED_ELEMENT',
+        confidence: 0.97,
+        reason: 'The target element was disabled and could not perform the requested action',
+        shouldAbstain: true,
+        abstentionReason: 'Disabled-control failure detected. Locator repair cannot satisfy the application prerequisite.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    if (!isAssertionAction && /frame.*(?:not found|detached|unavailable)|iframe.*(?:not found|detached|unavailable)|different frame|content frame|contentFrame|frame locator|frameLocator/i.test(diagnosticText)) {
+      supportingEvidence.push('The failed action was associated with a missing, detached, or mismatched frame context');
+      return {
+        category: 'FRAME_OR_IFRAME',
+        confidence: 0.94,
+        reason: 'The target element was not available in the expected frame or iframe context',
+        shouldAbstain: true,
+        abstentionReason: 'Frame-context failure detected. A locator-only repair is unsafe without confirming the frame boundary.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    if (!isAssertionAction && /hydration|hydrated|networkidle|waiting for load state|delayed content|element is not stable/i.test(diagnosticText)) {
+      supportingEvidence.push('Failure evidence indicates delayed application readiness or hydration');
+      return {
+        category: 'HYDRATION_OR_TIMING',
+        confidence: 0.86,
+        reason: 'The target page or component was not ready when the action executed',
+        shouldAbstain: true,
+        abstentionReason: 'Readiness/timing failure detected. Locator modification will not reliably solve delayed application state.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    // Step 8: Ambiguous Match / Strict Mode Violation
     if (
       errorMsg.includes('strict mode violation') ||
       /resolved to \d+ elements/i.test(errorMsg)
     ) {
+      const countMatch = errorMsg.match(/resolved to (\d+) elements/i);
+      const matchCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : 0;
+      const rawSel = (context.failedAction.selector ?? '').trim().toLowerCase();
+      const isAnonymousTag = /^(div|span|p|tr|td|li|ul|ol|table|section|article|header|footer|main|nav)(\.[a-z0-9_-]+)*$/i.test(rawSel);
+      const isHighAmbiguity = matchCount >= 20 || (isAnonymousTag && matchCount >= 2);
+
+      // Unresolvable ambiguous match: anonymous tag or >= 20 identical matches without semantic anchors
+      if (isHighAmbiguity) {
+        supportingEvidence.push(
+          `Unresolvable ambiguous match: locator '${context.failedAction.selector}' resolved to ${matchCount} anonymous elements without semantic anchors`
+        );
+        return {
+          category: 'INCOMPLETE_EVIDENCE',
+          confidence: 0.95,
+          reason: `Locator '${context.failedAction.selector}' resolved to ${matchCount} anonymous elements without semantic anchors`,
+          shouldAbstain: true,
+          abstentionReason:
+            'Insufficient semantic evidence; engine must safely abstain rather than generate arbitrary nth(x) selectors.',
+          supportingEvidence,
+          causalGraph,
+        };
+      }
+
       supportingEvidence.push(`Strict mode violation detected: ${context.failedAction.errorMessage}`);
       return {
         category: 'AMBIGUOUS_MATCH',
@@ -304,11 +445,13 @@ export class FailureClassifier {
       };
     }
 
-    // Step 7: Timing Race / Detached Node
+    // Step 9: Timing Race / Detached Node
     if (
       errorMsg.includes('element is not attached to the dom') ||
       errorMsg.includes('navigation interrupted') ||
-      errorMsg.includes('execution context was destroyed')
+      errorMsg.includes('execution context was destroyed') ||
+      errorMsg.includes('target closed') ||
+      errorMsg.includes('browser has been closed')
     ) {
       supportingEvidence.push(`DOM lifecycle race: ${context.failedAction.errorMessage}`);
       return {
@@ -322,17 +465,46 @@ export class FailureClassifier {
       };
     }
 
-    // Step 8: Locator Drift (Timeout waiting for locator / locator not found)
+    // A post-action assertion timeout is not sufficient evidence of locator
+    // drift. The application may still be hydrating or waiting for a state
+    // transition, and rewriting the assertion target could mask that defect.
+    // Keep explicit action timeouts repairable below, but fail closed here.
+    const isAssertionTimeout =
+      isAssertionMethod &&
+      /timeout|timed out|element\(s\) not found|waiting for/i.test(diagnosticText) &&
+      Boolean(context.failedAction.selector);
+    if (isAssertionTimeout) {
+      supportingEvidence.push('Assertion timed out while waiting for a post-action UI state; trace does not prove locator drift');
+      return {
+        category: 'HYDRATION_OR_TIMING',
+        confidence: 0.72,
+        reason: 'Post-action assertion timed out before the expected UI state became observable',
+        shouldAbstain: true,
+        abstentionReason: 'Assertion readiness is unresolved. Locator repair is prohibited without evidence that the target identity changed.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    // Step 10: Locator Drift (Timeout waiting for locator / locator not found)
     if (
-      errorMsg.includes('timeout') &&
+      (errorMsg.includes('timeout') || errorMsg.includes('element(s) not found') || errorMsg.includes('not found')) &&
       (errorMsg.includes('waiting for locator') ||
         errorMsg.includes('waiting for getby') ||
         errorMsg.includes('waiting for selector') ||
+        errorMsg.includes('tobevisible') ||
+        errorMsg.includes('to be visible') ||
+        errorMsg.includes('expect failed') ||
         Boolean(context.failedAction.selector))
     ) {
       // Check if DOM evidence is missing when trying to diagnose locator drift
-      // CRITICAL FIX (R-015): When DOM evidence is missing, MUST ABSTAIN with INCOMPLETE_EVIDENCE
-      const hasSnapshots = Boolean(context.snapshots && Object.keys(context.snapshots).length > 0);
+      // CRITICAL FIX (R-015): Check all snapshot channels before concluding DOM evidence is missing
+      const hasSnapshots = Boolean(
+        (context.snapshots?.action && context.snapshots.action.trim().length > 0) ||
+        (context.snapshots?.before && context.snapshots.before.trim().length > 0) ||
+        (context.snapshots?.after && context.snapshots.after.trim().length > 0) ||
+        context.evidenceCompleteness.domAvailable
+      );
       if (context.evidenceCompleteness.domAvailable === false && !hasSnapshots) {
         return {
           category: 'INCOMPLETE_EVIDENCE',

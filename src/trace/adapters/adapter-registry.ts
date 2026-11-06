@@ -1,5 +1,6 @@
 import { TraceAdapter, ArchiveManifest } from './trace-adapter.js';
 import { V8TraceAdapter } from './v8-adapter.js';
+import { V4TraceAdapter } from './v4-adapter.js';
 import { V9TraceAdapter } from './v9-adapter.js';
 import { V10TraceAdapter } from './v10-adapter.js';
 import { UnknownTraceAdapter } from './unknown-adapter.js';
@@ -9,6 +10,7 @@ export class TraceAdapterRegistry {
     new V10TraceAdapter(),
     new V9TraceAdapter(),
     new V8TraceAdapter(),
+    new V4TraceAdapter(),
   ];
 
   private static fallbackAdapter = new UnknownTraceAdapter();

@@ -28,7 +28,7 @@ In your project or global Cursor settings (`.cursor/settings.json` or global `se
       "command": "node",
       "args": [
         "d:/Work/playwright-intelligence-engine/dist/index.js",
-        "--mcp"
+        "mcp"
       ],
       "env": {
         "NODE_ENV": "production"
@@ -50,7 +50,7 @@ In Claude Desktop's configuration file:
       "command": "node",
       "args": [
         "D:\\Work\\playwright-intelligence-engine\\dist\\index.js",
-        "--mcp"
+        "mcp"
       ]
     }
   }
@@ -61,7 +61,7 @@ In Claude Desktop's configuration file:
 
 ## 3. Supported MCP Tools Reference
 
-The server exposes three strongly typed production tools:
+The server exposes the following strongly typed tools:
 
 ### Tool 1: `diagnose_trace`
 Ingests a Playwright trace archive and returns failure classification, causal graph analysis, and diagnostic provenance.
@@ -100,22 +100,83 @@ Safely refactors a Playwright Page Object file using `ts-morph` AST within the a
   - `testPath` (string, required): Path to test spec file within workspace.
   - `className` (string, required): Page Object class name.
   - `memberName` (string, required): Target locator member name.
-  - `replacementSelector` (string, required): Replacement locator expression (e.g. `this.page.getByRole('button', { name: 'Submit' })`).
-  - `approvalToken` (string, optional): Cryptographic single-use approval token required to apply changes to workspace.
-- **Output Schema**:
-  ```json
-  {
-    "status": "PROPOSED",
-    "proposalId": "prop-1730761200000-a8f9",
-    "diff": "--- a/src/pages/login.page.ts\n+++ b/src/pages/login.page.ts...",
-    "preflightPassed": true,
-    "instructions": "To apply this verified repair to the workspace, request human authorization and provide approvalToken."
-  }
-  ```
+  - `replacementSelector` (string, required): Replacement locator expression.
+  - `approvalToken` (string, optional): Cryptographic single-use approval token.
+- **Output**: proposal ID and unified diff in proposal mode, or an applied status
+  after a valid, verified approval token.
 
 ---
 
-### Tool 3: `generate_playwright_test`
+### Tool 3: `repair_trace`
+
+Builds the complete trace-to-repair workflow. Deterministic classification and
+abstention run first. Proposal mode stages a diff without modifying the active
+workspace. With `execute: true`, the proposed patch is tested only in an
+isolated worktree; explicit approval is still required before promotion.
+
+- `tracePath` (string, required)
+- `errorContextPath` (string, optional)
+- `testPath`, `pomPath`, `className`, `memberName` (required to build a proposal)
+- `configPath`, `execute`, `worktreeId` (optional)
+- Returns `ABSTAINED`, `INPUT_REQUIRED`, `PROPOSAL_READY`,
+  `OPERATION_PROPOSAL_ONLY`, `VERIFIED_READY_FOR_APPROVAL`, or `REJECTED`.
+
+### Tool 4: `propose_repair`
+
+Runs one bounded model-proposal step over a redaction-attested diagnostic
+bundle. Deterministic classification runs first; environment, application,
+assertion, and other hard-abstention failures do not cross the model boundary.
+The tool returns a structured proposal or abstention and never edits, executes,
+approves, or promotes source.
+
+Configure an OpenAI-compatible provider only when desired:
+`PIE_LLM_ENDPOINT`, `PIE_LLM_MODEL`, optional `PIE_LLM_API_KEY`, and optional
+`PIE_LLM_TIMEOUT_MS`.
+
+### Tool 5: `analyze_repository_impact`
+
+Discovers direct relative imports and tags from the authorized repository's
+Playwright test files, then selects tests affected by the supplied
+`changedFiles` array. It reports explicit limitations for aliases and dynamic
+runtime dependencies.
+
+### Tool 6: `initialize_project`
+
+Creates or loads `.pie/config.json` in the authorized workspace. This is
+idempotent and does not modify application or test source files.
+
+### Tool 7: `profile_repository`
+
+Builds and persists `.pie/repository-profile.json` with repository conventions,
+locator usage, fixtures, storage state, API helpers, tags, and evidence sources.
+
+### Tool 8: `cluster_failures`
+
+Accepts normalized failure observations and returns deterministic clusters,
+severity, affected repositories, affected tests, and evidence consistency.
+
+### Tool 9: `suite_health`
+
+Accepts run observations and returns pass rates, flaky-test status, duration
+percentiles, and failure-cluster history.
+
+### Tool 10: `compile_repair_operation`
+
+Validates an allowlisted operation and returns an immutable proposal. Frame and
+open-shadow locator scope can become isolated-verification proposals. Overlay,
+prerequisite, select-flow, and wait-flow operations remain proposal-only until
+dedicated executors are available.
+
+### Tool 11: `get_product_status`
+
+Returns the current PIE package/milestone identity, fail-closed policy, approval
+requirements, and available capability boundaries. This is read-only and is
+intended for IDEs and agents that need to discover supported operations before
+requesting a repair.
+
+---
+
+### Tool 12: `generate_playwright_test`
 Generates enterprise-grade TypeScript Playwright Page Object and spec code with web-first assertions.
 - **Parameters**:
   - `featureName` (string, required): Name of the feature or page (e.g. `"UserCheckout"`).

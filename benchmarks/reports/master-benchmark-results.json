@@ -1,5 +1,5 @@
 {
-  "timestamp": 1793860713019,
+  "timestamp": 1793892506575,
   "totalScenarios": 125,
   "tier1BaselineCount": 5,
   "tier2MutationCount": 60,
@@ -15,8 +15,8 @@
   "defectMaskingRate": 0,
   "tier2RepairedCount": 58,
   "tier2AbstainedCount": 0,
-  "latencyP50Ms": 252.77,
-  "latencyP95Ms": 1539.43,
+  "latencyP50Ms": 177.61,
+  "latencyP95Ms": 1441.02,
   "confidenceInterval95": {
     "lower": 94.35,
     "upper": 99.56
@@ -54,7 +54,7 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 1286.49,
+      "executionDurationMs": 1270.18,
       "intentInvariantPassed": true,
       "notes": "Verified in headless browser"
     },
@@ -67,7 +67,7 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 203.21,
+      "executionDurationMs": 164.04,
       "intentInvariantPassed": true,
       "notes": "Verified in headless browser"
     },
@@ -80,7 +80,7 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 152.99,
+      "executionDurationMs": 113.15,
       "intentInvariantPassed": true,
       "notes": "Verified in headless browser"
     },
@@ -93,7 +93,7 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 273.28,
+      "executionDurationMs": 217.15,
       "intentInvariantPassed": true,
       "notes": "Verified in headless browser"
     },
@@ -106,7 +106,7 @@
       "expectedOutcome": "PASS",
       "actualOutcome": "PASS",
       "diagnosticCategory": "NONE",
-      "executionDurationMs": 129.99,
+      "executionDurationMs": 112.56,
       "intentInvariantPassed": true,
       "notes": "Verified in headless browser"
     },
@@ -119,7 +119,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1595.61,
+      "executionDurationMs": 1521,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -132,7 +132,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1482.11,
+      "executionDurationMs": 1461.72,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Log In To Account' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -145,7 +145,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1458.47,
+      "executionDurationMs": 1418.47,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -158,7 +158,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1501.04,
+      "executionDurationMs": 1418.33,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Log In To Account' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -171,7 +171,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1543.11,
+      "executionDurationMs": 1436.34,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -184,7 +184,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1510.62,
+      "executionDurationMs": 1418.46,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -197,7 +197,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1441.34,
+      "executionDurationMs": 1414.43,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -210,7 +210,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1553.74,
+      "executionDurationMs": 1447.42,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Log In To Account' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -223,7 +223,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1494.97,
+      "executionDurationMs": 1441.02,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Log In To Account' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -236,7 +236,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1521.46,
+      "executionDurationMs": 1414.05,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Log In To Account' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -249,7 +249,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1518.3,
+      "executionDurationMs": 1418.53,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -262,7 +262,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1448.77,
+      "executionDurationMs": 1419.31,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -275,7 +275,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1467.87,
+      "executionDurationMs": 1388.9,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -288,7 +288,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1451.45,
+      "executionDurationMs": 1356.71,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Find Products' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -301,7 +301,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1467.53,
+      "executionDurationMs": 1389.18,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -314,7 +314,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1449.25,
+      "executionDurationMs": 1395.21,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Find Products' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -327,7 +327,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1471.45,
+      "executionDurationMs": 1394.57,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -340,7 +340,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1454.13,
+      "executionDurationMs": 1388.09,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -353,7 +353,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1485.82,
+      "executionDurationMs": 1389.31,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -366,7 +366,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1420.47,
+      "executionDurationMs": 1390.15,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Find Products' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -379,7 +379,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1449.54,
+      "executionDurationMs": 1384.93,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Find Products' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -392,7 +392,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1489.77,
+      "executionDurationMs": 1421.9,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Find Products' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -405,7 +405,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1434.5,
+      "executionDurationMs": 1378.32,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -418,7 +418,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1481.72,
+      "executionDurationMs": 1413.14,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -431,7 +431,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1523.69,
+      "executionDurationMs": 1405.67,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Proceed to Checkout' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -444,7 +444,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1519.89,
+      "executionDurationMs": 1412.26,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Continue to Payment' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -457,7 +457,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1452.94,
+      "executionDurationMs": 1369.63,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Proceed to Checkout' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -470,7 +470,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1539.43,
+      "executionDurationMs": 1388.54,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Continue to Payment' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -483,7 +483,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1455.13,
+      "executionDurationMs": 1434.42,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Proceed to Checkout' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -496,7 +496,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "FAIL",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 4213.13,
+      "executionDurationMs": 4164.01,
       "intentInvariantPassed": false,
       "notes": "Repaired locator executed in browser but failed assertion"
     },
@@ -509,7 +509,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1478.47,
+      "executionDurationMs": 1393.78,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Proceed to Checkout' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -522,7 +522,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1470.92,
+      "executionDurationMs": 1441.56,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Continue to Payment' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -535,7 +535,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1476.02,
+      "executionDurationMs": 1390.39,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Continue to Payment' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -548,7 +548,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1490.33,
+      "executionDurationMs": 1406.1,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Continue to Payment' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -561,7 +561,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1492.16,
+      "executionDurationMs": 1395.12,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Proceed to Checkout' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -574,7 +574,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "FAIL",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 4198.56,
+      "executionDurationMs": 4181.88,
       "intentInvariantPassed": false,
       "notes": "Repaired locator executed in browser but failed assertion"
     },
@@ -587,7 +587,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1475.19,
+      "executionDurationMs": 1397.59,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -600,7 +600,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1435.22,
+      "executionDurationMs": 1404.76,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Confirm & Pay' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -613,7 +613,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1505.68,
+      "executionDurationMs": 1381.76,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -626,7 +626,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1514.36,
+      "executionDurationMs": 1407.48,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Confirm & Pay' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -639,7 +639,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1509.81,
+      "executionDurationMs": 1402.84,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -652,7 +652,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1500.36,
+      "executionDurationMs": 1386.23,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -665,7 +665,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1488.56,
+      "executionDurationMs": 1402.52,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -678,7 +678,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1494.87,
+      "executionDurationMs": 1386.44,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Confirm & Pay' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -691,7 +691,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1489.73,
+      "executionDurationMs": 1391.04,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Confirm & Pay' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -704,7 +704,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1547.37,
+      "executionDurationMs": 1395.93,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Confirm & Pay' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -717,7 +717,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1477.29,
+      "executionDurationMs": 1434.95,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -730,7 +730,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1462.82,
+      "executionDurationMs": 1385.64,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -743,7 +743,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1476.53,
+      "executionDurationMs": 1384.83,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -756,7 +756,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1535.17,
+      "executionDurationMs": 1387.92,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Modify User System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -769,7 +769,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1490.72,
+      "executionDurationMs": 1402.99,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -782,7 +782,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1484.88,
+      "executionDurationMs": 1403.25,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Modify User System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -795,7 +795,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1497.91,
+      "executionDurationMs": 1399.9,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -808,7 +808,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1488.58,
+      "executionDurationMs": 1418.36,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -821,7 +821,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1493.49,
+      "executionDurationMs": 1402.02,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -834,7 +834,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1503.15,
+      "executionDurationMs": 1381.14,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Modify User System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -847,7 +847,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1479.72,
+      "executionDurationMs": 1373.88,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Modify User System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -860,7 +860,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1496.01,
+      "executionDurationMs": 1394.15,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Modify User System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -873,7 +873,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1500.13,
+      "executionDurationMs": 1389.62,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -886,7 +886,7 @@
       "expectedOutcome": "REPAIR_SUCCESS",
       "actualOutcome": "REPAIR_SUCCESS",
       "diagnosticCategory": "LOCATOR_DRIFT",
-      "executionDurationMs": 1506.2,
+      "executionDurationMs": 1388.11,
       "intentInvariantPassed": true,
       "notes": "Repaired via page.getByRole('button', { name: 'Edit System Admin' }). Live verified in browser (count=1). Zero regressions confirmed."
     },
@@ -899,7 +899,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 188.47,
+      "executionDurationMs": 154.42,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -912,7 +912,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BUSINESS_DEFECT",
-      "executionDurationMs": 199.18,
+      "executionDurationMs": 151.11,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -925,7 +925,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AMBIGUOUS_LOCATOR",
-      "executionDurationMs": 188.95,
+      "executionDurationMs": 148.69,
       "intentInvariantPassed": true,
       "notes": "Playwright StrictMode violation: resolved multiple matching duplicate controls in the DOM. Safely abstained."
     },
@@ -938,7 +938,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 194.62,
+      "executionDurationMs": 150.3,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -951,7 +951,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 181.25,
+      "executionDurationMs": 150.05,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -964,7 +964,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "DISABLED_CONTROL",
-      "executionDurationMs": 198.41,
+      "executionDurationMs": 165.94,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -977,7 +977,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "HIDDEN_ELEMENT",
-      "executionDurationMs": 168.91,
+      "executionDurationMs": 150.63,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -990,7 +990,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 188.93,
+      "executionDurationMs": 149.77,
       "intentInvariantPassed": true,
       "notes": "ASSERTION_FAILURE: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
@@ -1003,7 +1003,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "MISSING_DATA",
-      "executionDurationMs": 178.6,
+      "executionDurationMs": 150.21,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1016,7 +1016,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "OBSTRUCTED_ELEMENT",
-      "executionDurationMs": 185.7,
+      "executionDurationMs": 151.55,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1029,7 +1029,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNRELATED_NETWORK_ERROR",
-      "executionDurationMs": 180.3,
+      "executionDurationMs": 163.06,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1042,7 +1042,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNSUPPORTED_EXPRESSION",
-      "executionDurationMs": 202.04,
+      "executionDurationMs": 177.61,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1055,7 +1055,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 179.75,
+      "executionDurationMs": 156.18,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1068,7 +1068,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BUSINESS_DEFECT",
-      "executionDurationMs": 183.34,
+      "executionDurationMs": 148.49,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1081,7 +1081,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AMBIGUOUS_LOCATOR",
-      "executionDurationMs": 179.87,
+      "executionDurationMs": 149.43,
       "intentInvariantPassed": true,
       "notes": "Playwright StrictMode violation: resolved multiple matching duplicate controls in the DOM. Safely abstained."
     },
@@ -1094,7 +1094,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 168.2,
+      "executionDurationMs": 153.37,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1107,7 +1107,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 188.94,
+      "executionDurationMs": 147.86,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1120,7 +1120,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "DISABLED_CONTROL",
-      "executionDurationMs": 215.34,
+      "executionDurationMs": 149.27,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1133,7 +1133,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "HIDDEN_ELEMENT",
-      "executionDurationMs": 199.42,
+      "executionDurationMs": 149.18,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1146,7 +1146,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 214.95,
+      "executionDurationMs": 152.59,
       "intentInvariantPassed": true,
       "notes": "ASSERTION_FAILURE: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
@@ -1159,7 +1159,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "MISSING_DATA",
-      "executionDurationMs": 182.79,
+      "executionDurationMs": 163.18,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1172,7 +1172,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "OBSTRUCTED_ELEMENT",
-      "executionDurationMs": 181.21,
+      "executionDurationMs": 151.32,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1185,7 +1185,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNRELATED_NETWORK_ERROR",
-      "executionDurationMs": 183.82,
+      "executionDurationMs": 150.65,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1198,7 +1198,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNSUPPORTED_EXPRESSION",
-      "executionDurationMs": 183.89,
+      "executionDurationMs": 156.79,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1211,7 +1211,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 177.7,
+      "executionDurationMs": 158.01,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1224,7 +1224,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BUSINESS_DEFECT",
-      "executionDurationMs": 166.07,
+      "executionDurationMs": 149.79,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1237,7 +1237,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AMBIGUOUS_LOCATOR",
-      "executionDurationMs": 166.45,
+      "executionDurationMs": 150.73,
       "intentInvariantPassed": true,
       "notes": "Playwright StrictMode violation: resolved multiple matching duplicate controls in the DOM. Safely abstained."
     },
@@ -1250,7 +1250,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 168.52,
+      "executionDurationMs": 149.82,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1263,7 +1263,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 182.76,
+      "executionDurationMs": 150.91,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1276,7 +1276,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "DISABLED_CONTROL",
-      "executionDurationMs": 185.26,
+      "executionDurationMs": 164.74,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1289,7 +1289,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "HIDDEN_ELEMENT",
-      "executionDurationMs": 183.33,
+      "executionDurationMs": 150.6,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1302,7 +1302,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 252.77,
+      "executionDurationMs": 148.26,
       "intentInvariantPassed": true,
       "notes": "ASSERTION_FAILURE: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
@@ -1315,7 +1315,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "MISSING_DATA",
-      "executionDurationMs": 196.9,
+      "executionDurationMs": 150.99,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1328,7 +1328,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "OBSTRUCTED_ELEMENT",
-      "executionDurationMs": 180.34,
+      "executionDurationMs": 150.79,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1341,7 +1341,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNRELATED_NETWORK_ERROR",
-      "executionDurationMs": 193.22,
+      "executionDurationMs": 148.91,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1354,7 +1354,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNSUPPORTED_EXPRESSION",
-      "executionDurationMs": 225.47,
+      "executionDurationMs": 150.4,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1367,7 +1367,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 174.44,
+      "executionDurationMs": 167.67,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1380,7 +1380,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BUSINESS_DEFECT",
-      "executionDurationMs": 197.71,
+      "executionDurationMs": 152.35,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1393,7 +1393,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AMBIGUOUS_LOCATOR",
-      "executionDurationMs": 180.57,
+      "executionDurationMs": 146.23,
       "intentInvariantPassed": true,
       "notes": "Playwright StrictMode violation: resolved multiple matching duplicate controls in the DOM. Safely abstained."
     },
@@ -1406,7 +1406,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 185.6,
+      "executionDurationMs": 151.03,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1419,7 +1419,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 180.18,
+      "executionDurationMs": 150.34,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1432,7 +1432,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "DISABLED_CONTROL",
-      "executionDurationMs": 185.17,
+      "executionDurationMs": 149.45,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1445,7 +1445,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "HIDDEN_ELEMENT",
-      "executionDurationMs": 181.47,
+      "executionDurationMs": 149.92,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1458,7 +1458,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 187.03,
+      "executionDurationMs": 150.1,
       "intentInvariantPassed": true,
       "notes": "ASSERTION_FAILURE: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
@@ -1471,7 +1471,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "MISSING_DATA",
-      "executionDurationMs": 213.22,
+      "executionDurationMs": 147.7,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1484,7 +1484,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "OBSTRUCTED_ELEMENT",
-      "executionDurationMs": 212.97,
+      "executionDurationMs": 152.24,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1497,7 +1497,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNRELATED_NETWORK_ERROR",
-      "executionDurationMs": 225.42,
+      "executionDurationMs": 148.78,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1510,7 +1510,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNSUPPORTED_EXPRESSION",
-      "executionDurationMs": 199.4,
+      "executionDurationMs": 148.76,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1523,7 +1523,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BACKEND_500",
-      "executionDurationMs": 194.79,
+      "executionDurationMs": 150.44,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1536,7 +1536,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "BUSINESS_DEFECT",
-      "executionDurationMs": 184.88,
+      "executionDurationMs": 151.61,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1549,7 +1549,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AMBIGUOUS_LOCATOR",
-      "executionDurationMs": 180.24,
+      "executionDurationMs": 147.92,
       "intentInvariantPassed": true,
       "notes": "Playwright StrictMode violation: resolved multiple matching duplicate controls in the DOM. Safely abstained."
     },
@@ -1562,7 +1562,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 182.82,
+      "executionDurationMs": 150.71,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1575,7 +1575,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "AUTH_ERROR",
-      "executionDurationMs": 185.93,
+      "executionDurationMs": 148.66,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1588,7 +1588,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "DISABLED_CONTROL",
-      "executionDurationMs": 184.92,
+      "executionDurationMs": 134.09,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1601,7 +1601,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "HIDDEN_ELEMENT",
-      "executionDurationMs": 178.95,
+      "executionDurationMs": 150.2,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1614,7 +1614,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "ASSERTION_FAILURE",
-      "executionDurationMs": 164.01,
+      "executionDurationMs": 149.52,
       "intentInvariantPassed": true,
       "notes": "ASSERTION_FAILURE: Engine strictly prohibits modifying test assertions to force a passing test run."
     },
@@ -1627,7 +1627,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "MISSING_DATA",
-      "executionDurationMs": 165.89,
+      "executionDurationMs": 149.39,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1640,7 +1640,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "OBSTRUCTED_ELEMENT",
-      "executionDurationMs": 169.55,
+      "executionDurationMs": 150.94,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1653,7 +1653,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNRELATED_NETWORK_ERROR",
-      "executionDurationMs": 187.01,
+      "executionDurationMs": 165.89,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     },
@@ -1666,7 +1666,7 @@
       "expectedOutcome": "ABSTAIN",
       "actualOutcome": "ABSTAIN",
       "diagnosticCategory": "UNSUPPORTED_EXPRESSION",
-      "executionDurationMs": 181.07,
+      "executionDurationMs": 150.63,
       "intentInvariantPassed": true,
       "notes": "UNKNOWN_ERROR: Insufficient diagnostic evidence to safely classify failure root cause."
     }

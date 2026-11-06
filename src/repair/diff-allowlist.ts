@@ -17,6 +17,7 @@ export interface DiffAllowlistResult {
 export class DiffAllowlistValidator {
   private static readonly APPROVED_LOCATOR_METHODS = new Set([
     'locator',
+    'frameLocator',
     'getByRole',
     'getByText',
     'getByTestId',

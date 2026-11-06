@@ -21,7 +21,14 @@ export interface ScoreBreakdown {
   historicalReliability: number;
   historicalExecutionReliability: number;
   volatilePenalty: number;
+  conventionAlignment?: number;
   explanation: string[];
+}
+
+export interface SelectorProjectContext {
+  preferredLocator?: 'getByRole' | 'getByTestId' | 'getByLabel' | 'getByText' | 'locator' | 'unknown';
+  /** Observed locator counts from the repository profile. */
+  locatorUsage?: Partial<Record<'getByRole' | 'getByTestId' | 'getByLabel' | 'getByText' | 'locator', number>>;
 }
 
 export class SelectorScorer {
@@ -48,7 +55,8 @@ export class SelectorScorer {
     allCandidates: ResolvedElement[],
     originalSelector?: string,
     historicalScore?: number,
-    weights = SelectorScorer.DEFAULT_WEIGHTS
+    weights = SelectorScorer.DEFAULT_WEIGHTS,
+    projectContext?: SelectorProjectContext,
   ): ScoreBreakdown {
     const explanation: string[] = [];
 
@@ -198,6 +206,31 @@ export class SelectorScorer {
     volatilePenalty = Math.min(1.0, volatilePenalty);
     explanation.push(`Volatile Penalty D: ${volatilePenalty}`);
 
+    const candidateKind = candidate.role && candidate.accessibleName
+      ? 'getByRole'
+      : candidate.attributes['data-testid'] || candidate.attributes['data-test']
+        ? 'getByTestId'
+        : candidate.attributes['placeholder'] || candidate.attributes['aria-label']
+          ? 'getByLabel'
+          : candidate.text
+            ? 'getByText'
+            : 'locator';
+    const locatorUsage = projectContext?.locatorUsage;
+    const usageTotal = locatorUsage
+      ? Object.values(locatorUsage).reduce((sum, count) => sum + (typeof count === 'number' && count > 0 ? count : 0), 0)
+      : 0;
+    const conventionAlignment = usageTotal > 0
+      ? Math.max(0, Math.min(1, (locatorUsage?.[candidateKind] ?? 0) / usageTotal))
+      : projectContext?.preferredLocator && projectContext.preferredLocator !== 'unknown'
+        ? projectContext.preferredLocator === candidateKind ? 1 : 0
+        : 0.5;
+    // Keep convention influence deliberately small: observed project style can
+    // break a close tie, but never compensate for weak identity or uniqueness.
+    const conventionBonus = usageTotal > 0 || (projectContext?.preferredLocator && projectContext.preferredLocator !== 'unknown')
+      ? (conventionAlignment - 0.5) * 0.04
+      : 0;
+    explanation.push(`Project Convention C: ${conventionAlignment.toFixed(3)} (${candidateKind}${projectContext?.preferredLocator ? `; preferred ${projectContext.preferredLocator}` : ''}${usageTotal > 0 ? `; observed ${usageTotal}` : ''})`);
+
     // Calculate final composite score S(L)
     const rawScore =
       weights.wU * uniqueness +
@@ -205,7 +238,8 @@ export class SelectorScorer {
       weights.wM * semanticMatch +
       weights.wA * actionability +
       weights.wH * historicalReliability -
-      weights.wD * volatilePenalty;
+      weights.wD * volatilePenalty +
+      conventionBonus;
 
     const finalScore = Math.max(0, Math.min(1.0, parseFloat(rawScore.toFixed(3))));
 
@@ -224,6 +258,7 @@ export class SelectorScorer {
       historicalReliability,
       historicalExecutionReliability: historicalReliability,
       volatilePenalty,
+      conventionAlignment,
       explanation,
     };
   }

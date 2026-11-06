@@ -299,7 +299,12 @@ export class CandidateExtractor {
       }
 
       // Rule 2: Exclude hidden / disabled elements
-      if (element.attributes?.['aria-hidden'] === 'true' || element.attributes?.['hidden'] !== undefined) {
+      if (
+        element.attributes?.['aria-hidden'] === 'true' ||
+        element.attributes?.['hidden'] !== undefined ||
+        element.attributes?.['disabled'] !== undefined ||
+        element.attributes?.['aria-disabled'] === 'true'
+      ) {
         return false;
       }
 

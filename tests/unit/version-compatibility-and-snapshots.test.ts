@@ -5,12 +5,13 @@ import { SnapshotResolver, NodeSnapshot, FrameSnapshotRecord } from '../../src/t
 import { V8TraceAdapter } from '../../src/trace/adapters/v8-adapter.js';
 import { V9TraceAdapter } from '../../src/trace/adapters/v9-adapter.js';
 import { V10TraceAdapter } from '../../src/trace/adapters/v10-adapter.js';
+import { V4TraceAdapter } from '../../src/trace/adapters/v4-adapter.js';
 import { UnknownTraceAdapter } from '../../src/trace/adapters/unknown-adapter.js';
 import { TraceAdapterRegistry } from '../../src/trace/adapters/adapter-registry.js';
 
 describe('Version Compatibility and Snapshot Resolution Suite (35 Tests)', () => {
   // --- Category 1: Version Detection & Trace Adapters (15 tests) ---
-  const supportedVersions = [5, 6, 7, 8, 9, 10];
+  const supportedVersions = [4, 5, 6, 7, 8, 9, 10];
   supportedVersions.forEach((ver) => {
     it(`VER-SUPPORT-${ver}: should detect and support trace format version ${ver}`, () => {
       const lines = [JSON.stringify({ type: 'version', version: ver })];
@@ -21,14 +22,7 @@ describe('Version Compatibility and Snapshot Resolution Suite (35 Tests)', () =>
     });
   });
 
-  it('VER-UNSUPPORT-01: should flag unsupported trace format version 4 and throw', () => {
-    const lines = [JSON.stringify({ type: 'version', version: 4 })];
-    const info = VersionDetector.detectFromLines(lines);
-    expect(info.isSupported).toBe(false);
-    expect(() => VersionDetector.assertSupported(info)).toThrow(UnsupportedTraceVersionError);
-  });
-
-  it('VER-UNSUPPORT-02: should flag unsupported future trace format version 99', () => {
+  it('VER-UNSUPPORT-01: should flag unsupported future trace format version 99', () => {
     const lines = [JSON.stringify({ type: 'version', version: 99 })];
     const info = VersionDetector.detectFromLines(lines);
     expect(info.isSupported).toBe(false);
@@ -48,6 +42,12 @@ describe('Version Compatibility and Snapshot Resolution Suite (35 Tests)', () =>
     const adapter = new V8TraceAdapter();
     expect(adapter.canParse({ archivePath: '', entryNames: [] }, ['{"type":"version","version":7}'])).toBe(true);
     expect(adapter.canParse({ archivePath: '', entryNames: [] }, ['{"type":"version","version":8}'])).toBe(true);
+    expect(adapter.canParse({ archivePath: '', entryNames: [] }, ['{"type":"version","version":10}'])).toBe(false);
+  });
+
+  it('VER-ADAPTER-00: V4TraceAdapter should parse legacy format 4', () => {
+    const adapter = new V4TraceAdapter();
+    expect(adapter.canParse({ archivePath: '', entryNames: [] }, ['{"type":"version","version":4}'])).toBe(true);
     expect(adapter.canParse({ archivePath: '', entryNames: [] }, ['{"type":"version","version":10}'])).toBe(false);
   });
 

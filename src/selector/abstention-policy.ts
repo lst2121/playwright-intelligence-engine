@@ -4,6 +4,7 @@ import { ResolvedElement } from '../trace/snapshot-resolver.js';
 export interface ScoredCandidate {
   element: ResolvedElement;
   breakdown: ScoreBreakdown;
+  locatorExpression?: string | undefined;
   originalSelector?: string | undefined;
   intendedAction?: string | undefined; // e.g. "click", "fill"
   parentScopeVerified?: boolean | undefined;

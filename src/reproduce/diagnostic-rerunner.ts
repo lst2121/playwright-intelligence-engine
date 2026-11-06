@@ -14,6 +14,8 @@ import { DiagnosticContext } from '../core/types/diagnostic-context.js';
 import { EvidenceCorrelator } from '../diagnostics/evidence-correlator.js';
 import { DiagnosticReportGenerator } from '../diagnostics/diagnostic-report.js';
 import { DirectBrowserInvestigator } from './direct-browser-investigator.js';
+import { LocatorPlan } from '../selector/candidate-extractor.js';
+import { BrowserOperationExecutionResult } from '../repair/browser-operation-executor.js';
 
 export interface DiagnosticRerunOptions {
   specFilePath: string;
@@ -22,6 +24,11 @@ export interface DiagnosticRerunOptions {
   timeoutMs?: number;
   useWorktree?: boolean;
   enableLiveEscalation?: boolean;
+  operation?: unknown;
+  operationTargetPlan?: LocatorPlan | undefined;
+  operationReplacementPlan?: LocatorPlan | undefined;
+  operationOverlayPlan?: LocatorPlan | undefined;
+  allowInteraction?: boolean | undefined;
 }
 
 export interface DiagnosticRerunResult {
@@ -35,6 +42,7 @@ export interface DiagnosticRerunResult {
   report: string;
   executedInWorktree: boolean;
   targetSpecPath: string;
+  browserOperationResult?: BrowserOperationExecutionResult | undefined;
 }
 
 export class DiagnosticRerunner {
@@ -161,6 +169,7 @@ export class DiagnosticRerunner {
 
       // Extract failing action selector if any from test output
       let failingSelector: string | undefined;
+      let browserOperationResult: BrowserOperationExecutionResult | undefined;
       const selectorMatch = (runResult.stdout + '\n' + runResult.stderr).match(/locator\(['"]([^'"]+)['"]\)/);
       if (selectorMatch && selectorMatch[1]) {
         failingSelector = selectorMatch[1];
@@ -193,7 +202,13 @@ export class DiagnosticRerunner {
               intendedAction: 'click',
               executionId,
               timeoutMs: 10000,
+              operation: options.operation,
+              operationTargetPlan: options.operationTargetPlan,
+              operationReplacementPlan: options.operationReplacementPlan,
+              operationOverlayPlan: options.operationOverlayPlan,
+              allowInteraction: options.allowInteraction,
             });
+            browserOperationResult = directRes.browserOperationResult;
 
             // AUDIT FIX: Only accept live browser evidence if action genuinely failed (REPRODUCED) or captured failure DOM
             if (directRes.success && (directRes.status === 'REPRODUCED' || directRes.domSnapshotRecord)) {
@@ -232,6 +247,7 @@ export class DiagnosticRerunner {
         report,
         executedInWorktree: options.useWorktree !== false,
         targetSpecPath: worktreeTargetSpec,
+        browserOperationResult,
       };
     } finally {
       if (worktreeId) {

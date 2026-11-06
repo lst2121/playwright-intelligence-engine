@@ -232,4 +232,27 @@ describe('Live Browser Reproduction & Verification Suite (Gate B)', () => {
     expect(res.verificationResult!.count).toBe(1);
     expect(res.records.length).toBeGreaterThan(0);
   });
+
+  it('DIRECT-INV-02: verifies an allowlisted browser operation in the same live page', async () => {
+    const res = await DirectBrowserInvestigator.investigateUrl(
+      {
+        url: 'data:text/html,<html><body><button id="direct-btn">Direct Probe</button></body></html>',
+        executionId: 'probe-operation-1',
+        operation: {
+          kind: 'replace_locator',
+          target: 'Payment.submit',
+          locator: "getByRole('button', { name: 'Direct Probe' })",
+        },
+        operationReplacementPlan: {
+          kind: 'getByRole',
+          role: 'button',
+          options: { name: 'Direct Probe' },
+        },
+      }
+    );
+
+    expect(res.success).toBe(true);
+    expect(res.browserOperationResult?.status).toBe('VERIFIED');
+    expect(res.browserOperationResult?.action).toBe('verify');
+  });
 });

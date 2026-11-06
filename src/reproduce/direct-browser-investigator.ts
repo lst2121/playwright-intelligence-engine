@@ -3,6 +3,7 @@ import { UnifiedEvidenceRecord } from '../evidence/evidence-model.js';
 import { EvidenceRedactor } from '../evidence/evidence-redactor.js';
 import { LocatorPlan } from '../selector/candidate-extractor.js';
 import { LiveLocatorVerifier, LiveVerificationResult } from '../selector/live-locator-verifier.js';
+import { BrowserOperationExecutionResult, executeBrowserOperation } from '../repair/browser-operation-executor.js';
 
 export interface DirectInvestigationOptions {
   url?: string | undefined;
@@ -10,6 +11,12 @@ export interface DirectInvestigationOptions {
   intendedAction?: string | undefined;
   executionId?: string | undefined;
   timeoutMs?: number | undefined;
+  /** Optional allowlisted operation to verify against the live page. */
+  operation?: unknown;
+  operationTargetPlan?: LocatorPlan | undefined;
+  operationReplacementPlan?: LocatorPlan | undefined;
+  operationOverlayPlan?: LocatorPlan | undefined;
+  allowInteraction?: boolean | undefined;
 }
 
 export type DirectInvestigationStatus = 'REPRODUCED' | 'NOT_REPRODUCED' | 'INSUFFICIENT_EVIDENCE';
@@ -22,6 +29,7 @@ export interface DirectInvestigationResult {
   domSnapshotRecord: UnifiedEvidenceRecord | null;
   ariaSnapshotRecord: UnifiedEvidenceRecord | null;
   verificationResult?: LiveVerificationResult | undefined;
+  browserOperationResult?: BrowserOperationExecutionResult | undefined;
   error?: string | undefined;
 }
 
@@ -99,6 +107,7 @@ export class DirectBrowserInvestigator {
     let domSnapshotRecord: UnifiedEvidenceRecord | null = null;
     let ariaSnapshotRecord: UnifiedEvidenceRecord | null = null;
     let verificationResult: LiveVerificationResult | undefined;
+    let browserOperationResult: BrowserOperationExecutionResult | undefined;
     let pageUrl = options.url;
 
     try {
@@ -149,6 +158,19 @@ export class DirectBrowserInvestigator {
         verificationResult = await LiveLocatorVerifier.verify(page, candidatePlan);
       }
 
+      // Browser operations are verified in the same live page used for reproduction.
+      // The executor validates the operation and keeps unsupported semantics proposal-only.
+      if (options.operation !== undefined && page) {
+        browserOperationResult = await executeBrowserOperation({
+          pageOrFrame: page,
+          operation: options.operation,
+          targetPlan: options.operationTargetPlan,
+          replacementPlan: options.operationReplacementPlan,
+          overlayPlan: options.operationOverlayPlan,
+          allowInteraction: options.allowInteraction,
+        });
+      }
+
       // Collect and redact all live records
       const liveRecords = await liveCollector.collect();
       for (const rec of liveRecords) {
@@ -163,6 +185,7 @@ export class DirectBrowserInvestigator {
         domSnapshotRecord,
         ariaSnapshotRecord,
         verificationResult,
+        browserOperationResult,
       };
     } catch (err: any) {
       return {
@@ -172,6 +195,7 @@ export class DirectBrowserInvestigator {
         records,
         domSnapshotRecord,
         ariaSnapshotRecord,
+        browserOperationResult,
         error: err?.message ?? String(err),
       };
     } finally {

@@ -114,5 +114,30 @@ test('checkout order', async ({ page }) => {
     const specAfter = await fs.readFile(specPath, 'utf8');
     expect(specAfter).toBe(specContent);
   });
+
+  it('should preserve an allowlisted explicit frame-scoped locator in the proposal', async () => {
+    const pomPath = path.join(tmpDir, 'PaymentPage.ts');
+    const specPath = path.join(tmpDir, 'payment.spec.ts');
+    await fs.writeFile(pomPath, `export class PaymentPage { readonly submit = this.page.getByRole('button', { name: 'Pay' }); }`, 'utf8');
+    await fs.writeFile(specPath, `import { test } from '@playwright/test'; test('payment', async () => {});`, 'utf8');
+
+    const proposal = RepairPlanner.planRepair({
+      originalActionId: 'call@frame',
+      originalSelector: "this.page.getByRole('button', { name: 'Pay' })",
+      candidateElement: {
+        tag: 'button', attributes: {}, text: 'Pay', children: [], role: 'button', accessibleName: 'Pay',
+      },
+      candidateScore: 0.9,
+      testFilePath: specPath,
+      pomFilePath: pomPath,
+      className: 'PaymentPage',
+      memberName: 'submit',
+      intendedAction: 'click',
+      replacementSelector: "this.page.frameLocator('iframe[title=\"Payment\"]').getByRole('button', { name: 'Pay' })",
+    });
+
+    expect(proposal.replacementSelector).toContain('frameLocator');
+    expect(proposal.proposedPatchedSource).toContain('frameLocator');
+  });
 });
 

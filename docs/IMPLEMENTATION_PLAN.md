@@ -29,7 +29,7 @@ flowchart TD
 
 ### Phase 1: Trace Adapters & Causal Diagnostics
 - **Deliverables**:
-  - Implement `TraceAdapterRegistry` supporting schemas v5 through v10.
+  - Implement `TraceAdapterRegistry` supporting schemas v4 through v10.
   - Build `V8TraceAdapter`, `V9TraceAdapter`, `V10TraceAdapter`, and `UnknownTraceAdapter`.
   - Implement `SnapshotResolver` with provenance metadata (`frameId`, `callId`, `phase`) and completeness classification.
   - Implement `EvidenceCorrelator` with Causal Evidence Graph and telemetry filtering (Google Analytics, Sentry, Datadog).

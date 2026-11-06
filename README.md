@@ -1,9 +1,9 @@
-# Playwright Intelligence Engine (pw-intel) v2.6
+# Playwright Intelligence Engine (pw-intel) v2.6.0-rc1
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.0-blue.svg)](https://www.typescriptlang.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-1.64+-green.svg)](https://playwright.dev/)
-[![Tests](https://img.shields.io/badge/Tests-382%20Passed%20(0%20Failed)-brightgreen.svg)]()
-[![Benchmark](https://img.shields.io/badge/Benchmark-Empirical%20Browser%20(9%20Scenarios%20Verified)-success.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-398%20Passed%20(0%20Failed)-brightgreen.svg)]()
+[![Benchmark](https://img.shields.io/badge/Benchmark-Empirical%20Browser%20(125%20Scenarios%20Verified)-success.svg)]()
 [![License](https://img.shields.io/badge/License-Apache--2.0-purple.svg)](LICENSE)
 
 An enterprise-grade, deterministic intelligence, diagnosis, and self-healing engine for Microsoft Playwright suites. Operates with zero mandatory cloud backend, zero forced LLM dependencies, and zero unsolicited file mutations. Ingests post-mortem trace archives (`trace.zip`), performs multi-source live browser reproductions (`pw-intel reproduce`), classifies failures via action-anchored causal graphs, scores candidates via probabilistic models, enforces strict intent invariants ($V = A \land T \land F \land I \land D \land E$), and promotes verified repairs via cryptographic token authorization and atomic Compare-And-Swap (CAS) file operations.
@@ -86,8 +86,11 @@ npm install
 npm run typecheck
 npm run build
 
-# Run complete test suite (382 tests across 24 test files)
+# Run complete test suite (398 tests across 26 test files)
 npm test
+
+# Verify the complete repository baseline (typecheck, tests, and build)
+npm run verify:baseline
 
 # Run empirical real browser benchmark suite
 npm run benchmark
@@ -117,20 +120,32 @@ npx pw-intel benchmark --browser firefox           # Target alternative browser 
 # 4. Start the Model Context Protocol (MCP) JSON-RPC server on stdio
 npx pw-intel mcp
 
-# 5. Generate verified Page Object and Spec scaffolding
+# 5. Inspect an external Playwright repository testbed
+npx pw-intel inspect-testbed D:/Work/pie-real-repository-testbed --json --out D:/Work/pie-real-repository-testbed/manifests/pie-inspection-manifest.json
+
+# 6. Run a bounded baseline command for a discovered repository
+npx pw-intel run-testbed D:/Work/pie-real-repository-testbed --repository playwright-examples --timeout 60000 --out D:/Work/pie-real-repository-testbed/results/playwright-examples-baseline.json
+
+# 7. Generate verified Page Object and Spec scaffolding
 npx pw-intel generate UserDashboard
+
+# 8. Plan project-aware greenfield/brownfield architecture (create-only with --write)
+npx pw-intel architect "Checkout Flow" --mode greenfield --requirements requirements.json
+
+# 9. Convert Playwright JSON into CI evidence, annotations, and a quality gate
+npx pw-intel ci-report playwright-report.json --repository checkout --out pie-ci-evidence.json
 ```
 
 ---
 
 ## Empirical Benchmark Suite (Gate C)
 
-The benchmark runner (`benchmarks/runner/master-benchmark-runner.ts`) executes **9 real end-to-end browser scenarios** in headless Chromium against an in-memory `ControlledAppServer`. Outcomes, latencies, regressions, and defect masking rates are measured dynamically with **zero synthetic assignments and zero hardcoded rates**:
+The benchmark runner (`benchmarks/runner/master-benchmark-runner.ts`) executes **125 real end-to-end browser scenarios** in headless Chromium against a controlled `ControlledAppServer`. Outcomes, latencies, regressions, and defect masking rates are measured dynamically:
 
-- **Tier 1 (2 Real Baselines):** Authentication journey and e-commerce checkout journey executed in headless Chromium (100% pass rate).
-- **Tier 2 (4 Real DOM Drift Mutations):** Real DOM mutations (dynamic hashed IDs, accessible name drift, container restructuring, CSS utility class volatility). The engine executes original spec $\to$ catches browser failure $\to$ captures failure-point DOM & ariaSnapshot $\to$ extracts typed `LocatorPlan` $\to$ empirically verifies candidate live in Chromium (`count === 1`, `visible`, `enabled`) $\to$ patches Page Object $\to$ re-runs test in Chromium $\to$ confirms green pass $\to$ runs regression tests on clean baselines (100% repair precision, 100% recall, 0.0% regressions).
-- **Tier 3 (3 Real Negative Controls):** In-domain HTTP 500 server crash, seeded business defect (wrong total calculated), and strict-mode duplicate controls (100% safe abstention rate, 0.0% false repairs, 0.0% bug masking).
-- **Wilson 95% Confidence Interval:** `[70.08%, 100.00%]` computed from empirical trial outcomes.
+- **Tier 1 (5 baselines):** Clean authentication, catalog, cart, checkout, and admin journeys.
+- **Tier 2 (60 mutations):** Controlled locator and DOM drift families, with live candidate verification, AST patching, browser re-execution, and regression checks. Reported repair precision and recall are 96.7%.
+- **Tier 3 (60 negative controls):** Backend, authentication, business-defect, ambiguity, assertion, missing-data, and unsupported-pattern controls. Reported safe abstention is 100%.
+- **Confidence intervals:** See `benchmarks/reports/master-benchmark-results.json` for current Wilson intervals and sample interpretation.
 
 Reports are saved to `artifacts/benchmark-report.json` and `artifacts/benchmark-report.md`.
 
@@ -141,10 +156,14 @@ Reports are saved to `artifacts/benchmark-report.json` and `artifacts/benchmark-
 The MCP server runs on `stdio` with fail-closed security:
 
 1. `diagnose_trace`: Diagnoses a Playwright trace archive, returning causal classification, confidence, and recommended repairs.
-2. `reproduce_and_diagnose`: Executes a test spec inside an isolated worktree with live collectors attached.
-3. `repair_page_object`: Two-stage workflow:
+2. `repair_page_object`: Two-stage workflow:
    - Calling without `approvalToken` stages the proposal in `ApprovalService` and returns `proposalId`, proposed diff, and cryptographic proposal metadata.
-   - Calling with `approvalToken` validates token binding (target file, AST hash, diff hash, TTL) and promotes the patch atomically to the workspace using `WorkspacePromoter`.
+   - Calling with `approvalToken` validates token binding and promotes the patch atomically to the workspace using `WorkspacePromoter`.
+3. `generate_playwright_test`: Generates Page Object and test scaffolding.
+4. `plan_test_architecture`: Plans greenfield/brownfield project-aware generation and can create missing files explicitly.
+5. `ingest_playwright_report`: Converts Playwright JSON to failure clusters, stability, CI gate, and annotations.
+6. `get_product_status`: Reports product identity, safety policy, and available
+   capability boundaries.
 
 ---
 

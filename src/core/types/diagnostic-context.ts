@@ -37,10 +37,15 @@ export const FailureCategorySchema = z.enum([
   'TIMING_RACE',
   'DYNAMIC_CONTENT_SLOW',
   'BACKEND_500',
+  'ENVIRONMENT_FAILURE',
   'ASSERTION_FAILURE',
   'ASSERTION_FAILED',
   'NETWORK_OFFLINE',
   'AMBIGUOUS_MATCH',
+  'OBSTRUCTED_ELEMENT',
+  'DISABLED_ELEMENT',
+  'FRAME_OR_IFRAME',
+  'HYDRATION_OR_TIMING',
   'MIXED_FAILURE',
   'INCOMPLETE_EVIDENCE',
   'UNSUPPORTED_TRACE_FORMAT',
@@ -61,6 +66,7 @@ export const FailedActionSchema = z.object({
   durationMs: z.number().optional(),
   timestamp: z.number().optional(),
   frameId: z.string().optional(),
+  logs: z.array(z.string()).optional(),
 });
 
 export type FailedAction = z.infer<typeof FailedActionSchema>;

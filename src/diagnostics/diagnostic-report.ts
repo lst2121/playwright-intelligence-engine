@@ -1,10 +1,45 @@
 import { CorrelatedEvidence } from './evidence-correlator.js';
 import { EvidenceScorecard } from '../evidence/evidence-model.js';
+import { CandidateExtractor } from '../selector/candidate-extractor.js';
+import { RepairCandidateRanker } from '../selector/repair-candidate-ranker.js';
+import { AbstentionPolicy } from '../selector/abstention-policy.js';
+import { ProjectIntelligenceSnapshot } from '../intelligence/project-intelligence.js';
+import { RankedRepairCandidate } from '../selector/repair-candidate-ranker.js';
 
 export class DiagnosticReportGenerator {
+  public static selectRepairCandidate(
+    evidence: CorrelatedEvidence,
+    intelligence?: ProjectIntelligenceSnapshot,
+  ): RankedRepairCandidate | undefined {
+    const { context, classification } = evidence;
+    if (classification.shouldAbstain) return undefined;
+    const domRoot = (context as any).domRoot;
+    if (!domRoot) return undefined;
+    try {
+      const candidates = CandidateExtractor.extractCandidates(domRoot, context.failedAction);
+      if (candidates.length === 0) return undefined;
+      const ranked = RepairCandidateRanker.rank(candidates, context.failedAction.selector, context.failedAction.action, intelligence);
+      const decision = AbstentionPolicy.evaluate(ranked);
+      if (!decision.shouldAbstain && decision.selectedCandidate) {
+        return decision.selectedCandidate as RankedRepairCandidate;
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+
+  public static extractProposedLocator(
+    evidence: CorrelatedEvidence,
+    intelligence?: ProjectIntelligenceSnapshot,
+  ): string | undefined {
+    return DiagnosticReportGenerator.selectRepairCandidate(evidence, intelligence)?.locatorExpression;
+  }
+
   public static generateTerminalReport(
     evidence: CorrelatedEvidence,
-    scorecard?: EvidenceScorecard
+    scorecard?: EvidenceScorecard,
+    intelligence?: ProjectIntelligenceSnapshot,
   ): string {
     const { context, classification } = evidence;
     const { failedAction } = context;
@@ -21,6 +56,7 @@ export class DiagnosticReportGenerator {
     // Summary Header
     lines.push(`Root Cause Classification : ${classification.category}`);
     lines.push(`Confidence Level          : ${(classification.confidence * 100).toFixed(1)}%`);
+    lines.push(`Failure Fingerprint       : ${evidence.failureFingerprint.key}`);
     lines.push(`Action Outcome            : ${classification.shouldAbstain ? '⛔ ABSTAIN FROM CODE REPAIR' : '🔍 REPAIR CANDIDATE AVAILABLE'}`);
     lines.push(divider);
 
@@ -100,6 +136,11 @@ export class DiagnosticReportGenerator {
       lines.push('Diagnostic Conclusion:');
       lines.push(`  ${classification.reason}`);
       lines.push('  Ready for candidate extraction and isolated worktree verification.');
+
+      const proposed = DiagnosticReportGenerator.extractProposedLocator(evidence, intelligence);
+      if (proposed) {
+        lines.push(`  Proposed Replacement Locator: \`${proposed}\``);
+      }
     }
 
     lines.push(divider);
@@ -119,6 +160,7 @@ export class DiagnosticReportGenerator {
     md.push('# Playwright Intelligence Engine — Diagnostic Report');
     md.push('');
     md.push(`**Classification:** \`${classification.category}\` (Confidence: ${(classification.confidence * 100).toFixed(1)}%)  `);
+    md.push(`**Failure fingerprint:** \`${evidence.failureFingerprint.key}\`  `);
     md.push(`**Status:** ${classification.shouldAbstain ? '⛔ **Abstained from repair**' : '🔍 **Repair candidate eligible**'}  `);
     md.push(`**Reason:** ${classification.reason}  `);
     md.push('');

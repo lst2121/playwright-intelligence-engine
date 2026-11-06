@@ -18,13 +18,13 @@ export class TraceCollector implements EvidenceCollector<TraceCollectorInput> {
     const timestamp = Date.now();
 
     try {
-      const { traceEntryName, networkEntryName } = ArchiveReader.findTraceFileEntries(input.archivePath);
+      const { traceEntryName, networkEntryName, traceEntryNames, networkEntryNames } = ArchiveReader.findTraceFileEntries(input.archivePath);
       if (!traceEntryName) {
         throw new Error(`No .trace entry found inside archive: ${input.archivePath}`);
       }
-      const traceText = await ArchiveReader.readEntryAsText(input.archivePath, traceEntryName);
-      const networkText = networkEntryName
-        ? await ArchiveReader.readEntryAsText(input.archivePath, networkEntryName)
+      const traceText = await ArchiveReader.readEntriesAsText(input.archivePath, traceEntryNames ?? [traceEntryName]);
+      const networkText = (networkEntryNames ?? (networkEntryName ? [networkEntryName] : [])).length > 0
+        ? await ArchiveReader.readEntriesAsText(input.archivePath, networkEntryNames ?? [networkEntryName!])
         : '';
       const traceLines = traceText.split('\n');
       const networkLines = networkText ? networkText.split('\n') : [];

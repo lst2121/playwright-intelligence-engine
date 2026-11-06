@@ -174,6 +174,25 @@ describe('Archive Security and Trace Parsing Suite (45 Tests)', () => {
     expect(discovered.networkEntryName).toBe('0.network');
   });
 
+  it('SEC-BOMB-11: should prefer the stream containing the explicit failed action', async () => {
+    const zipPath = path.resolve(tmpDir, 'failed-action-stream.zip');
+    const zip = new AdmZip();
+    zip.addFile('1-trace.trace', Buffer.from('{"type":"context-options"}\n{"type":"before","callId":"browser@1"}\n'));
+    zip.addFile(
+      'test.trace',
+      Buffer.from(
+        '{"type":"before","callId":"test@1","method":"pw:api","params":{"locator":"getByRole(\\"button\\")"}}\n' +
+        '{"type":"after","callId":"test@1","error":{"message":"locator.click: timeout"}}\n',
+      ),
+    );
+    zip.addFile('1-trace.network', Buffer.from('network-data'));
+    zip.writeZip(zipPath);
+
+    const discovered = ArchiveReader.findTraceFileEntries(zipPath);
+    expect(discovered.traceEntryName).toBe('test.trace');
+    expect(discovered.traceEntryNames).toEqual(['test.trace', '1-trace.trace']);
+  });
+
   // --- Category 3: Trace JSONL Stream Parsing and Resilience (20 tests) ---
   it('PARSE-01: should parse empty lines gracefully without throwing', () => {
     const lines = ['', '   ', '\n', '\r\n'];
@@ -204,6 +223,70 @@ describe('Archive Security and Trace Parsing Suite (45 Tests)', () => {
     const action = result.actions.get('call@100');
     expect(action?.action).toBe('page.fill');
     expect(action?.selector).toBe('#user');
+  });
+
+  it('PARSE-03B: should recover locator expressions from runner pw:api params', () => {
+    const result = TraceParser.parseTraceLines([
+      JSON.stringify({
+        type: 'before',
+        callId: 'test@1',
+        method: 'pw:api',
+        title: 'Click',
+        params: { locator: "getByRole('button', { name: 'Sign in' })" },
+      }),
+      JSON.stringify({
+        type: 'after',
+        callId: 'test@1',
+        error: { message: 'locator.click: timeout' },
+      }),
+    ]);
+
+    expect(result.failedAction?.selector).toContain("getByRole('button'");
+    expect(result.failedAction?.action).toBe('click');
+  });
+
+  it('PARSE-03C: should recover the child action from a parent step timeout call log', () => {
+    const result = TraceParser.parseTraceLines([
+      JSON.stringify({
+        type: 'before',
+        callId: 'step@1',
+        method: 'test.step',
+        title: 'Log in',
+      }),
+      JSON.stringify({
+        type: 'before',
+        callId: 'child@2',
+        parentId: 'step@1',
+        method: 'pw:api',
+        title: 'Click',
+        params: { locator: "locator('#doLogin')" },
+      }),
+      JSON.stringify({ type: 'log', callId: 'child@2', message: '  element is not enabled' }),
+      JSON.stringify({
+        type: 'after',
+        callId: 'step@1',
+        error: {
+          message: `Error: locator.click: Test timeout of 60000ms exceeded.\nCall log:\n  - waiting for locator('#doLogin')\n  - <div id="overlay">intercepts pointer events`,
+        },
+      }),
+    ]);
+
+    expect(result.failedAction?.action).toBe('click');
+    expect(result.failedAction?.selector).toBe("locator('#doLogin')");
+  });
+
+  it('PARSE-03D: should retain standalone errors that have no callId', () => {
+    const result = TraceParser.parseTraceLines([
+      JSON.stringify({
+        type: 'error',
+        message: 'connect ECONNREFUSED 127.0.0.1:8000',
+        stack: [{ file: 'setup.ts', line: 12, column: 4 }],
+      }),
+    ]);
+
+    expect(result.failedAction?.callId).toBe('error@0');
+    expect(result.failedAction?.errorMessage).toContain('ECONNREFUSED');
+    expect(result.failedAction?.sourceFile).toBe('setup.ts');
   });
 
   it('PARSE-04: should capture durationMs when timestamps are available', () => {

@@ -291,6 +291,120 @@ describe('Failure Classification and Causal Correlation Suite (40 Tests)', () =>
     expect(result.shouldAbstain).toBe(true);
   });
 
+  it('OFFLINE-03: should classify Chromium ERR_NAME_NOT_RESOLVED as NETWORK_OFFLINE', () => {
+    const context = createBaseContext({
+      failedAction: {
+        callId: 'call@dns',
+        action: 'page.goto',
+        errorMessage: 'page.goto: net::ERR_NAME_NOT_RESOLVED at https://example.invalid',
+      },
+    });
+
+    const result = FailureClassifier.classify(context);
+    expect(result.category).toBe('NETWORK_OFFLINE');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
+  it('ENVIRONMENT-01: should classify connection refused as ENVIRONMENT_FAILURE', () => {
+    const context = createBaseContext({
+      failedAction: {
+        callId: 'call@connection-refused',
+        action: 'page.goto',
+        errorMessage: 'page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/',
+      },
+      networkEvents: [{
+        url: 'http://localhost:8000/',
+        method: 'GET',
+        status: 0,
+        errorText: 'connect ECONNREFUSED 127.0.0.1:8000',
+        timestamp: 1000,
+      }],
+    });
+
+    const result = FailureClassifier.classify(context);
+    expect(result.category).toBe('ENVIRONMENT_FAILURE');
+    expect(result.shouldAbstain).toBe(true);
+    expect(result.reason).toContain('unavailable');
+  });
+
+  it('ACTIONABILITY-01: should classify pointer interception as OBSTRUCTED_ELEMENT', () => {
+    const result = FailureClassifier.classify(createBaseContext({
+      failedAction: {
+        callId: 'call@obstructed',
+        action: 'page.click',
+        selector: '#doLogin',
+        errorMessage: 'locator.click: <div id="gdpr-modal-overlay"> intercepts pointer events',
+      },
+    }));
+    expect(result.category).toBe('OBSTRUCTED_ELEMENT');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
+  it('ACTIONABILITY-02: should classify disabled controls as DISABLED_ELEMENT', () => {
+    const result = FailureClassifier.classify(createBaseContext({
+      failedAction: {
+        callId: 'call@disabled',
+        action: 'page.click',
+        selector: '#doLogin',
+        errorMessage: 'locator.click: element is disabled',
+      },
+    }));
+    expect(result.category).toBe('DISABLED_ELEMENT');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
+  it('ACTIONABILITY-02B: should ignore browser launch flags when classifying disabled controls', () => {
+    const result = FailureClassifier.classify(createBaseContext({
+      failedAction: {
+        callId: 'call@disabled-with-launch-noise',
+        action: 'click',
+        selector: '#doLogin',
+        errorMessage:
+          'locator.click: Test timeout\nBrowser logs:\n<launching> --lens-overlay --disable-popup-blocking <gracefully close start>\nCall log:\n - element is not enabled',
+      },
+    }));
+    expect(result.category).toBe('DISABLED_ELEMENT');
+  });
+
+  it('ACTIONABILITY-03: should classify missing frame context as FRAME_OR_IFRAME', () => {
+    const result = FailureClassifier.classify(createBaseContext({
+      failedAction: {
+        callId: 'call@frame',
+        action: 'frameLocator.click',
+        selector: 'iframe[title="Payment"] >> button',
+        errorMessage: 'frame was detached while resolving the content frame',
+      },
+    }));
+    expect(result.category).toBe('FRAME_OR_IFRAME');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
+  it('ACTIONABILITY-03B: should classify a contentFrame locator timeout as FRAME_OR_IFRAME', () => {
+    const result = FailureClassifier.classify(createBaseContext({
+      failedAction: {
+        callId: 'call@content-frame',
+        action: 'click',
+        selector: "locator('#embedded-auth-frame').contentFrame().locator('#doLogin')",
+        errorMessage: "locator.click: timeout waiting for locator('#embedded-auth-frame').contentFrame().locator('#doLogin')",
+      },
+    }));
+    expect(result.category).toBe('FRAME_OR_IFRAME');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
+  it('ACTIONABILITY-04: should classify explicit hydration delay as HYDRATION_OR_TIMING', () => {
+    const result = FailureClassifier.classify(createBaseContext({
+      failedAction: {
+        callId: 'call@hydration',
+        action: 'page.click',
+        selector: '#submit',
+        errorMessage: 'Timeout waiting for hydration to complete before clicking',
+      },
+    }));
+    expect(result.category).toBe('HYDRATION_OR_TIMING');
+    expect(result.shouldAbstain).toBe(true);
+  });
+
   it('EVIDENCE-01: should correlate suspicious network events in temporal window', () => {
     const context = createBaseContext({
       networkEvents: [
@@ -308,6 +422,9 @@ describe('Failure Classification and Causal Correlation Suite (40 Tests)', () =>
     expect(correlated.suspiciousNetworkEvents[0]?.url).toBe('https://api.test/fail');
     expect(correlated.suspiciousConsoleEvents.length).toBe(1);
     expect(correlated.suspiciousConsoleEvents[0]?.text).toContain('Uncaught API Error');
+    expect(correlated.failureFingerprint.category).toBe('BACKEND_500');
+    expect(correlated.failureFingerprint.key).toMatch(/^failure-[0-9a-f]{16}$/);
+    expect(correlated.failureObservation.networkStatuses).toEqual([500]);
   });
 
   it('EVIDENCE-02: should classify generic timeout as LOCATOR_DRIFT when DOM available', () => {
@@ -323,6 +440,21 @@ describe('Failure Classification and Causal Correlation Suite (40 Tests)', () =>
     const result = FailureClassifier.classify(context);
     expect(result.category).toBe('LOCATOR_DRIFT');
     expect(result.shouldAbstain).toBe(false);
+  });
+
+  it('EVIDENCE-02B: should abstain on a post-action assertion timeout without claiming locator drift', () => {
+    const context = createBaseContext({
+      failedAction: {
+        callId: 'c-readiness',
+        action: 'expect.toBeVisible',
+        selector: "getByRole('link', { name: 'Rooms' })",
+        errorMessage: "Expect failed: locator('getByRole(\\'link\\', { name: \\'Rooms\\' })') timeout 5000ms exceeded; element(s) not found",
+      },
+    });
+
+    const result = FailureClassifier.classify(context);
+    expect(result.category).toBe('HYDRATION_OR_TIMING');
+    expect(result.shouldAbstain).toBe(true);
   });
 
   it('EVIDENCE-03: should classify unclassified error as UNKNOWN_ERROR and abstain', () => {

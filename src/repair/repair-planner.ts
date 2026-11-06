@@ -9,6 +9,13 @@ import { RepairEvidence } from '../core/types/repair-evidence.js';
 import { ResolvedElement } from '../trace/snapshot-resolver.js';
 import { CandidateExtractor } from '../selector/candidate-extractor.js';
 import { ExecutionRunner, ExecutionResult } from '../sandbox/execution-runner.js';
+import { PROOF_VERSION } from '../core/version.js';
+import {
+  BusinessIntent,
+  BusinessOracleResult,
+  evaluateBuiltInBusinessOracles,
+  extractBusinessIntent,
+} from '../intelligence/business-intent.js';
 
 export type RepairLifecycleState =
   | 'ANALYZED'
@@ -37,7 +44,9 @@ export interface RepairProposal {
   proposedPatchedSource: string;
   originalSource: string;
   pattern: string;
+  fullDiff?: string | undefined;
   diffAllowlistPassed: boolean;
+  businessIntent?: BusinessIntent | undefined;
 }
 
 export interface RepairVerificationInput {
@@ -54,7 +63,9 @@ export interface VerifiedRepairResult {
   evidence: RepairEvidence;
   executionResult: ExecutionResult;
   intentValidation: IntentV2ValidationResult;
+  executionProof: VerifiedExecutionProof;
   isReadyForApproval: boolean;
+  businessOracleResults?: BusinessOracleResult[] | undefined;
 }
 
 export interface RepairPlanInput {
@@ -67,6 +78,7 @@ export interface RepairPlanInput {
   className: string;
   memberName: string;
   intendedAction: string;
+  replacementSelector?: string | undefined;
   worktreeId?: string | undefined;
 }
 
@@ -89,7 +101,7 @@ export class RepairPlanner {
     const pageProperty = CandidateExtractor.discoverPageProperty(origSource);
 
     // 1. Synthesize replacement locator expression with escaping
-    const replacementLocator = RepairPlanner.generateSelectorExpression(input.candidateElement, pageProperty);
+    const replacementLocator = input.replacementSelector ?? RepairPlanner.generateSelectorExpression(input.candidateElement, pageProperty);
 
     // 2. Validate replacement against Playwright locator grammar
     const grammarCheck = DiffAllowlistValidator.validateLocatorGrammar(replacementLocator);
@@ -136,7 +148,13 @@ export class RepairPlanner {
       proposedPatchedSource: inMemPatch.patchedSource,
       originalSource: origSource,
       pattern: inMemPatch.pattern,
+      fullDiff: inMemPatch.diff,
       diffAllowlistPassed: true,
+      businessIntent: extractBusinessIntent({
+        id: input.originalActionId,
+        sourceText: fs.readFileSync(input.testFilePath, 'utf8'),
+        sourcePath: input.testFilePath,
+      }),
     };
   }
 
@@ -222,8 +240,34 @@ export class RepairPlanner {
       targetTestEvidence: [`Passed tests: ${passedCount}`, `Exit code: ${execResult.exitCode}`],
       assertionIntegrityValid: true,
       timestamp: Date.now(),
-      proofVersion: '2.6.0',
+      proofVersion: PROOF_VERSION,
     };
+
+    // Missing source evidence remains unavailable; it must never be treated
+    // as proof of business correctness.
+    const originalSpecPath = path.isAbsolute(proposal.testFilePath)
+      ? proposal.testFilePath
+      : path.resolve(rootDir, proposal.testFilePath);
+    const originalSpecSource = fs.existsSync(originalSpecPath)
+      ? fs.readFileSync(originalSpecPath, 'utf-8')
+      : undefined;
+    const currentSpecSource = fs.existsSync(worktreeSpecPath)
+      ? fs.readFileSync(worktreeSpecPath, 'utf-8')
+      : undefined;
+    const builtInOracleEvaluation = evaluateBuiltInBusinessOracles({
+      intent: proposal.businessIntent ?? extractBusinessIntent({
+        id: proposal.originalActionId,
+        sourceText: originalSpecSource ?? '',
+        sourcePath: originalSpecPath,
+      }),
+      originalSourceText: originalSpecSource,
+      currentSourceText: currentSpecSource,
+      executionPassed,
+    });
+    const effectiveBusinessOracleStatus = input.businessOracleStatus === 'contradicted'
+      || builtInOracleEvaluation.status === 'contradicted'
+      ? 'contradicted'
+      : input.businessOracleStatus ?? builtInOracleEvaluation.status;
 
     // Stage 5: Validate Intent Invariant v2 with actual execution proof
     const intentValidation = IntentValidator.validateV2({
@@ -238,7 +282,7 @@ export class RepairPlanner {
       originalSelector: proposal.originalSelector,
       executionPassed,
       executionProof,
-      businessOracleStatus: input.businessOracleStatus ?? 'unavailable',
+      businessOracleStatus: effectiveBusinessOracleStatus,
     });
 
     const isFullyVerified = executionPassed && intentValidation.isValid;
@@ -262,7 +306,7 @@ export class RepairPlanner {
         `Name: ${proposal.candidateElement.accessibleName ?? 'none'}`,
       ],
       assertionFingerprint: proposal.originalCompositeFingerprint.assertionFingerprint,
-      businessOracleStatus: input.businessOracleStatus ?? 'unavailable',
+      businessOracleStatus: effectiveBusinessOracleStatus,
       verificationWorktreeId: input.worktreeId,
       repairedTestDurationMs: execResult.durationMs,
       timestamp: Date.now(),
@@ -274,7 +318,9 @@ export class RepairPlanner {
       evidence,
       executionResult: execResult,
       intentValidation,
+      executionProof,
       isReadyForApproval: isFullyVerified,
+      businessOracleResults: builtInOracleEvaluation.results,
     };
   }
 

@@ -5,18 +5,23 @@ import {
   ConsoleEvent,
 } from '../core/types/diagnostic-context.js';
 import { VersionDetector } from './version-detector.js';
+import { SnapshotResolver, ResolvedElement } from './snapshot-resolver.js';
 
 export interface RawTraceEvent {
   type: string;
   callId?: string;
   apiName?: string;
   method?: string;
+  title?: string;
   params?: Record<string, any>;
   error?: any;
   stack?: Array<{ file: string; line: number; column?: number }>;
   wallTime?: number;
+  startTime?: number;
   endTime?: number;
   log?: string[];
+  message?: string;
+  snapshot?: any;
   [key: string]: any;
 }
 
@@ -24,17 +29,66 @@ export interface ParsedTraceStream {
   actions: Map<string, FailedAction>;
   failedAction?: FailedAction | undefined;
   consoleEvents: ConsoleEvent[];
+  rawSnapshots?: any[];
+  latestResolvedDom?: ResolvedElement | null;
+  domByCallId?: Map<string, ResolvedElement>;
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
+function inferActionDetailsFromError(errorMessage: string | undefined): { action?: string; selector?: string } {
+  if (!errorMessage) return {};
+  const text = stripAnsi(errorMessage);
+  const waitingMatch = text.match(/waiting for\s+([^\r\n]+)/i);
+  const waitingTarget = waitingMatch?.[1]?.trim();
+  const selector = waitingTarget && /^(?:locator|getBy|frameLocator)\(/i.test(waitingTarget)
+    ? waitingTarget
+    : undefined;
+
+  // The common Playwright form is "locator.click: ...". Keep the method
+  // separate from the human-readable parent test.step title so the classifier
+  // evaluates actionability evidence in the correct order.
+  const locatorAction = text.match(/\blocator\.([a-zA-Z]+):/i)?.[1];
+  const result: { action?: string; selector?: string } = {};
+  if (locatorAction) result.action = locatorAction.toLowerCase();
+  if (!result.action && /expect\s+failed|expect\s*\(|assert(?:ion)?\s+failed/i.test(text)) {
+    result.action = 'expect';
+  }
+  if (selector) result.selector = selector;
+  return result;
 }
 
 export class TraceParser {
+  private static selectFailedAction(candidates: FailedAction[]): FailedAction | undefined {
+    if (candidates.length === 0) return undefined;
+    const score = (candidate: FailedAction): number => {
+      const action = candidate.action.toLowerCase();
+      const message = candidate.errorMessage ?? '';
+      let value = 0;
+      if (candidate.selector) value += 4;
+      if (message.length > 40) value += 1;
+      if (/(click|fill|press|check|select|goto|navigate|expect|locator)/i.test(action)) value += 2;
+      if (/(fixture|hook|worker cleanup|beforeeach|aftereach)/i.test(action)) value -= 2;
+      return value;
+    };
+    return [...candidates].sort((left, right) => {
+      return score(right) - score(left) || (right.timestamp ?? 0) - (left.timestamp ?? 0) || left.callId.localeCompare(right.callId);
+    })[0];
+  }
+
   /**
-   * Parses the raw lines of a .trace JSONL stream into structured actions and events.
+   * Parses the raw lines of a .trace JSONL stream into structured actions, events, and DOM snapshots.
    */
   public static parseTraceLines(lines: string[]): ParsedTraceStream {
-    // Track actions by callId: pair 'before' events with corresponding 'after' events
     const actionsByCallId = new Map<string, Partial<FailedAction> & { beforeEvent?: RawTraceEvent }>();
     const consoleEvents: ConsoleEvent[] = [];
-    let detectedFailedAction: FailedAction | undefined;
+    const logsByCallId = new Map<string, string[]>();
+    const rawSnapshots: any[] = [];
+    const domByCallId = new Map<string, ResolvedElement>();
+    let latestResolvedDom: ResolvedElement | null = null;
+    const failedActionCandidates: FailedAction[] = [];
 
     for (const rawLine of lines) {
       const line = rawLine.trim();
@@ -47,25 +101,57 @@ export class TraceParser {
         continue; // Skip malformed JSONL records
       }
 
+      // Handle 'log' event
+      if (event.type === 'log' && event.callId && typeof event.message === 'string') {
+        let logs = logsByCallId.get(event.callId);
+        if (!logs) {
+          logs = [];
+          logsByCallId.set(event.callId, logs);
+        }
+        logs.push(event.message);
+      }
+
+      // Handle 'frame-snapshot' event
+      if (event.type === 'frame-snapshot' && event.snapshot) {
+        rawSnapshots.push(event.snapshot);
+        const snapIndex = rawSnapshots.length - 1;
+        const snapContent = event.snapshot.html ?? event.snapshot.node;
+        const resolved = SnapshotResolver.resolveDifferentialNode(snapContent, snapIndex, rawSnapshots);
+        if (resolved && typeof resolved === 'object' && 'tag' in resolved) {
+          latestResolvedDom = resolved as ResolvedElement;
+          if (event.snapshot.callId) {
+            domByCallId.set(event.snapshot.callId, resolved as ResolvedElement);
+          }
+        }
+      }
+
       // Handle 'before' event (action initiation in Playwright trace)
       if (event.type === 'before' && event.callId) {
         const callId = event.callId;
-        const selector =
+        let selector =
           event.params?.['selector'] ??
+          event.params?.['locator'] ??
+          event.subtitle ??
           (typeof event.apiName === 'string' && event.apiName.includes('locator(')
             ? event.apiName
             : undefined);
 
+        if (!selector && event.params?.['expression']) {
+          selector = event.params['selector'] ?? event.params['expression'];
+        }
+
         const sourceFrame = event.stack?.[0];
+        const actionName = event.apiName ?? event.title ?? event.method ?? 'unknown';
 
         actionsByCallId.set(callId, {
           callId,
-          action: event.apiName ?? 'unknown',
+          action: actionName,
           selector,
           sourceFile: sourceFrame?.file,
           line: sourceFrame?.line,
           column: sourceFrame?.column,
           durationMs: 0,
+          timestamp: event.wallTime ?? event.startTime,
           beforeEvent: event,
         });
       }
@@ -90,6 +176,36 @@ export class TraceParser {
           }
         }
 
+        const childActions = [...actionsByCallId.values()]
+          .filter((item) => item.beforeEvent?.parentId === event.callId)
+          .sort((left, right) => (right.beforeEvent?.startTime ?? 0) - (left.beforeEvent?.startTime ?? 0));
+        const childAction = childActions.find((item) => /click|fill|press|check|select/i.test(item.action ?? '')) ?? childActions[childActions.length - 1];
+        const childLogs = childAction?.callId ? logsByCallId.get(childAction.callId) ?? [] : [];
+        const logs = [...(logsByCallId.get(event.callId) ?? []), ...childLogs];
+        const inferred = inferActionDetailsFromError(errorMessage);
+
+        // Enrich errorMessage if vague like "Expect failed"
+        if ((!errorMessage || errorMessage.toLowerCase().includes('expect failed')) && logs.length > 0) {
+          const timeoutOrWaiting = logs.find(
+            (l) => l.includes('waiting for locator') || l.includes('resolved to') || l.includes('timeout')
+          );
+          if (timeoutOrWaiting) {
+            errorMessage = errorMessage ? `${errorMessage}: ${timeoutOrWaiting}` : timeoutOrWaiting;
+          }
+        }
+
+        // If selector was not in params, extract from logs
+        let finalSelector = existing?.selector;
+        if (!finalSelector) {
+          for (const l of logs) {
+            const m = l.match(/locator\('([^']+)'\)/i);
+            if (m) {
+              finalSelector = m[1];
+              break;
+            }
+          }
+        }
+
         const durationMs =
           existing?.beforeEvent?.wallTime && event.endTime
             ? event.endTime - existing.beforeEvent.wallTime
@@ -97,21 +213,21 @@ export class TraceParser {
 
         const completedAction: FailedAction = {
           callId: event.callId,
-          action: existing?.action ?? event.apiName ?? 'unknown',
-          selector: existing?.selector,
+          action: inferred.action ?? childAction?.action ?? existing?.action ?? event.apiName ?? 'unknown',
+          selector: finalSelector ?? inferred.selector ?? childAction?.selector,
           sourceFile: existing?.sourceFile,
           line: existing?.line,
           column: existing?.column,
           errorMessage,
           errorStack,
           durationMs,
+          timestamp: existing?.timestamp ?? event.endTime,
+          logs,
         };
 
         actionsByCallId.set(event.callId, completedAction);
 
-        if (hasError && !detectedFailedAction) {
-          detectedFailedAction = completedAction;
-        }
+        if (hasError) failedActionCandidates.push(completedAction);
       }
 
       // Handle consolidated 'action' event style
@@ -126,10 +242,35 @@ export class TraceParser {
           column: event.stack?.[0]?.column,
           errorMessage: typeof event.error === 'string' ? event.error : event.error?.message,
           errorStack: event.error?.stack,
+          timestamp: event.wallTime ?? event.startTime,
         };
         actionsByCallId.set(event.callId, action);
-        if (hasError && !detectedFailedAction) {
-          detectedFailedAction = action;
+        if (hasError) failedActionCandidates.push(action);
+      }
+
+      // Some trace producers emit a standalone error record rather than
+      // attaching the error to an `after` or consolidated `action` event.
+      // Preserve it as a candidate so diagnosis does not silently fall back
+      // to an unrelated fixture action or an empty unknown action.
+      if (event.type === 'error') {
+        const callId = event.callId ?? `error@${failedActionCandidates.length}`;
+        const existing = actionsByCallId.get(callId);
+        const rawError = typeof event.error === 'string' ? event.error : event.error?.message ?? event.message;
+        const standalone: FailedAction = {
+          callId,
+          action: existing?.action ?? event.apiName ?? event.title ?? 'unknown',
+          selector: existing?.selector,
+          sourceFile: existing?.sourceFile ?? event.stack?.[0]?.file,
+          line: existing?.line ?? event.stack?.[0]?.line,
+          column: existing?.column ?? event.stack?.[0]?.column,
+          errorMessage: rawError,
+          errorStack: typeof event.error === 'object' ? event.error?.stack : undefined,
+          timestamp: existing?.timestamp ?? event.wallTime ?? event.startTime,
+          logs: logsByCallId.get(callId) ?? [],
+        };
+        if (standalone.errorMessage) {
+          actionsByCallId.set(callId, standalone);
+          failedActionCandidates.push(standalone);
         }
       }
 
@@ -156,13 +297,18 @@ export class TraceParser {
         errorMessage: item.errorMessage,
         errorStack: item.errorStack,
         durationMs: item.durationMs,
+        timestamp: item.timestamp,
+        logs: (item as any).logs,
       });
     }
 
     return {
       actions: validActions,
-      failedAction: detectedFailedAction,
+      failedAction: TraceParser.selectFailedAction(failedActionCandidates),
       consoleEvents,
+      rawSnapshots,
+      latestResolvedDom,
+      domByCallId,
     };
   }
 
@@ -183,12 +329,18 @@ export class TraceParser {
           const req = event.snapshot?.request;
           const res = event.snapshot?.response;
           if (req && res) {
+            const rawTime =
+              event.snapshot?._monotonicTime ??
+              event.snapshot?.monotonicTime ??
+              event.snapshot?.wallTime ??
+              (event.snapshot?.startedDateTime ? new Date(event.snapshot.startedDateTime).getTime() : Date.now());
+
             networkEvents.push({
               url: req.url ?? 'unknown',
               method: req.method ?? 'GET',
               status: res.status ?? 0,
               statusText: res.statusText,
-              timestamp: event.snapshot?.wallTime ?? Date.now(),
+              timestamp: rawTime,
               durationMs: event.snapshot?.time,
             });
           }
@@ -220,7 +372,7 @@ export class TraceParser {
     const versionInfo = VersionDetector.detectFromLines(traceLines);
     VersionDetector.assertSupported(versionInfo);
 
-    const { failedAction, consoleEvents } = TraceParser.parseTraceLines(traceLines);
+    const { failedAction, consoleEvents, domByCallId, latestResolvedDom } = TraceParser.parseTraceLines(traceLines);
     const networkEvents = TraceParser.parseNetworkLines(networkLines);
 
     const fallbackFailedAction: FailedAction = failedAction ?? {
@@ -229,10 +381,27 @@ export class TraceParser {
       errorMessage: 'No explicit action failure recorded in trace',
     };
 
-    const snapshots: Record<string, any> = {};
-    const hasSnapshots = Object.keys(snapshots).length > 0;
+    const snapshots: { before?: string; action?: string; after?: string } = {};
 
-    return {
+    // Recover DOM snapshot from modern differential stream or latest known frame DOM
+    const targetDom: ResolvedElement | undefined =
+      (fallbackFailedAction.callId && domByCallId?.get(fallbackFailedAction.callId)) ||
+      latestResolvedDom ||
+      undefined;
+
+    if (targetDom) {
+      const htmlStr = SnapshotResolver.toHtml(targetDom);
+      snapshots.before = htmlStr;
+      snapshots.action = htmlStr;
+    }
+
+    const hasSnapshots = Boolean(
+      (snapshots.action && snapshots.action.trim().length > 0) ||
+      (snapshots.before && snapshots.before.trim().length > 0) ||
+      (snapshots.after && snapshots.after.trim().length > 0)
+    );
+
+    const context: DiagnosticContext = {
       playwrightVersion: versionInfo.playwrightVersion ?? 'unknown',
       traceFormatVersion: versionInfo.traceFormatVersion,
       failedAction: fallbackFailedAction,
@@ -245,6 +414,12 @@ export class TraceParser {
         sourceAvailable: Boolean(fallbackFailedAction.sourceFile),
       },
     };
+
+    if (targetDom) {
+      (context as any).domRoot = targetDom;
+    }
+
+    return context;
   }
 }
 

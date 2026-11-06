@@ -12,6 +12,22 @@ import { DiffAllowlistValidator } from '../repair/diff-allowlist.js';
 import { ApprovalService } from '../repair/approval-service.js';
 import { WorkspacePromoter } from '../repair/workspace-promoter.js';
 import { TestGenerator } from '../generator/test-generator.js';
+import { ENGINE_MILESTONE, PACKAGE_VERSION } from '../core/version.js';
+import { bootstrapProjectIntelligence, recordProjectFailure, recordProjectRepairAccepted } from '../intelligence/project-intelligence.js';
+import { initProjectConfig } from '../config/project-config.js';
+import { buildRepositoryProfile, writeRepositoryProfile } from '../intelligence/repository-profile.js';
+import { clusterFailures, FailureObservation } from '../intelligence/failure-clustering.js';
+import { analyzeTestStability, analyzeRepositoryImpact, TestRunObservation } from '../intelligence/suite-intelligence.js';
+import { compileSafeRepairOperation } from '../repair/safe-operation-compiler.js';
+import { evaluateQualityGate, QualityGateInput } from '../integrations/quality-gate.js';
+import { planArchitecture, writeArchitecturePlan, ArchitectureMode } from '../generator/architecture-generator.js';
+import { buildCiEvidenceReport } from '../integrations/playwright-report-adapter.js';
+import { buildSarifReport } from '../integrations/sarif-report.js';
+import { recordArchitectureWorkflow, recordCiWorkflow } from '../governance/workflow-audit.js';
+import { buildTeamDashboard, TeamEvidenceRun } from '../governance/team-dashboard.js';
+import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../diagnostics/external-failure-evidence.js';
+import { runRepairWorkflow } from '../repair/repair-workflow.js';
+import { runTraceProposalWorkflow } from '../intelligence/trace-proposal-workflow.js';
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -128,7 +144,7 @@ export class McpServer {
             capabilities: { tools: {} },
             serverInfo: {
               name: 'playwright-intelligence-mcp',
-              version: '2.6.0',
+              version: PACKAGE_VERSION,
             },
           },
         };
@@ -146,6 +162,41 @@ export class McpServer {
                   type: 'object',
                   properties: {
                     tracePath: { type: 'string', description: 'Workspace-relative or absolute path to trace.zip archive' },
+                    errorContextPath: { type: 'string', description: 'Optional workspace-relative path to Playwright error-context.md when the trace lacks a failed action' },
+                  },
+                  required: ['tracePath'],
+                },
+              },
+              {
+                name: 'repair_trace',
+                description: 'Builds a fail-closed repair proposal from a trace, optionally verifies it in an isolated worktree, and never promotes source without explicit approval.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePath: { type: 'string', description: 'Workspace-relative or absolute path to trace.zip archive' },
+                    errorContextPath: { type: 'string', description: 'Optional Playwright error-context.md path' },
+                    testPath: { type: 'string', description: 'Failing test spec path, required to build a repair proposal' },
+                    pomPath: { type: 'string', description: 'Page Object path, required to build a repair proposal' },
+                    className: { type: 'string', description: 'Page Object class name' },
+                    memberName: { type: 'string', description: 'Locator member name' },
+                    configPath: { type: 'string', description: 'Optional Playwright config path for isolated verification' },
+                    execute: { type: 'boolean', description: 'When true, verify only inside a dedicated worktree; still requires approval to promote' },
+                    worktreeId: { type: 'string', description: 'Optional stable worktree identifier' },
+                    operation: { type: 'object', description: 'Optional allowlisted repair operation, such as replace_locator, add_frame_scope, or add_shadow_scope' },
+                  },
+                  required: ['tracePath'],
+                },
+              },
+              {
+                name: 'propose_repair',
+                description: 'Runs one bounded, redaction-aware optional model proposal step after deterministic PIE classification; never executes or promotes model output.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePath: { type: 'string', description: 'Workspace-relative or absolute path to trace.zip archive' },
+                    errorContextPath: { type: 'string', description: 'Optional Playwright error-context.md path' },
+                    executionId: { type: 'string' },
+                    testIdentity: { type: 'string' },
                   },
                   required: ['tracePath'],
                 },
@@ -177,6 +228,80 @@ export class McpServer {
                     steps: { type: 'array', description: 'Array of interaction steps' },
                   },
                   required: ['featureName', 'steps'],
+                },
+              },
+              {
+                name: 'plan_test_architecture',
+                description: 'Plans a greenfield or repository-aware brownfield Playwright test architecture; optionally creates only missing files when write is explicitly true.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    featureName: { type: 'string' },
+                    mode: { type: 'string', enum: ['greenfield', 'brownfield'] },
+                    baseUrl: { type: 'string' },
+                    requirements: { type: 'string' },
+                    steps: { type: 'array' },
+                    write: { type: 'boolean' },
+                  },
+                  required: ['featureName', 'mode'],
+                },
+              },
+              {
+                name: 'get_product_status',
+                description: 'Returns the verified PIE package identity, safety mode, and currently implemented capability surface.',
+                inputSchema: { type: 'object', properties: {} },
+              },
+              {
+                name: 'initialize_project',
+                description: 'Creates or loads the project-local PIE configuration without modifying application source files.',
+                inputSchema: { type: 'object', properties: {} },
+              },
+              {
+                name: 'profile_repository',
+                description: 'Builds and persists a repository convention profile for project-aware diagnosis and generation.',
+                inputSchema: { type: 'object', properties: {} },
+              },
+              {
+                name: 'cluster_failures',
+                description: 'Groups normalized failure observations by deterministic fingerprints.',
+                inputSchema: { type: 'object', properties: { observations: { type: 'array' } }, required: ['observations'] },
+              },
+              {
+                name: 'suite_health',
+                description: 'Calculates flaky-test, pass-rate, failure-history, and duration summaries.',
+                inputSchema: { type: 'object', properties: { runs: { type: 'array' } }, required: ['runs'] },
+              },
+              {
+                name: 'build_team_dashboard',
+                description: 'Aggregates normalized CI evidence across repositories into a team quality dashboard and deterministic gate.',
+                inputSchema: { type: 'object', properties: { runs: { type: 'array' }, policy: { type: 'object' } }, required: ['runs'] },
+              },
+              {
+                name: 'analyze_repository_impact',
+                description: 'Discovers Playwright test dependencies and selects impacted tests from changed files.',
+                inputSchema: { type: 'object', properties: { changedFiles: { type: 'array', items: { type: 'string' } } }, required: ['changedFiles'] },
+              },
+              {
+                name: 'compile_repair_operation',
+                description: 'Validates and compiles an allowlisted repair operation into an immutable proposal.',
+                inputSchema: { type: 'object', properties: { operation: { type: 'object' } }, required: ['operation'] },
+              },
+              {
+                name: 'evaluate_quality_gate',
+                description: 'Evaluates deterministic CI/release quality gates from PIE clusters, stability summaries, oracle state, and repair evidence.',
+                inputSchema: { type: 'object', properties: {} },
+              },
+              {
+                name: 'ingest_playwright_report',
+                description: 'Converts a Playwright JSON report into PIE test observations, failure clusters, stability summaries, a deterministic CI quality gate, and SARIF-compatible results.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    report: { type: 'object' },
+                    repository: { type: 'string' },
+                    runId: { type: 'string' },
+                  },
+                  required: ['report'],
                 },
               },
             ],
@@ -220,14 +345,14 @@ export class McpServer {
           throw new Error(`Trace file not found: '${tracePath}'`);
         }
 
-        const { traceEntryName, networkEntryName } = ArchiveReader.findTraceFileEntries(tracePath);
+        const { traceEntryName, networkEntryName, traceEntryNames, networkEntryNames } = ArchiveReader.findTraceFileEntries(tracePath);
         if (!traceEntryName) {
           throw new Error(`No .trace event stream found in archive '${tracePath}'`);
         }
 
-        const traceText = await ArchiveReader.readEntryAsText(tracePath, traceEntryName);
-        const networkText = networkEntryName
-          ? await ArchiveReader.readEntryAsText(tracePath, networkEntryName)
+        const traceText = await ArchiveReader.readEntriesAsText(tracePath, traceEntryNames ?? [traceEntryName]);
+        const networkText = (networkEntryNames ?? (networkEntryName ? [networkEntryName] : [])).length > 0
+          ? await ArchiveReader.readEntriesAsText(tracePath, networkEntryNames ?? [networkEntryName!])
           : '';
 
         const traceLines = traceText.split('\n');
@@ -240,9 +365,16 @@ export class McpServer {
           traceEntryName,
           networkEntryName,
         };
-        const context = await adapter.parse(manifest, traceLines, networkLines);
+        let context = await adapter.parse(manifest, traceLines, networkLines);
+        if (args?.errorContextPath) {
+          const errorContextPath = this.assertPathInWorkspace(args.errorContextPath);
+          const errorContext = await fs.promises.readFile(errorContextPath, 'utf8');
+          context = supplementDiagnosticContext(context, parseExternalFailureEvidence(errorContext));
+        }
         const correlated = EvidenceCorrelator.correlate(context);
-        const report = DiagnosticReportGenerator.generateTerminalReport(correlated);
+        const intelligence = await bootstrapProjectIntelligence(this.workspaceRoot);
+        await recordProjectFailure(this.workspaceRoot, context.failedAction.selector, correlated.classification.category);
+        const report = DiagnosticReportGenerator.generateTerminalReport(correlated, undefined, intelligence);
 
         return {
           jsonrpc: '2.0',
@@ -250,8 +382,172 @@ export class McpServer {
           result: {
             content: [{ type: 'text', text: report }],
             classification: correlated.classification,
+            failureFingerprint: correlated.failureFingerprint,
+            failureObservation: correlated.failureObservation,
             causalGraph: correlated.classification.causalGraph,
           },
+        };
+      }
+
+      if (toolName === 'repair_trace') {
+        const tracePath = args?.tracePath;
+        if (typeof tracePath !== 'string' || !tracePath.trim()) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'tracePath argument must be a non-empty string' } };
+        }
+
+        const result = await runRepairWorkflow({
+          tracePath,
+          workspaceRoot: this.workspaceRoot,
+          errorContextPath: typeof args?.errorContextPath === 'string' ? args.errorContextPath : undefined,
+          testFilePath: typeof args?.testPath === 'string' ? args.testPath : undefined,
+          pomFilePath: typeof args?.pomPath === 'string' ? args.pomPath : undefined,
+          className: typeof args?.className === 'string' ? args.className : undefined,
+          memberName: typeof args?.memberName === 'string' ? args.memberName : undefined,
+          configPath: typeof args?.configPath === 'string' ? args.configPath : undefined,
+          execute: args?.execute === true,
+          worktreeId: typeof args?.worktreeId === 'string' ? args.worktreeId : undefined,
+          operation: args?.operation,
+        });
+
+        const response = {
+          status: result.status,
+          classification: result.correlated.classification,
+          failureFingerprint: result.correlated.failureFingerprint,
+          failureObservation: result.correlated.failureObservation,
+          failedAction: result.correlated.context.failedAction,
+          proposedLocator: result.proposedLocator,
+          candidate: result.candidate
+            ? { locatorExpression: result.candidate.locatorExpression, score: result.candidate.score }
+            : undefined,
+          proposal: result.proposal
+            ? {
+                pattern: result.proposal.pattern,
+                replacementSelector: result.proposal.replacementSelector,
+                fullDiff: result.proposal.fullDiff,
+                target: {
+                  testFilePath: result.proposal.testFilePath,
+                  pomFilePath: result.proposal.pomFilePath,
+                  className: result.proposal.className,
+                  memberName: result.proposal.memberName,
+                },
+              }
+            : undefined,
+          proposalId: result.stagedProposal?.proposalId,
+          worktree: result.worktree,
+          verification: result.verification
+            ? {
+                isReadyForApproval: result.verification.isReadyForApproval,
+                state: result.verification.state,
+                execution: result.verification.executionProof,
+                intentValidation: result.verification.intentValidation,
+              }
+            : undefined,
+          reason: result.reason,
+        };
+
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+            ...response,
+          },
+        };
+      }
+
+      if (toolName === 'propose_repair') {
+        if (typeof args?.tracePath !== 'string' || !args.tracePath.trim()) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'tracePath argument must be a non-empty string' } };
+        }
+        const result = await runTraceProposalWorkflow({
+          tracePath: args.tracePath,
+          workspaceRoot: this.workspaceRoot,
+          errorContextPath: typeof args?.errorContextPath === 'string' ? args.errorContextPath : undefined,
+          executionId: typeof args?.executionId === 'string' ? args.executionId : undefined,
+          testIdentity: typeof args?.testIdentity === 'string' ? args.testIdentity : undefined,
+        });
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [{ type: 'text', text: JSON.stringify({ state: result.agent.state, classification: result.agent.classification, proposal: result.agent.proposal, errors: result.agent.errors }, null, 2) }],
+            state: result.agent.state,
+            modelInvoked: result.agent.modelInvoked,
+            classification: result.agent.classification,
+            proposal: result.agent.proposal,
+            errors: result.agent.errors,
+            evidence: {
+              bundleId: result.bundle.bundleId,
+              redactionComplete: result.bundle.redactionComplete,
+              limitations: result.bundle.limitations,
+              artifactCount: result.bundle.artifacts.length,
+            },
+          },
+        };
+      }
+
+      if (toolName === 'initialize_project') {
+        const initialized = await initProjectConfig(this.workspaceRoot);
+        return { jsonrpc: '2.0', id, result: { status: initialized.created ? 'CREATED' : 'EXISTING', configPath: initialized.configPath, config: initialized.config } };
+      }
+
+      if (toolName === 'profile_repository') {
+        const profile = await buildRepositoryProfile(this.workspaceRoot);
+        const written = await writeRepositoryProfile(this.workspaceRoot, profile);
+        return { jsonrpc: '2.0', id, result: { status: 'PROFILE_READY', profilePath: written.profilePath, profile } };
+      }
+
+      if (toolName === 'cluster_failures') {
+        const observations = args?.observations;
+        if (!Array.isArray(observations)) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'observations must be an array' } };
+        }
+        const clusters = clusterFailures(observations as FailureObservation[]);
+        return { jsonrpc: '2.0', id, result: { observationCount: observations.length, clusterCount: clusters.length, clusters } };
+      }
+
+      if (toolName === 'suite_health') {
+        const runs = args?.runs;
+        if (!Array.isArray(runs)) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'runs must be an array' } };
+        }
+        const tests = analyzeTestStability(runs as TestRunObservation[]);
+        return { jsonrpc: '2.0', id, result: { runCount: runs.length, testCount: tests.length, flakyTestCount: tests.filter((test) => test.flaky).length, tests } };
+      }
+
+      if (toolName === 'build_team_dashboard') {
+        if (!Array.isArray(args?.runs)) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'runs must be an array of TeamEvidenceRun objects' } };
+        }
+        return { jsonrpc: '2.0', id, result: buildTeamDashboard(args.runs as TeamEvidenceRun[], args?.policy ?? {}) };
+      }
+
+      if (toolName === 'analyze_repository_impact') {
+        if (!Array.isArray(args?.changedFiles) || args.changedFiles.some((file: unknown) => typeof file !== 'string')) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'changedFiles must be an array of strings' } };
+        }
+        return { jsonrpc: '2.0', id, result: await analyzeRepositoryImpact(this.workspaceRoot, args.changedFiles as string[]) };
+      }
+
+      if (toolName === 'compile_repair_operation') {
+        const operation = compileSafeRepairOperation(args?.operation);
+        return { jsonrpc: '2.0', id, result: operation };
+      }
+
+      if (toolName === 'evaluate_quality_gate') {
+        return { jsonrpc: '2.0', id, result: evaluateQualityGate((args ?? {}) as QualityGateInput) };
+      }
+
+      if (toolName === 'ingest_playwright_report') {
+        if (!args?.report || typeof args.report !== 'object') {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'report must be a Playwright JSON report object' } };
+        }
+        const evidence = buildCiEvidenceReport(args.report, { repository: args.repository, runId: args.runId });
+        await recordCiWorkflow(this.workspaceRoot, evidence);
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: { ...evidence, sarif: buildSarifReport(evidence, PACKAGE_VERSION) },
         };
       }
 
@@ -337,6 +633,8 @@ export class McpServer {
               },
             };
           }
+
+          await recordProjectRepairAccepted(this.workspaceRoot, replacementSelector).catch(() => {});
 
           const postFingerprint = AssertionHasher.computeFingerprint(testPath);
           const assertionIntact = initialFingerprint === postFingerprint;
@@ -434,6 +732,57 @@ export class McpServer {
               },
             ],
             generated,
+          },
+        };
+      }
+
+      if (toolName === 'plan_test_architecture') {
+        const { featureName, mode, baseUrl, requirements, steps, write } = args ?? {};
+        if (typeof featureName !== 'string' || !featureName.trim() || (mode !== 'greenfield' && mode !== 'brownfield')) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'featureName and mode (greenfield|brownfield) are required' } };
+        }
+        const profile = mode === 'brownfield' ? await buildRepositoryProfile(this.workspaceRoot) : undefined;
+        const plan = planArchitecture({ featureName, mode: mode as ArchitectureMode, baseUrl, requirements, steps, profile });
+        const writeResult = write === true ? await writeArchitecturePlan(this.workspaceRoot, plan) : undefined;
+        await recordArchitectureWorkflow(this.workspaceRoot, plan, writeResult);
+        return { jsonrpc: '2.0', id, result: { plan, writeResult } };
+      }
+
+      if (toolName === 'get_product_status') {
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            packageVersion: PACKAGE_VERSION,
+            engineeringMilestone: ENGINE_MILESTONE,
+            safetyMode: 'fail-closed',
+            mutationPolicy: 'approval-required',
+            llmPolicy: 'provider-neutral-proposals-only',
+            capabilities: {
+              traceDiagnosis: true,
+              liveReproduction: true,
+              astPageObjectRepair: true,
+              traceToRepairWorkflow: true,
+              isolatedWorktreeVerification: true,
+              workflowRepairExecution: true,
+              allowlistedOperationWorkflow: true,
+              browserOperationExecutor: true,
+              workspacePromotion: false,
+              builtInLlmProvider: false,
+              boundedModelProposalWorkflow: true,
+              repositoryInspection: true,
+              repositoryBaselineRunner: true,
+              externalRepositoryEvaluation: false,
+              projectIntelligence: true,
+              failureClustering: true,
+              suiteHealth: true,
+              safeOperationCompiler: true,
+              qualityGate: true,
+              sarifOutput: true,
+              teamDashboard: true,
+              architectureGeneration: true,
+              firstPartySkills: true,
+            },
           },
         };
       }

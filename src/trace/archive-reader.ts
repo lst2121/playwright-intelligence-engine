@@ -17,6 +17,15 @@ export interface ExtractedTraceArchive {
   hasNetworkEventFile: boolean;
 }
 
+export interface TraceEntryDiscovery {
+  /** Best stream for backward-compatible single-stream consumers. */
+  traceEntryName?: string | undefined;
+  networkEntryName?: string | undefined;
+  /** All streams, ordered with explicit failure streams first. */
+  traceEntryNames?: string[] | undefined;
+  networkEntryNames?: string[] | undefined;
+}
+
 export class ArchiveReader {
   private static readonly DEFAULT_MAX_SIZE = 100 * 1024 * 1024; // 100 MB max uncompressed
   private static readonly DEFAULT_MAX_ENTRIES = 10000;
@@ -27,17 +36,37 @@ export class ArchiveReader {
    * Automatically discovers the primary trace and network JSONL entry names inside a Playwright trace archive.
    * Matches stream and worker IDs between .trace and .network files to prevent cross-worker mismatch.
    */
-  public static findTraceFileEntries(zipPath: string): { traceEntryName?: string | undefined; networkEntryName?: string | undefined } {
+  public static findTraceFileEntries(zipPath: string): TraceEntryDiscovery {
     try {
       const zip = new AdmZip(zipPath);
       const entries = zip.getEntries();
 
-      // Trace candidate selection: prioritize action streams over metadata streams (test.trace)
+      // A Playwright archive can contain several streams. The largest stream is
+      // often a browser/page stream, while the runner's test.trace contains the
+      // actual failed pw:api action and error. Prefer the stream with explicit
+      // failed-action evidence, then fall back to the largest stream for older
+      // or minimal archives.
       const traceCandidates = entries
         .filter((e) => e.entryName.endsWith('.trace'))
-        .sort((a, b) => b.header.size - a.header.size);
+        .map((entry) => {
+          const text = entry.getData().toString('utf8');
+          const lines = text.split(/\r?\n/);
+          let failureScore = 0;
+          for (const line of lines) {
+            if (!line.includes('"type":"')) continue;
+            if (line.includes('"type":"after"') && line.includes('"error"')) failureScore += 100;
+            if (line.includes('"type":"error"') && (line.includes('"message"') || line.includes('"error"'))) failureScore += 80;
+            if (line.includes('"type":"log"')) failureScore += 1;
+          }
+          if (path.basename(entry.entryName).toLowerCase() === 'test.trace' && failureScore > 0) {
+            failureScore += 10;
+          }
+          return { entry, failureScore };
+        })
+        .sort((a, b) => b.failureScore - a.failureScore || b.entry.header.size - a.entry.header.size);
 
-      const bestTrace = traceCandidates[0]?.entryName;
+      const orderedTraceNames = traceCandidates.map(({ entry }) => entry.entryName);
+      const bestTrace = orderedTraceNames[0];
       if (!bestTrace) {
         return {};
       }
@@ -45,6 +74,7 @@ export class ArchiveReader {
       // Correlate network entry with matching stream / worker prefix if possible
       const traceBase = path.basename(bestTrace, '.trace');
       const networkCandidates = entries.filter((e) => e.entryName.endsWith('.network'));
+      const networkEntryNames = networkCandidates.map((entry) => entry.entryName);
 
       let bestNetwork: string | undefined;
       // 1. Exact base match (e.g. 0.trace -> 0.network, trace.trace -> trace.network)
@@ -58,10 +88,22 @@ export class ArchiveReader {
         bestNetwork = prefixMatch ? prefixMatch.entryName : networkCandidates.sort((a, b) => b.header.size - a.header.size)[0]?.entryName;
       }
 
-      return { traceEntryName: bestTrace, networkEntryName: bestNetwork };
+      return {
+        traceEntryName: bestTrace,
+        networkEntryName: bestNetwork,
+        traceEntryNames: orderedTraceNames,
+        networkEntryNames,
+      };
     } catch {
       return {};
     }
+  }
+
+  /** Reads multiple archive entries and joins them as one logical JSONL stream. */
+  public static async readEntriesAsText(zipPath: string, entryNames: string[]): Promise<string> {
+    const uniqueNames = [...new Set(entryNames.filter(Boolean))];
+    const texts = await Promise.all(uniqueNames.map((entryName) => ArchiveReader.readEntryAsText(zipPath, entryName)));
+    return texts.join('\n');
   }
 
   /**

@@ -295,7 +295,7 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
 }
 
 function proposalSystemPrompt(): string {
-  return 'Return exactly one JSON object and nothing else. Do not use Markdown, code fences, or chain-of-thought. Use exactly these required top-level keys: proposalVersion:"1", decision:"PROPOSE" or "ABSTAIN", failureKind, confidence (0..1), reasoningSummary (short), operations (array of PIE allowlisted operations), requiredVerification (string array), and evidenceReferences (string array). For replace_locator use only kind, target, locator, and optional reason. Do not return filePath, line, column, oldText, newText, patches, source code, or extra keys. If evidence is insufficient, return decision ABSTAIN with one abstain operation.';
+  return 'Return exactly one JSON object and nothing else. Do not use Markdown, code fences, or chain-of-thought. Use exactly these required top-level keys: proposalVersion:"1", decision:"PROPOSE" or "ABSTAIN", failureKind, confidence (0..1), reasoningSummary (short), operations (array of PIE allowlisted operations), requiredVerification (string array), and evidenceReferences (string array). For replace_locator use only kind, target, locator, and optional reason. The replace_locator target must be exactly the failed selector string from diagnostic.failedAction.selector, never a callId, source location, property name, or file path. The locator must be a complete PIE expression rooted at page. or this.page. (for example page.getByRole(...) or this.page.locator(...)). Do not return filePath, line, column, oldText, newText, patches, source code, or extra keys. If evidence is insufficient, return decision ABSTAIN with one abstain operation.';
 }
 
 function agentSystemPrompt(): string {

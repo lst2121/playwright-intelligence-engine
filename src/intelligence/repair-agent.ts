@@ -43,7 +43,7 @@ export interface RepairAgentResult {
   finalResponse?: AgentFinalResponse | undefined;
 }
 
-function proposalMatchesClassification(proposal: LlmRepairProposal, classification: ClassificationResult): string | undefined {
+function proposalMatchesClassification(proposal: LlmRepairProposal, classification: ClassificationResult, failedSelector?: string): string | undefined {
   if (proposal.decision === 'ABSTAIN') return undefined;
   const proposalKind = proposal.failureKind.trim().toUpperCase();
   const classifiedKind = classification.category.trim().toUpperCase();
@@ -52,6 +52,12 @@ function proposalMatchesClassification(proposal: LlmRepairProposal, classificati
   }
   if (proposal.operations.length === 0) return 'PROPOSE decision requires at least one validated operation';
   if (proposal.operations.some((operation) => operation.kind === 'abstain')) return 'PROPOSE decision cannot contain an abstain operation';
+  if (failedSelector) {
+    const mismatchedTarget = proposal.operations.find((operation) =>
+      operation.kind === 'replace_locator' && operation.target !== failedSelector,
+    );
+    if (mismatchedTarget) return `Model operation target '${mismatchedTarget.target ?? ''}' does not match deterministic failed selector '${failedSelector}'`;
+  }
   return undefined;
 }
 
@@ -81,7 +87,7 @@ export async function runRepairProposalAgent(input: RepairAgentInput): Promise<R
   if (!result.isValid || !result.proposal) {
     return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: result.errors.length > 0 ? result.errors : ['Provider returned no valid proposal'] };
   }
-  const semanticError = proposalMatchesClassification(result.proposal, classification);
+  const semanticError = proposalMatchesClassification(result.proposal, classification, input.context.failedAction.selector);
   if (semanticError) return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: [semanticError] };
   return { state: 'PROPOSAL_RECEIVED', classification, modelInvoked: true, proposal: result.proposal, errors: [] };
 }
@@ -173,7 +179,7 @@ async function runBoundedAgentLoop(
           finalResponse: response,
         };
       }
-      const semanticError = proposalMatchesClassification(proposalResult.proposal, classification);
+      const semanticError = proposalMatchesClassification(proposalResult.proposal, classification, input.context.failedAction.selector);
       if (semanticError) {
         return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: [semanticError], steps, finalResponse: response };
       }

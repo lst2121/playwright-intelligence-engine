@@ -144,6 +144,23 @@ describe('bounded LLM repair proposal agent', () => {
     expect(result.errors[0]).toContain('conflicts');
   });
 
+  it('rejects a locator proposal whose target is not the deterministic failed selector', async () => {
+    const failed = context();
+    const provider = new FakeProvider({
+      isValid: true,
+      errors: [],
+      proposal: {
+        proposalVersion: '1', decision: 'PROPOSE', failureKind: 'LOCATOR_DRIFT', confidence: 0.99,
+        reasoningSummary: 'Incorrect target identity.',
+        operations: [{ kind: 'replace_locator', target: 'action@1', locator: "page.getByRole('button', { name: 'Checkout' })" }],
+        requiredVerification: ['isolated target test'], evidenceReferences: [],
+      },
+    });
+    const result = await runRepairProposalAgent({ context: failed, bundle: bundleFor(failed), provider });
+    expect(result.state).toBe('PROPOSAL_REJECTED');
+    expect(result.errors[0]).toContain('does not match deterministic failed selector');
+  });
+
   it('includes redacted diagnostic evidence in the model bundle', () => {
     const sensitive = context('Timeout waiting for locator("button.checkout") Bearer abc.def.ghi');
     sensitive.snapshots.action = '<input type="password" value="super-secret" /><button>Checkout</button>';

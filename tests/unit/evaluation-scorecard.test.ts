@@ -11,8 +11,9 @@ describe('evaluation scorecard', () => {
     ]);
 
     expect(scorecard.accuracyCaseCount).toBe(2);
-    expect(scorecard.exactMatches).toBe(2);
+    expect(scorecard.exactMatches).toBe(1);
     expect(scorecard.semanticAccuracy).toBe(1);
+    expect(scorecard.exactAccuracy).toBe(0.5);
     expect(scorecard.perCategory.BACKEND_500?.support).toBe(1);
     expect(scorecard.negativeControlCount).toBe(2);
     expect(scorecard.safeAbstentionRate).toBe(0.5);

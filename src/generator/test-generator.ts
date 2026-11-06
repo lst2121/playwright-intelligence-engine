@@ -26,6 +26,7 @@ export class TestGenerator {
 
     // Generate Page Object locators and actions
     const locatorDeclarations: string[] = [];
+    const locatorAssignments: string[] = [];
     const actionMethods: string[] = [];
 
     steps.forEach((step, idx) => {
@@ -35,7 +36,8 @@ export class TestGenerator {
           ? `this.page.getByRole('${step.role}', { name: '${step.name}' })`
           : `this.page.locator('${step.selector ?? 'button'}')`;
 
-        locatorDeclarations.push(`  readonly ${propName} = ${loc};`);
+        locatorDeclarations.push(`  readonly ${propName}: Locator;`);
+        locatorAssignments.push(`    this.${propName} = ${loc};`);
         actionMethods.push(`  async click${idx + 1}(): Promise<void> {\n    await this.${propName}.click();\n  }`);
       } else if (step.action === 'fill') {
         const propName = `inputField${idx + 1}`;
@@ -43,7 +45,8 @@ export class TestGenerator {
           ? `this.page.getByRole('textbox', { name: '${step.name}' })`
           : `this.page.locator('${step.selector ?? 'input'}')`;
 
-        locatorDeclarations.push(`  readonly ${propName} = ${loc};`);
+        locatorDeclarations.push(`  readonly ${propName}: Locator;`);
+        locatorAssignments.push(`    this.${propName} = ${loc};`);
         actionMethods.push(`  async fill${idx + 1}(val: string): Promise<void> {\n    await this.${propName}.fill(val);\n  }`);
       }
     });
@@ -57,6 +60,7 @@ ${locatorDeclarations.join('\n')}
 
   constructor(page: Page) {
     this.page = page;
+${locatorAssignments.join('\n')}
   }
 
   async goto(): Promise<void> {

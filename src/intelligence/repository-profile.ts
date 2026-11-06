@@ -82,6 +82,32 @@ async function listSourceFiles(root: string, depth = 0): Promise<string[]> {
   return files;
 }
 
+/** Returns whether a directory has enough project markers to profile safely. */
+export async function isLikelyProjectRoot(root: string): Promise<boolean> {
+  const projectRoot = path.resolve(root);
+  const markers = ['package.json', 'playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs', 'playwright.config.cjs'];
+  for (const marker of markers) {
+    try {
+      await fs.access(path.join(projectRoot, marker));
+      return true;
+    } catch {
+      // Try the next project marker.
+    }
+  }
+  return false;
+}
+
+/** Detects evaluation/workspace containers that must not be profiled recursively. */
+export async function isLikelyRepositoryContainer(root: string): Promise<boolean> {
+  const containerNames = new Set(['repositories', 'pie-evaluation', 'generation', 'repair-worktrees', 'generated-test-data']);
+  try {
+    const entries = await fs.readdir(path.resolve(root), { withFileTypes: true });
+    return entries.some((entry) => entry.isDirectory() && containerNames.has(entry.name));
+  } catch {
+    return false;
+  }
+}
+
 function countMatches(contents: string, pattern: RegExp): number {
   return contents.match(pattern)?.length ?? 0;
 }

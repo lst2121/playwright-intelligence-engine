@@ -139,6 +139,9 @@ describe('Phase 3 Intelligence & Stability Tests', () => {
     expect(result.pageObjectName).toBe('UserLoginPage');
     expect(result.pageObjectCode).toContain('export class UserLoginPage');
     expect(result.pageObjectCode).toContain("this.page.getByRole('button', { name: 'Login' })");
+    expect(result.pageObjectCode).toContain('readonly actionButton2: Locator;');
+    expect(result.pageObjectCode).toContain('this.actionButton2 = this.page.getByRole');
+    expect(result.pageObjectCode).not.toContain('readonly actionButton2 = this.page');
     expect(result.specCode).toContain("await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();");
   });
 });

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { buildRepositoryProfile, computeRepositoryProfileFingerprint, RepositoryConventionProfile } from './repository-profile.js';
+import { buildRepositoryProfile, computeRepositoryProfileFingerprint, isLikelyProjectRoot, isLikelyRepositoryContainer, RepositoryConventionProfile } from './repository-profile.js';
 import { effectiveReliabilityScore, StabilityLedger, StabilityLedgerData, RepairFeedbackOutcome } from '../memory/stability-ledger.js';
 
 export interface ProjectIntelligenceSnapshot {
@@ -53,6 +53,11 @@ export async function bootstrapProjectIntelligence(projectRoot = process.cwd()):
   const root = path.resolve(projectRoot);
   const profilePath = path.join(root, '.pie', 'repository-profile.json');
   const existing = await readProfile(root);
+  if (!existing && !(await isLikelyProjectRoot(root)) && (await isLikelyRepositoryContainer(root))) {
+    // Evaluation and workspace containers are not repositories. Avoid
+    // recursively profiling every child repository when invoked from one.
+    return loadProjectIntelligence(root);
+  }
   let profile = existing;
   let shouldWrite = false;
   if (!profile) {

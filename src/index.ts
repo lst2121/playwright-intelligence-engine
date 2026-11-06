@@ -65,6 +65,7 @@ export * from './intelligence/model-contract.js';
 export * from './intelligence/evidence-bundle.js';
 export * from './intelligence/repair-agent.js';
 export * from './intelligence/trace-proposal-workflow.js';
+export * from './intelligence/verified-llm-repair-workflow.js';
 export * from './intelligence/repository-profile.js';
 export * from './intelligence/project-intelligence.js';
 export * from './intelligence/failure-clustering.js';

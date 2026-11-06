@@ -119,6 +119,33 @@ describe('Remaining product phase contracts', () => {
     expect(result.proposal?.decision).toBe('ABSTAIN');
   });
 
+  it('normalizes OpenAI-compatible snake-case usage fields', async () => {
+    let usage;
+    const provider = new OpenAiCompatibleProposalProvider({
+      endpoint: 'http://localhost:9999/v1/chat/completions',
+      model: 'test-model',
+      onUsage: (value) => { usage = value; },
+      fetchImpl: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+            proposalVersion: '1', decision: 'ABSTAIN', failureKind: 'BACKEND_500', confidence: 0.99,
+            reasoningSummary: 'Backend failure.', operations: [{ kind: 'abstain', reason: 'Application failure.' }],
+            requiredVerification: ['business_oracle'], evidenceReferences: [],
+          }), reasoning_content: 'internal reasoning' } }],
+          usage: { prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 },
+        }),
+      }) as Response) as typeof fetch,
+    });
+    const result = await provider.propose({
+      bundleId: 'b1', executionId: 'e1', testIdentity: 'checkout.spec.ts:1', redactionComplete: true,
+      sourceContext: [], artifacts: [], limitations: [],
+    });
+    expect(result.isValid).toBe(true);
+    expect(usage).toMatchObject({ inputTokens: 120, outputTokens: 80, totalTokens: 200 });
+  });
+
   it('fails closed when verification gates are not satisfied', () => {
     const result = evaluateVerificationGates({
       executionPassed: true,

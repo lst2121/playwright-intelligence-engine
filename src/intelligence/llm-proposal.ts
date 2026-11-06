@@ -75,6 +75,7 @@ export interface ProposalParseResult {
   isValid: boolean;
   proposal?: LlmRepairProposal;
   errors: string[];
+  normalizationNotes?: string[] | undefined;
 }
 
 export const AgentActionKindSchema = z.enum([
@@ -151,6 +152,7 @@ export interface AgentResponseParseResult {
   isValid: boolean;
   response?: AgentResponse;
   errors: string[];
+  normalizationNotes?: string[] | undefined;
 }
 
 function extractJsonCandidate(input: string): string {
@@ -169,6 +171,196 @@ function parseJsonInput(input: unknown): { candidate?: unknown; errors: string[]
   } catch (error) {
     return { errors: [`Response is not valid JSON: ${String(error)}`] };
   }
+}
+
+function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: string[] } {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { candidate: input, notes: [] };
+  const source = input as Record<string, unknown>;
+  if (source.responseType === 'FINAL') {
+    // Accept a complete PIE final response unchanged. Compatibility handling
+    // below is deliberately limited to documented sparse-final variants.
+    if (AgentFinalResponseSchema.safeParse(input).success) return { candidate: input, notes: [] };
+
+    const notes: string[] = [];
+    const classification = source.classification && typeof source.classification === 'object' && !Array.isArray(source.classification)
+      ? source.classification as Record<string, unknown>
+      : {};
+    const normalizedClassification = typeof classification.category === 'string'
+      && typeof classification.confidence === 'number'
+      && classification.confidence >= 0
+      && classification.confidence <= 1
+      ? { category: classification.category, confidence: classification.confidence }
+      : { category: 'MODEL_RESPONSE', confidence: 0 };
+    const evidenceReferences = Array.isArray(source.evidenceReferences)
+      ? source.evidenceReferences.filter((value): value is string => typeof value === 'string')
+      : [];
+    const reasoningSummary = typeof source.reasoningSummary === 'string'
+      ? source.reasoningSummary
+      : 'The model returned an incomplete final response.';
+    const humanApprovalRequired = typeof source.humanApprovalRequired === 'boolean' ? source.humanApprovalRequired : true;
+
+    if (source.status === 'ABSTAIN') {
+      notes.push('Normalized sparse FINAL ABSTAIN response with conservative classification and approval defaults.');
+      return {
+        candidate: {
+          protocolVersion: '2',
+          responseType: 'FINAL',
+          status: 'ABSTAIN',
+          classification: normalizedClassification,
+          reasoningSummary,
+          evidenceReferences,
+          humanApprovalRequired,
+        },
+        notes,
+      };
+    }
+
+    if (source.status === 'PROPOSAL' && source.proposal && typeof source.proposal === 'object' && !Array.isArray(source.proposal)) {
+      const legacyProposal = source.proposal as Record<string, unknown>;
+      const target = legacyProposal.target;
+      const locator = legacyProposal.locator;
+      if (target && typeof target === 'object' && !Array.isArray(target)
+        && typeof (target as Record<string, unknown>).filePath === 'string'
+        && typeof locator === 'string' && locator.length > 0) {
+        notes.push('Mapped recognized legacy FINAL PROPOSAL shape to BLOCKED because it lacks a safe old-locator operation.');
+        return {
+          candidate: {
+            protocolVersion: '2',
+            responseType: 'FINAL',
+            status: 'BLOCKED',
+            classification: normalizedClassification,
+            reasoningSummary: 'The model returned a source-location proposal without a complete PIE repair operation; no mutation was synthesized.',
+            evidenceReferences,
+            humanApprovalRequired: true,
+          },
+          notes,
+        };
+      }
+    }
+
+    const legacyFinalStatuses = new Set(['PROPOSED', 'PROPOSAL_ONLY', 'REPAIR_PROPOSAL', 'COMPLETE']);
+    if (typeof source.status === 'string' && legacyFinalStatuses.has(source.status)
+      && source.proposal && typeof source.proposal === 'object' && !Array.isArray(source.proposal)) {
+      const legacyProposal = source.proposal as Record<string, unknown>;
+      const failureCategory = typeof legacyProposal.failureCategory === 'string'
+        ? legacyProposal.failureCategory.trim().toUpperCase()
+        : typeof legacyProposal.failureKind === 'string'
+          ? legacyProposal.failureKind.trim().toUpperCase()
+          : undefined;
+      const confidence = typeof legacyProposal.confidence === 'number' && legacyProposal.confidence >= 0 && legacyProposal.confidence <= 1
+        ? legacyProposal.confidence
+        : 0;
+      const summary = typeof legacyProposal.summary === 'string'
+        ? legacyProposal.summary
+        : typeof legacyProposal.rationale === 'string'
+          ? legacyProposal.rationale
+          : 'The model returned a legacy locator proposal.';
+      const directTarget = typeof legacyProposal.oldLocator === 'string' ? legacyProposal.oldLocator
+        : typeof legacyProposal.oldText === 'string' ? legacyProposal.oldText
+          : typeof legacyProposal.originalLocator === 'string' ? legacyProposal.originalLocator : undefined;
+      const directLocator = typeof legacyProposal.newLocator === 'string' ? legacyProposal.newLocator
+        : typeof legacyProposal.newText === 'string' ? legacyProposal.newText
+          : typeof legacyProposal.proposedLocator === 'string' ? legacyProposal.proposedLocator : undefined;
+      const edits = Array.isArray(legacyProposal.edits) ? legacyProposal.edits : Array.isArray(legacyProposal.changes) ? legacyProposal.changes : [];
+      const firstEdit = edits[0] && typeof edits[0] === 'object' && !Array.isArray(edits[0]) ? edits[0] as Record<string, unknown> : {};
+      const target = directTarget ?? (typeof firstEdit.oldLocator === 'string' ? firstEdit.oldLocator : typeof firstEdit.oldText === 'string' ? firstEdit.oldText : undefined);
+      const locator = directLocator ?? (typeof firstEdit.newLocator === 'string' ? firstEdit.newLocator : typeof firstEdit.newText === 'string' ? firstEdit.newText : undefined);
+      const hasLegacyLocatorShape = typeof target === 'string'
+        || typeof locator === 'string'
+        || typeof legacyProposal.target === 'string'
+        || typeof legacyProposal.locator === 'string'
+        || edits.length > 0;
+
+      if (failureCategory === 'LOCATOR_DRIFT' && target && locator) {
+        notes.push('Normalized recognized legacy locator proposal into the PIE replacement-operation schema.');
+        return {
+          candidate: {
+            protocolVersion: '2',
+            responseType: 'FINAL',
+            status: 'PROPOSAL_READY',
+            classification: { category: 'LOCATOR_DRIFT', confidence },
+            reasoningSummary: summary,
+            evidenceReferences,
+            proposal: {
+              proposalVersion: '1',
+              decision: 'PROPOSE',
+              failureKind: 'LOCATOR_DRIFT',
+              confidence,
+              reasoningSummary: summary,
+              operations: [{ kind: 'replace_locator', target, locator }],
+              requiredVerification: ['isolated target test', 'assertions unchanged'],
+              evidenceReferences,
+            },
+            humanApprovalRequired: true,
+          },
+          notes,
+        };
+      }
+
+      if (hasLegacyLocatorShape) {
+        notes.push('Mapped an incomplete or non-locator legacy final proposal to BLOCKED; no mutation operation was synthesized.');
+        return {
+          candidate: {
+            protocolVersion: '2',
+            responseType: 'FINAL',
+            status: 'BLOCKED',
+            classification: normalizedClassification,
+            reasoningSummary: 'The legacy proposal did not contain a safe LOCATOR_DRIFT replacement operation; no mutation was synthesized.',
+            evidenceReferences,
+            humanApprovalRequired: true,
+          },
+          notes,
+        };
+      }
+    }
+
+    return { candidate: input, notes };
+  }
+  if (source.responseType !== 'STEP' || source.status !== 'CONTINUE' || !source.action || typeof source.action !== 'object') {
+    return { candidate: input, notes: [] };
+  }
+
+  const rawAction = source.action as Record<string, unknown>;
+  const kind = rawAction.kind;
+  const allowedActionFields = ['kind', 'selector', 'target', 'locator', 'sourceFile', 'className', 'memberName', 'reason'];
+  const action: Record<string, unknown> = {};
+  for (const field of allowedActionFields) {
+    if (rawAction[field] !== undefined) action[field] = rawAction[field];
+  }
+  const notes: string[] = [];
+  const legacyProposal = rawAction.proposal;
+  if (legacyProposal && typeof legacyProposal === 'object') {
+    const legacy = legacyProposal as Record<string, unknown>;
+    if (typeof legacy.oldLocator === 'string' && action.target === undefined) action.target = legacy.oldLocator;
+    if (typeof legacy.newLocator === 'string' && action.locator === undefined) action.locator = legacy.newLocator;
+    notes.push('Dropped unsupported nested proposal metadata; retained only allowlisted locator fields.');
+  }
+
+  const decisionByAction: Record<string, string> = {
+    inspect_evidence: 'INSPECT_EVIDENCE',
+    discover_source_mapping: 'DISCOVER_SOURCE_MAPPING',
+    rank_locator_candidates: 'RANK_LOCATOR_CANDIDATES',
+    build_repair_proposal: 'BUILD_REPAIR_PROPOSAL',
+    verify_repair: 'VERIFY_REPAIR',
+    abstain: 'ABSTAIN',
+  };
+  const normalized: Record<string, unknown> = {
+    protocolVersion: source.protocolVersion === '2' ? '2' : '2',
+    responseType: 'STEP',
+    status: 'CONTINUE',
+    decision: typeof source.decision === 'string' ? source.decision : decisionByAction[String(kind)] ?? kind,
+    confidence: typeof source.confidence === 'number' ? source.confidence : 0,
+    reasoningSummary: typeof source.reasoningSummary === 'string' ? source.reasoningSummary : 'Model requested an allowlisted PIE observation.',
+    evidenceReferences: Array.isArray(source.evidenceReferences) ? source.evidenceReferences.filter((value): value is string => typeof value === 'string') : [],
+    action,
+    requiredObservation: typeof source.requiredObservation === 'string' ? source.requiredObservation : 'Return the PIE action observation.',
+  };
+  if (source.decision === undefined) notes.push('Derived decision from the allowlisted action kind.');
+  if (source.confidence === undefined) notes.push('Applied conservative confidence default 0.');
+  if (source.reasoningSummary === undefined) notes.push('Applied a neutral reasoning summary because none was returned.');
+  if (source.evidenceReferences === undefined) notes.push('Applied an empty evidence-reference list because none was returned.');
+  if (source.requiredObservation === undefined) notes.push('Applied a default observation requirement because none was returned.');
+  return { candidate: normalized, notes };
 }
 
 export function parseLlmRepairProposal(input: unknown): ProposalParseResult {
@@ -201,13 +393,14 @@ export function proposalOperations(proposal: LlmRepairProposal): RepairOperation
 export function parseAgentResponse(input: unknown): AgentResponseParseResult {
   const parsedInput = parseJsonInput(input);
   if (parsedInput.errors.length > 0) return { isValid: false, errors: parsedInput.errors };
-  const parsed = AgentResponseSchema.safeParse(parsedInput.candidate);
-  if (!parsed.success) return { isValid: false, errors: parsed.error.issues.map((issue) => issue.message) };
+  const normalized = normalizeAgentCandidate(parsedInput.candidate);
+  const parsed = AgentResponseSchema.safeParse(normalized.candidate);
+  if (!parsed.success) return { isValid: false, errors: parsed.error.issues.map((issue) => issue.message), normalizationNotes: normalized.notes };
   if (parsed.data.responseType === 'FINAL' && parsed.data.proposal) {
     const proposal = parseLlmRepairProposal(parsed.data.proposal);
-    if (!proposal.isValid || !proposal.proposal) return { isValid: false, errors: proposal.errors };
-    return { isValid: true, response: { ...parsed.data, proposal: proposal.proposal }, errors: [] };
+    if (!proposal.isValid || !proposal.proposal) return { isValid: false, errors: proposal.errors, normalizationNotes: normalized.notes };
+    return { isValid: true, response: { ...parsed.data, proposal: proposal.proposal }, errors: [], normalizationNotes: normalized.notes };
   }
-  return { isValid: true, response: parsed.data, errors: [] };
+  return { isValid: true, response: parsed.data, errors: [], normalizationNotes: normalized.notes };
 }
 

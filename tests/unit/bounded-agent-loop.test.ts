@@ -89,6 +89,111 @@ describe('bounded reasoning-and-action LLM loop', () => {
     expect(result.response?.responseType).toBe('FINAL');
   });
 
+  it('normalizes a recognized sparse step while discarding unsupported patch metadata', () => {
+    const result = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'STEP',
+      status: 'CONTINUE',
+      action: {
+        kind: 'build_repair_proposal',
+        proposal: {
+          filePath: 'pages/CheckoutPage.ts',
+          line: 12,
+          oldLocator: 'button.checkout',
+          newLocator: "getByRole('button', { name: 'Checkout' })",
+        },
+      },
+    }));
+    expect(result.isValid).toBe(true);
+    expect(result.response?.responseType).toBe('STEP');
+    if (result.response?.responseType === 'STEP') {
+      expect(result.response.action).toEqual({
+        kind: 'build_repair_proposal',
+        target: 'button.checkout',
+        locator: "getByRole('button', { name: 'Checkout' })",
+      });
+    }
+    expect(result.normalizationNotes).toContain('Dropped unsupported nested proposal metadata; retained only allowlisted locator fields.');
+  });
+
+  it('fails closed on recognized sparse final variants', () => {
+    const legacyProposal = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'FINAL',
+      status: 'PROPOSAL',
+      proposal: {
+        target: { filePath: 'pages/AdminPage.ts', line: 31, column: 30 },
+        locator: "page.getByRole('button', { name: 'Login' })",
+      },
+    }));
+    expect(legacyProposal.isValid).toBe(true);
+    expect(legacyProposal.response?.responseType).toBe('FINAL');
+    if (legacyProposal.response?.responseType === 'FINAL') {
+      expect(legacyProposal.response.status).toBe('BLOCKED');
+      expect(legacyProposal.response.proposal).toBeUndefined();
+    }
+    expect(legacyProposal.normalizationNotes?.[0]).toContain('Mapped recognized legacy FINAL PROPOSAL shape to BLOCKED');
+
+    const sparseAbstain = parseAgentResponse(JSON.stringify({ protocolVersion: '2', responseType: 'FINAL', status: 'ABSTAIN' }));
+    expect(sparseAbstain.isValid).toBe(true);
+    expect(sparseAbstain.response?.responseType).toBe('FINAL');
+    if (sparseAbstain.response?.responseType === 'FINAL') {
+      expect(sparseAbstain.response.status).toBe('ABSTAIN');
+      expect(sparseAbstain.response.humanApprovalRequired).toBe(true);
+    }
+
+    const legacyRepair = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'FINAL',
+      status: 'PROPOSED',
+      proposal: {
+        failureCategory: 'LOCATOR_DRIFT',
+        confidence: 0.93,
+        summary: 'The accessible name changed.',
+        edits: [{ oldText: "getByRole('button', { name: 'Sign in' })", newText: "getByRole('button', { name: 'Login' })" }],
+      },
+    }));
+    expect(legacyRepair.isValid).toBe(true);
+    if (legacyRepair.response?.responseType === 'FINAL') {
+      expect(legacyRepair.response.status).toBe('PROPOSAL_READY');
+      expect(legacyRepair.response.proposal?.operations).toEqual([{
+        kind: 'replace_locator',
+        target: "getByRole('button', { name: 'Sign in' })",
+        locator: "getByRole('button', { name: 'Login' })",
+      }]);
+    }
+
+    const proposalOnly = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'FINAL',
+      status: 'PROPOSAL_ONLY',
+      proposal: {
+        failureCategory: 'LOCATOR_DRIFT',
+        originalLocator: "getByRole('button', { name: 'Sign in' })",
+        proposedLocator: "getByRole('button', { name: 'Login' })",
+        confidence: 0.97,
+        rationale: 'The accessible name changed.',
+      },
+    }));
+    expect(proposalOnly.isValid).toBe(true);
+    if (proposalOnly.response?.responseType === 'FINAL') {
+      expect(proposalOnly.response.status).toBe('PROPOSAL_READY');
+      expect(proposalOnly.response.proposal?.operations[0]?.kind).toBe('replace_locator');
+    }
+
+    const ambiguousRepair = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'FINAL',
+      status: 'COMPLETE',
+      proposal: { failureCategory: 'AMBIGUOUS_MATCH', target: 'Login', locator: "getByRole('button', { name: 'Login' })" },
+    }));
+    expect(ambiguousRepair.isValid).toBe(true);
+    if (ambiguousRepair.response?.responseType === 'FINAL') {
+      expect(ambiguousRepair.response.status).toBe('BLOCKED');
+      expect(ambiguousRepair.response.proposal).toBeUndefined();
+    }
+  });
+
   it('executes one allowlisted observation action before accepting a final proposal', async () => {
     const provider = new LoopProvider();
     const observations: unknown[] = [];

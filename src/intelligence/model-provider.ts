@@ -1,5 +1,5 @@
 import { AgentResponseParseResult, EvidenceBundle, parseAgentResponse, parseLlmRepairProposal, ProposalParseResult } from './llm-proposal.js';
-import { AnthropicResponsePayload, ModelCapabilities, ModelResponseEnvelope, OpenAiCompatibleResponsePayload, normalizeAnthropicResponse, normalizeOpenAiResponse } from './model-contract.js';
+import { AnthropicResponsePayload, createModelResponseDiagnostics, ModelCapabilities, ModelResponseDiagnostics, ModelResponseEnvelope, normalizeAnthropicResponse, normalizeOpenAiResponse, OpenAiCompatibleResponsePayload } from './model-contract.js';
 
 export interface ProposalProvider {
   propose(bundle: EvidenceBundle): Promise<ProposalParseResult>;
@@ -27,6 +27,8 @@ export interface OpenAiCompatibleProviderOptions {
   capabilities?: Partial<ModelCapabilities> | undefined;
   fetchImpl?: typeof fetch | undefined;
   onUsage?: ((usage: ModelUsage) => void) | undefined;
+  onResponse?: ((diagnostics: ModelResponseDiagnostics) => void) | undefined;
+  captureResponsePreview?: boolean | undefined;
 }
 
 export interface ModelUsage {
@@ -51,6 +53,8 @@ export interface AnthropicCompatibleProviderOptions {
   fetchImpl?: typeof fetch | undefined;
   capabilities?: Partial<ModelCapabilities> | undefined;
   onUsage?: ((usage: ModelUsage) => void) | undefined;
+  onResponse?: ((diagnostics: ModelResponseDiagnostics) => void) | undefined;
+  captureResponsePreview?: boolean | undefined;
 }
 
 /**
@@ -108,10 +112,14 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
       });
 
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const envelope = normalizeOpenAiResponse(await response.json() as OpenAiCompatibleResponsePayload);
+      const payload = await response.json() as OpenAiCompatibleResponsePayload;
+      const envelope = normalizeOpenAiResponse(payload);
       this.recordUsage(envelope, started);
-      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final JSON content'] };
-      return parseLlmRepairProposal(envelope.finalText);
+      const result = !envelope.finalText
+        ? { isValid: false, errors: ['Model endpoint returned no final JSON content'] }
+        : parseLlmRepairProposal(envelope.finalText);
+      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'proposal', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -146,10 +154,14 @@ export class OpenAiCompatibleProposalProvider implements ProposalProvider, Agent
         }),
       });
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const envelope = normalizeOpenAiResponse(await response.json() as OpenAiCompatibleResponsePayload);
+      const payload = await response.json() as OpenAiCompatibleResponsePayload;
+      const envelope = normalizeOpenAiResponse(payload);
       this.recordUsage(envelope, started);
-      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] };
-      return parseAgentResponse(envelope.finalText);
+      const result = !envelope.finalText
+        ? { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] }
+        : parseAgentResponse(envelope.finalText);
+      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'agent_step', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -212,10 +224,14 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
         }),
       });
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const envelope = normalizeAnthropicResponse(await response.json() as AnthropicResponsePayload);
+      const payload = await response.json() as AnthropicResponsePayload;
+      const envelope = normalizeAnthropicResponse(payload);
       this.recordAnthropicUsage(envelope, started);
-      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final JSON content'] };
-      return parseLlmRepairProposal(envelope.finalText);
+      const result = !envelope.finalText
+        ? { isValid: false, errors: ['Model endpoint returned no final JSON content'] }
+        : parseLlmRepairProposal(envelope.finalText);
+      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'proposal', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };
@@ -248,10 +264,14 @@ export class AnthropicCompatibleProposalProvider implements ProposalProvider, Ag
         }),
       });
       if (!response.ok) return { isValid: false, errors: [`Model endpoint returned HTTP ${response.status}`] };
-      const envelope = normalizeAnthropicResponse(await response.json() as AnthropicResponsePayload);
+      const payload = await response.json() as AnthropicResponsePayload;
+      const envelope = normalizeAnthropicResponse(payload);
       this.recordAnthropicUsage(envelope, started);
-      if (!envelope.finalText) return { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] };
-      return parseAgentResponse(envelope.finalText);
+      const result = !envelope.finalText
+        ? { isValid: false, errors: ['Model endpoint returned no final agent JSON content'] }
+        : parseAgentResponse(envelope.finalText);
+      this.options.onResponse?.(createModelResponseDiagnostics(payload, envelope, 'agent_step', result.errors, result.normalizationNotes ?? [], this.options.captureResponsePreview ?? false));
+      return result;
     } catch (error) {
       const message = error instanceof Error && error.name === 'AbortError' ? 'Model request timed out' : 'Model request failed';
       return { isValid: false, errors: [message] };

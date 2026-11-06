@@ -238,7 +238,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
       }
     }
 
-    const legacyFinalStatuses = new Set(['PROPOSED', 'PROPOSAL_ONLY', 'REPAIR_PROPOSAL', 'COMPLETE']);
+    const legacyFinalStatuses = new Set(['OK', 'PROPOSED', 'PROPOSAL_ONLY', 'REPAIR_PROPOSAL', 'COMPLETE']);
     if (typeof source.status === 'string' && legacyFinalStatuses.has(source.status)
       && source.proposal && typeof source.proposal === 'object' && !Array.isArray(source.proposal)) {
       const legacyProposal = source.proposal as Record<string, unknown>;
@@ -246,7 +246,9 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
         ? legacyProposal.failureCategory.trim().toUpperCase()
         : typeof legacyProposal.failureKind === 'string'
           ? legacyProposal.failureKind.trim().toUpperCase()
-          : undefined;
+          : typeof legacyProposal.category === 'string'
+            ? legacyProposal.category.trim().toUpperCase()
+            : undefined;
       const confidence = typeof legacyProposal.confidence === 'number' && legacyProposal.confidence >= 0 && legacyProposal.confidence <= 1
         ? legacyProposal.confidence
         : 0;
@@ -263,15 +265,23 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
           : typeof legacyProposal.proposedLocator === 'string' ? legacyProposal.proposedLocator : undefined;
       const edits = Array.isArray(legacyProposal.edits) ? legacyProposal.edits : Array.isArray(legacyProposal.changes) ? legacyProposal.changes : [];
       const firstEdit = edits[0] && typeof edits[0] === 'object' && !Array.isArray(edits[0]) ? edits[0] as Record<string, unknown> : {};
-      const target = directTarget ?? (typeof firstEdit.oldLocator === 'string' ? firstEdit.oldLocator : typeof firstEdit.oldText === 'string' ? firstEdit.oldText : undefined);
-      const locator = directLocator ?? (typeof firstEdit.newLocator === 'string' ? firstEdit.newLocator : typeof firstEdit.newText === 'string' ? firstEdit.newText : undefined);
+      const target = directTarget
+        ?? (typeof firstEdit.oldLocator === 'string' ? firstEdit.oldLocator : typeof firstEdit.oldText === 'string' ? firstEdit.oldText : undefined)
+        ?? (typeof legacyProposal.target === 'string' ? legacyProposal.target : undefined);
+      const locator = directLocator
+        ?? (typeof firstEdit.newLocator === 'string' ? firstEdit.newLocator : typeof firstEdit.newText === 'string' ? firstEdit.newText : undefined)
+        ?? (typeof legacyProposal.locator === 'string' ? legacyProposal.locator : undefined);
       const hasLegacyLocatorShape = typeof target === 'string'
         || typeof locator === 'string'
         || typeof legacyProposal.target === 'string'
         || typeof legacyProposal.locator === 'string'
         || edits.length > 0;
+      const inferredLocatorDrift = failureCategory === undefined
+        && source.status === 'PROPOSED'
+        && typeof legacyProposal.target === 'string'
+        && typeof legacyProposal.locator === 'string';
 
-      if (failureCategory === 'LOCATOR_DRIFT' && target && locator) {
+      if ((failureCategory === 'LOCATOR_DRIFT' || inferredLocatorDrift) && target && locator) {
         notes.push('Normalized recognized legacy locator proposal into the PIE replacement-operation schema.');
         return {
           candidate: {
@@ -325,14 +335,22 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
   const allowedActionFields = ['kind', 'selector', 'target', 'locator', 'sourceFile', 'className', 'memberName', 'reason'];
   const action: Record<string, unknown> = {};
   for (const field of allowedActionFields) {
-    if (rawAction[field] !== undefined) action[field] = rawAction[field];
+    if (typeof rawAction[field] === 'string' && rawAction[field].length > 0) action[field] = rawAction[field];
   }
   const notes: string[] = [];
   const legacyProposal = rawAction.proposal;
   if (legacyProposal && typeof legacyProposal === 'object') {
     const legacy = legacyProposal as Record<string, unknown>;
     if (typeof legacy.oldLocator === 'string' && action.target === undefined) action.target = legacy.oldLocator;
+    if (typeof legacy.oldText === 'string' && action.target === undefined) action.target = legacy.oldText;
     if (typeof legacy.newLocator === 'string' && action.locator === undefined) action.locator = legacy.newLocator;
+    if (typeof legacy.newText === 'string' && action.locator === undefined) action.locator = legacy.newText;
+    const edits = Array.isArray(legacy.edits) ? legacy.edits : Array.isArray(legacy.changes) ? legacy.changes : [];
+    const firstEdit = edits[0] && typeof edits[0] === 'object' && !Array.isArray(edits[0]) ? edits[0] as Record<string, unknown> : {};
+    if (typeof firstEdit.oldLocator === 'string' && action.target === undefined) action.target = firstEdit.oldLocator;
+    if (typeof firstEdit.oldText === 'string' && action.target === undefined) action.target = firstEdit.oldText;
+    if (typeof firstEdit.newLocator === 'string' && action.locator === undefined) action.locator = firstEdit.newLocator;
+    if (typeof firstEdit.newText === 'string' && action.locator === undefined) action.locator = firstEdit.newText;
     notes.push('Dropped unsupported nested proposal metadata; retained only allowlisted locator fields.');
   }
 

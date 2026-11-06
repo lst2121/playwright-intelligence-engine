@@ -114,6 +114,23 @@ describe('bounded reasoning-and-action LLM loop', () => {
       });
     }
     expect(result.normalizationNotes).toContain('Dropped unsupported nested proposal metadata; retained only allowlisted locator fields.');
+
+    const editStep = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'STEP', status: 'CONTINUE',
+      action: { kind: 'build_repair_proposal', proposal: { edits: [{ oldText: 'old locator', newText: 'new locator' }] } },
+    }));
+    expect(editStep.isValid).toBe(true);
+    if (editStep.response?.responseType === 'STEP') {
+      expect(editStep.response.action.target).toBe('old locator');
+      expect(editStep.response.action.locator).toBe('new locator');
+    }
+
+    const wrongTypedTarget = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'STEP', status: 'CONTINUE',
+      action: { kind: 'inspect_evidence', target: { filePath: 'pages/Checkout.ts', line: 12 } },
+    }));
+    expect(wrongTypedTarget.isValid).toBe(true);
+    if (wrongTypedTarget.response?.responseType === 'STEP') expect(wrongTypedTarget.response.action.target).toBeUndefined();
   });
 
   it('fails closed on recognized sparse final variants', () => {
@@ -181,6 +198,28 @@ describe('bounded reasoning-and-action LLM loop', () => {
       expect(proposalOnly.response.proposal?.operations[0]?.kind).toBe('replace_locator');
     }
 
+    const inferredCategory = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'FINAL', status: 'PROPOSED',
+      proposal: { target: 'old locator', locator: 'new locator', confidence: 0.9 },
+    }));
+    expect(inferredCategory.isValid).toBe(true);
+    if (inferredCategory.response?.responseType === 'FINAL') {
+      expect(inferredCategory.response.status).toBe('PROPOSAL_READY');
+      expect(inferredCategory.response.proposal?.failureKind).toBe('LOCATOR_DRIFT');
+    }
+
+    const categoryAlias = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'FINAL', status: 'PROPOSED',
+      proposal: {
+        category: 'LOCATOR_DRIFT',
+        originalLocator: 'old locator',
+        proposedLocator: 'new locator',
+        confidence: 0.9,
+      },
+    }));
+    expect(categoryAlias.isValid).toBe(true);
+    if (categoryAlias.response?.responseType === 'FINAL') expect(categoryAlias.response.status).toBe('PROPOSAL_READY');
+
     const ambiguousRepair = parseAgentResponse(JSON.stringify({
       protocolVersion: '2',
       responseType: 'FINAL',
@@ -192,6 +231,13 @@ describe('bounded reasoning-and-action LLM loop', () => {
       expect(ambiguousRepair.response.status).toBe('BLOCKED');
       expect(ambiguousRepair.response.proposal).toBeUndefined();
     }
+
+    const sparseOk = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2', responseType: 'FINAL', status: 'OK',
+      proposal: { proposalVersion: '1', locator: "getByRole('button', { name: 'Login' })" },
+    }));
+    expect(sparseOk.isValid).toBe(true);
+    if (sparseOk.response?.responseType === 'FINAL') expect(sparseOk.response.status).toBe('BLOCKED');
   });
 
   it('executes one allowlisted observation action before accepting a final proposal', async () => {

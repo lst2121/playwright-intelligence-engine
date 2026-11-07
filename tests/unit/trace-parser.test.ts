@@ -190,5 +190,103 @@ describe('TraceParser & FailureClassifier Unit Tests', () => {
     expect(classification.shouldAbstain).toBe(true);
     expect(classification.abstentionReason).toContain('prohibits modifying test assertions');
   });
+
+  it('FRAME INTEGRITY: should prioritize main frame DOM when child iframe snapshots arrive later', () => {
+    const traceLines = [
+      JSON.stringify({ type: 'version', version: 10 }),
+      // Action on main page
+      JSON.stringify({
+        type: 'before',
+        callId: 'call@submit',
+        apiName: 'page.click',
+        params: { selector: 'button#submit-order' },
+        startTime: 100,
+        stack: [{ file: 'tests/checkout.spec.ts', line: 55, column: 5 }],
+      }),
+      // Main frame snapshot
+      JSON.stringify({
+        type: 'frame-snapshot',
+        snapshot: {
+          callId: 'call@init',
+          frameId: 'frame@root',
+          isMainFrame: true,
+          node: ['html', {}, ['body', {}, ['button', { id: 'submit-order-v2', role: 'button' }, 'Place Order']]],
+        },
+      }),
+      // Child iframe snapshot (e.g. Google Maps or Stripe embed loaded after main page)
+      JSON.stringify({
+        type: 'frame-snapshot',
+        snapshot: {
+          callId: 'call@maps',
+          frameId: 'frame@google-maps',
+          isMainFrame: false,
+          node: ['html', {}, ['body', {}, ['div', { class: 'gm-style' }, 'Maps Canvas']]],
+        },
+      }),
+      // Main page action failure
+      JSON.stringify({
+        type: 'after',
+        callId: 'call@submit',
+        endTime: 30100,
+        error: {
+          message: 'Timeout 30000ms exceeded while waiting for locator("button#submit-order")',
+        },
+      }),
+    ];
+
+    const context = TraceParser.assembleDiagnosticContext(traceLines, []);
+    expect(context.failedAction.callId).toBe('call@submit');
+    // Main frame snapshot must NOT be clobbered by the Google Maps iframe!
+    expect(context.snapshots.action).toContain('Place Order');
+    expect(context.snapshots.action).not.toContain('Maps Canvas');
+    expect((context as any).domRoot.tag).toBe('html');
+  });
+
+  it('FRAME INTEGRITY: should select child iframe DOM when failed action explicitly targets an iframe', () => {
+    const traceLines = [
+      JSON.stringify({ type: 'version', version: 10 }),
+      // Action targeting an iframe element
+      JSON.stringify({
+        type: 'before',
+        callId: 'call@frame-action',
+        apiName: 'locator.click',
+        params: { selector: 'iframe#stripe-frame >> internal:control' },
+        startTime: 100,
+        stack: [{ file: 'tests/payment.spec.ts', line: 88, column: 5 }],
+      }),
+      // Main frame snapshot
+      JSON.stringify({
+        type: 'frame-snapshot',
+        snapshot: {
+          frameId: 'frame@root',
+          isMainFrame: true,
+          node: ['html', {}, ['body', {}, ['h1', {}, 'Checkout']]],
+        },
+      }),
+      // Child iframe snapshot
+      JSON.stringify({
+        type: 'frame-snapshot',
+        snapshot: {
+          frameId: 'frame@stripe',
+          isMainFrame: false,
+          node: ['html', {}, ['body', {}, ['input', { id: 'card-number', role: 'textbox' }, '']]],
+        },
+      }),
+      // Action failure in iframe
+      JSON.stringify({
+        type: 'after',
+        callId: 'call@frame-action',
+        endTime: 30100,
+        error: {
+          message: 'Timeout 30000ms exceeded while waiting for locator("iframe#stripe-frame >> internal:control")',
+        },
+      }),
+    ];
+
+    const context = TraceParser.assembleDiagnosticContext(traceLines, []);
+    expect(context.failedAction.callId).toBe('call@frame-action');
+    // Since selector targeted iframe, should use the child iframe DOM
+    expect(context.snapshots.action).toContain('card-number');
+  });
 });
 

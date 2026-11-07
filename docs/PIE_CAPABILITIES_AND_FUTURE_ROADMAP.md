@@ -241,6 +241,13 @@ The current agent:
 - validates final proposals against deterministic evidence;
 - never directly edits files or approves its own repair.
 
+Its allowlisted tool surface now includes repository profile inspection,
+workspace-contained source reads, bounded repository search, ranked locator
+candidate inspection, optional browser navigation on explicitly allowed hosts,
+and optional targeted Playwright execution. A verified repair can be promoted
+only when an explicit auto-promotion policy is supplied; the default remains
+approval-gated.
+
 This is a bounded tool-using agent, not an unrestricted autonomous coding
 agent.
 
@@ -263,10 +270,21 @@ The current LLM repair workflow is strongest for high-confidence locator drift.
 Multi-operation execution remains deliberately constrained until combined
 convergence and assertion-proof semantics are stronger.
 
+The autonomous orchestration entry point now connects the bounded model loop
+to the deterministic verifier. It can produce a validated proposal and, when
+explicitly requested, execute that proposal only in a disposable worktree.
+Backend, authentication, assertion, environment, corrupted-trace, and
+unsupported-trace failures remain hard-blocked from model repair. Locator
+ambiguity and incomplete locator evidence may be escalated to the model when a
+DOM snapshot and failed selector are available.
+
 ### 2.9 Current generation
 
 PIE currently provides deterministic Page Object and Playwright spec
-scaffolding.
+scaffolding, plus an optional structured generation-agent path. The generation
+agent returns scenario plans rather than arbitrary source code; PIE validates
+requirement references and locator/assertion targets before deterministic
+rendering.
 
 For one feature invocation, current generation normally produces:
 
@@ -299,6 +317,11 @@ The current generator supports actions and basic assertions such as:
 
 Generated assertions are currently scaffolding-level assertions. They are not
 yet complete business-domain specifications.
+
+Generation can be run in planned, written, or verified modes. Verification
+requires explicit writing and runs each generated spec through Playwright;
+failed execution is reported as verification failure rather than being
+reported as generated success.
 
 ### 2.10 Current business-intelligence layer
 

@@ -81,9 +81,13 @@ export interface ProposalParseResult {
 export const AgentActionKindSchema = z.enum([
   'inspect_evidence',
   'inspect_browser_state',
+  'inspect_repository',
+  'read_source_file',
+  'search_repository',
   'discover_source_mapping',
   'rank_locator_candidates',
   'build_repair_proposal',
+  'run_target_test',
   'verify_repair',
   'abstain',
 ]);
@@ -95,6 +99,10 @@ export const AgentActionSchema = z.object({
   selector: z.string().min(1).optional(),
   target: z.string().min(1).optional(),
   locator: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  query: z.string().min(1).optional(),
+  testFile: z.string().min(1).optional(),
+  configPath: z.string().min(1).optional(),
   sourceFile: z.string().min(1).optional(),
   className: z.string().min(1).optional(),
   memberName: z.string().min(1).optional(),
@@ -115,9 +123,13 @@ const AgentStepResponseSchema = z.object({
   decision: z.enum([
     'INSPECT_EVIDENCE',
     'INSPECT_BROWSER_STATE',
+    'INSPECT_REPOSITORY',
+    'READ_SOURCE_FILE',
+    'SEARCH_REPOSITORY',
     'DISCOVER_SOURCE_MAPPING',
     'RANK_LOCATOR_CANDIDATES',
     'BUILD_REPAIR_PROPOSAL',
+    'RUN_TARGET_TEST',
     'VERIFY_REPAIR',
     'ABSTAIN',
   ]),
@@ -357,7 +369,7 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
     ? { kind: source.action }
     : source.action as Record<string, unknown>;
   const kind = rawAction.kind;
-  const allowedActionFields = ['kind', 'selector', 'target', 'locator', 'sourceFile', 'className', 'memberName', 'reason'];
+  const allowedActionFields = ['kind', 'selector', 'target', 'locator', 'path', 'query', 'testFile', 'configPath', 'sourceFile', 'className', 'memberName', 'reason'];
   const action: Record<string, unknown> = {};
   for (const field of allowedActionFields) {
     if (typeof rawAction[field] === 'string' && rawAction[field].length > 0) action[field] = rawAction[field];
@@ -383,9 +395,13 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
   const decisionByAction: Record<string, string> = {
     inspect_evidence: 'INSPECT_EVIDENCE',
     inspect_browser_state: 'INSPECT_BROWSER_STATE',
+    inspect_repository: 'INSPECT_REPOSITORY',
+    read_source_file: 'READ_SOURCE_FILE',
+    search_repository: 'SEARCH_REPOSITORY',
     discover_source_mapping: 'DISCOVER_SOURCE_MAPPING',
     rank_locator_candidates: 'RANK_LOCATOR_CANDIDATES',
     build_repair_proposal: 'BUILD_REPAIR_PROPOSAL',
+    run_target_test: 'RUN_TARGET_TEST',
     verify_repair: 'VERIFY_REPAIR',
     abstain: 'ABSTAIN',
   };

@@ -77,7 +77,7 @@ describe('Phase 4 Model Context Protocol (MCP) Server Tests', () => {
       params: { name: 'get_product_status', arguments: {} },
     });
 
-    expect(res.result.packageVersion).toBe('0.1.0');
+    expect(res.result.packageVersion).toBe('1.0.0');
     expect(res.result.safetyMode).toBe('fail-closed');
     expect(res.result.capabilities.builtInLlmProvider).toBe(false);
   });

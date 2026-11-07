@@ -260,4 +260,30 @@ export class ExecutionRunner {
       });
     });
   }
+
+  /**
+   * Executes a Playwright test specification via npx in the specified working directory.
+   * Guarantees process isolation, command sanitization, and true execution proofs.
+   */
+  public static async runPlaywrightTest(options: {
+    cwd: string;
+    testFilePath: string;
+    configPath?: string | undefined;
+    timeoutMs?: number | undefined;
+    env?: Record<string, string> | undefined;
+  }): Promise<ExecutionResult> {
+    const args = ['playwright', 'test', options.testFilePath, '--reporter=line'];
+    if (options.configPath) {
+      args.push('--config', options.configPath);
+    }
+    const runnerOptions: ExecutionOptions = {
+      cwd: options.cwd,
+      args,
+      timeoutMs: options.timeoutMs ?? 60000,
+    };
+    if (options.env) {
+      runnerOptions.env = options.env;
+    }
+    return ExecutionRunner.run('npx', runnerOptions);
+  }
 }

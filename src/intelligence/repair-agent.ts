@@ -32,6 +32,12 @@ export interface RepairAgentInput {
   maxSteps?: number | undefined;
   maxDurationMs?: number | undefined;
   actionHandlers?: Partial<Record<AgentAction['kind'], RepairAgentActionHandler>> | undefined;
+  /**
+   * Allows the model to refine only locator-related incomplete evidence. The
+   * default remains fail-closed so callers cannot accidentally route backend,
+   * auth, assertion, or environment failures to a repair model.
+   */
+  allowModelEscalation?: boolean | undefined;
 }
 
 export interface RepairAgentResult {
@@ -70,7 +76,7 @@ function proposalMatchesClassification(proposal: LlmRepairProposal, classificati
  */
 export async function runRepairProposalAgent(input: RepairAgentInput): Promise<RepairAgentResult> {
   const classification = FailureClassifier.classify(input.context);
-  if (classification.shouldAbstain) {
+  if (classification.shouldAbstain && !canEscalateLocatorEvidence(input)) {
     return { state: 'DETERMINISTIC_ABSTAIN', classification, modelInvoked: false, errors: [classification.abstentionReason ?? classification.reason] };
   }
   if (!input.bundle.redactionComplete) {
@@ -91,6 +97,14 @@ export async function runRepairProposalAgent(input: RepairAgentInput): Promise<R
   const semanticError = proposalMatchesClassification(result.proposal, classification, input.context.failedAction.selector);
   if (semanticError) return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: [semanticError] };
   return { state: 'PROPOSAL_RECEIVED', classification, modelInvoked: true, proposal: result.proposal, errors: [] };
+}
+
+function canEscalateLocatorEvidence(input: RepairAgentInput): boolean {
+  if (input.allowModelEscalation !== true) return false;
+  const classification = FailureClassifier.classify(input.context);
+  if (!['AMBIGUOUS_MATCH', 'INCOMPLETE_EVIDENCE'].includes(classification.category)) return false;
+  if (!input.context.evidenceCompleteness.domAvailable) return false;
+  return Boolean(input.context.failedAction.selector?.trim());
 }
 
 function isAgentStepProvider(provider: ProposalProvider): provider is ProposalProvider & AgentStepProvider {

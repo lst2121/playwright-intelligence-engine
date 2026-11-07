@@ -83,6 +83,44 @@ describe('bounded LLM repair proposal agent', () => {
     expect(provider.calls).toBe(0);
   });
 
+  it('can escalate incomplete locator evidence while keeping non-locator failures fail-closed', async () => {
+    const provider = new FakeProvider({
+      isValid: true,
+      errors: [],
+      proposal: {
+        proposalVersion: '1',
+        decision: 'PROPOSE',
+        failureKind: 'LOCATOR_DRIFT',
+        confidence: 0.82,
+        reasoningSummary: 'A unique accessible replacement is present in the captured DOM.',
+        operations: [{ kind: 'replace_locator', target: 'div', locator: "page.getByRole('button', { name: 'Checkout' })" }],
+        requiredVerification: ['target test passes in an isolated worktree'],
+        evidenceReferences: ['trace.zip'],
+      },
+    });
+    const ambiguous = context('locator("div") resolved to 25 elements');
+    ambiguous.failedAction.selector = 'div';
+    const escalated = await runRepairProposalAgent({
+      context: ambiguous,
+      bundle: bundleFor(ambiguous),
+      provider,
+      allowModelEscalation: true,
+    });
+    expect(escalated.modelInvoked).toBe(true);
+    expect(escalated.state).toBe('PROPOSAL_RECEIVED');
+    expect(provider.calls).toBe(1);
+
+    const backend = context('page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8000/');
+    const blocked = await runRepairProposalAgent({
+      context: backend,
+      bundle: bundleFor(backend),
+      provider,
+      allowModelEscalation: true,
+    });
+    expect(blocked.state).toBe('DETERMINISTIC_ABSTAIN');
+    expect(provider.calls).toBe(1);
+  });
+
   it('refuses to cross the provider boundary without a redaction attestation', async () => {
     const provider = new FakeProvider({ isValid: false, errors: ['must not be called'] });
     const failed = context();

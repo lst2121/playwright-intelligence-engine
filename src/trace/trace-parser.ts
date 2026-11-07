@@ -31,7 +31,10 @@ export interface ParsedTraceStream {
   consoleEvents: ConsoleEvent[];
   rawSnapshots?: any[];
   latestResolvedDom?: ResolvedElement | null;
+  mainFrameDom?: ResolvedElement | null;
+  latestChildFrameDom?: ResolvedElement | null;
   domByCallId?: Map<string, ResolvedElement>;
+  domByFrameId?: Map<string, ResolvedElement>;
 }
 
 function stripAnsi(value: string): string {
@@ -87,6 +90,10 @@ export class TraceParser {
     const logsByCallId = new Map<string, string[]>();
     const rawSnapshots: any[] = [];
     const domByCallId = new Map<string, ResolvedElement>();
+    const domByFrameId = new Map<string, ResolvedElement>();
+    let mainFrameId: string | null = null;
+    let mainFrameDom: ResolvedElement | null = null;
+    let latestChildFrameDom: ResolvedElement | null = null;
     let latestResolvedDom: ResolvedElement | null = null;
     const failedActionCandidates: FailedAction[] = [];
 
@@ -118,9 +125,33 @@ export class TraceParser {
         const snapContent = event.snapshot.html ?? event.snapshot.node;
         const resolved = SnapshotResolver.resolveDifferentialNode(snapContent, snapIndex, rawSnapshots);
         if (resolved && typeof resolved === 'object' && 'tag' in resolved) {
-          latestResolvedDom = resolved as ResolvedElement;
+          const resolvedEl = resolved as ResolvedElement;
+          const frameId = event.snapshot.frameId ?? event.frameId;
+          const isExplicitMainFrame = event.snapshot.isMainFrame === true || event.isMainFrame === true;
+          const isExplicitChildFrame = event.snapshot.isMainFrame === false || event.isMainFrame === false;
+
+          if (frameId) {
+            domByFrameId.set(frameId, resolvedEl);
+            if (isExplicitMainFrame || (!mainFrameId && !isExplicitChildFrame)) {
+              mainFrameId = frameId;
+            }
+          }
+
           if (event.snapshot.callId) {
-            domByCallId.set(event.snapshot.callId, resolved as ResolvedElement);
+            domByCallId.set(event.snapshot.callId, resolvedEl);
+          }
+
+          const isMain = isExplicitMainFrame || (frameId && frameId === mainFrameId) || (!frameId && !isExplicitChildFrame);
+
+          if (isMain) {
+            mainFrameDom = resolvedEl;
+            latestResolvedDom = resolvedEl;
+          } else {
+            latestChildFrameDom = resolvedEl;
+            // Child iframe snapshot: preserve mainFrameDom, update latestResolvedDom only if mainFrameDom not set
+            if (!mainFrameDom) {
+              latestResolvedDom = resolvedEl;
+            }
           }
         }
       }
@@ -308,7 +339,10 @@ export class TraceParser {
       consoleEvents,
       rawSnapshots,
       latestResolvedDom,
+      mainFrameDom,
+      latestChildFrameDom,
       domByCallId,
+      domByFrameId,
     };
   }
 
@@ -372,7 +406,7 @@ export class TraceParser {
     const versionInfo = VersionDetector.detectFromLines(traceLines);
     VersionDetector.assertSupported(versionInfo);
 
-    const { failedAction, consoleEvents, domByCallId, latestResolvedDom } = TraceParser.parseTraceLines(traceLines);
+    const { failedAction, consoleEvents, domByCallId, latestResolvedDom, mainFrameDom, latestChildFrameDom } = TraceParser.parseTraceLines(traceLines);
     const networkEvents = TraceParser.parseNetworkLines(networkLines);
 
     const fallbackFailedAction: FailedAction = failedAction ?? {
@@ -383,10 +417,18 @@ export class TraceParser {
 
     const snapshots: { before?: string; action?: string; after?: string } = {};
 
-    // Recover DOM snapshot from modern differential stream or latest known frame DOM
+    // Recover DOM snapshot from modern differential stream or latest known frame DOM.
+    // Prioritize call-specific DOM, then root/main frame DOM (unless selector specifically targeted an iframe), then child frame DOM, then fallback.
+    const isTargetingIframe = Boolean(
+      fallbackFailedAction.selector &&
+      /frameLocator|iframe|frame\[/i.test(fallbackFailedAction.selector)
+    );
+
     const targetDom: ResolvedElement | undefined =
       (fallbackFailedAction.callId && domByCallId?.get(fallbackFailedAction.callId)) ||
-      latestResolvedDom ||
+      (isTargetingIframe
+        ? (latestChildFrameDom || latestResolvedDom)
+        : (mainFrameDom || latestResolvedDom)) ||
       undefined;
 
     if (targetDom) {

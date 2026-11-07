@@ -15,6 +15,11 @@ import { bootstrapProjectIntelligence, getHistoricalSelectorScore } from './proj
 import { DiagnosticReportGenerator } from '../diagnostics/diagnostic-report.js';
 import { discoverRepairSourceMapping } from '../repair/source-mapper.js';
 import { DirectBrowserInvestigator } from '../reproduce/direct-browser-investigator.js';
+import { CandidateExtractor } from '../selector/candidate-extractor.js';
+import { RepairCandidateRanker } from '../selector/repair-candidate-ranker.js';
+import { AbstentionPolicy } from '../selector/abstention-policy.js';
+import { EvidenceRedactor } from '../evidence/evidence-redactor.js';
+import { ExecutionRunner } from '../sandbox/execution-runner.js';
 
 export interface TraceProposalWorkflowInput {
   tracePath: string;
@@ -25,6 +30,7 @@ export interface TraceProposalWorkflowInput {
   enableBrowserInvestigation?: boolean | undefined;
   browserUrl?: string | undefined;
   browserAllowedHosts?: string[] | undefined;
+  enableTestExecution?: boolean | undefined;
   provider?: ProposalProvider | undefined;
 }
 
@@ -43,6 +49,31 @@ function assertWorkspacePath(root: string, target: string, label: string): strin
   const relative = path.relative(canonicalRoot, canonicalTarget);
   if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error(`${label} escapes workspace root: '${target}'`);
   return canonicalTarget;
+}
+
+async function searchRepository(root: string, query: string): Promise<Array<{ filePath: string; line: number; snippet: string }>> {
+  const ignored = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', 'test-results', 'playwright-report', '.pie', '.pw-intelligence']);
+  const results: Array<{ filePath: string; line: number; snippet: string }> = [];
+  const walk = async (directory: string, depth: number): Promise<void> => {
+    if (depth > 6 || results.length >= 30) return;
+    let entries;
+    try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      if (results.length >= 30 || ignored.has(entry.name)) continue;
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) { await walk(full, depth + 1); continue; }
+      if (!/\.(?:ts|tsx|js|jsx|json|md|yaml|yml)$/i.test(entry.name)) continue;
+      let content: string;
+      try { content = await fs.readFile(full, 'utf8'); } catch { continue; }
+      const lines = content.split(/\r?\n/);
+      lines.forEach((line, index) => {
+        if (results.length >= 30 || !line.toLowerCase().includes(query.toLowerCase())) return;
+        results.push({ filePath: path.relative(root, full), line: index + 1, snippet: EvidenceRedactor.redactText(line.slice(0, 500)).redactedText });
+      });
+    }
+  };
+  await walk(root, 0);
+  return results;
 }
 
 function configuredProvider(): ProposalProvider | undefined {
@@ -134,6 +165,7 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
     context,
     bundle,
     provider: input.provider ?? configuredProvider(),
+    allowModelEscalation: true,
     strategy: correlated.classification.category === 'LOCATOR_DRIFT'
       && correlated.classification.confidence >= 0.85
       && Boolean(deterministicProposedLocator)
@@ -188,13 +220,61 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
           recordKinds: investigation.records.map((record) => record.evidenceType).slice(0, 20),
         };
       },
+      inspect_repository: async () => ({
+        repository: intelligence.profile?.repository,
+        structure: intelligence.profile?.structure,
+        paths: intelligence.profile?.paths,
+        locatorConventions: intelligence.profile?.locatorConventions,
+        testConventions: intelligence.profile?.testConventions,
+        domainTerms: intelligence.profile?.domainTerms?.slice(0, 50),
+      }),
+      read_source_file: async (action) => {
+        const sourcePath = action.path ?? action.sourceFile;
+        if (!sourcePath) return { status: 'INPUT_REQUIRED', reason: 'A path or sourceFile is required.' };
+        const resolved = assertWorkspacePath(workspaceRoot, sourcePath, 'Source file');
+        const content = await fs.readFile(resolved, 'utf8');
+        const clipped = content.length > 16000 ? `${content.slice(0, 16000)}\n[PIE source evidence clipped]` : content;
+        return { status: 'FOUND', filePath: path.relative(workspaceRoot, resolved), content: EvidenceRedactor.redactText(clipped).redactedText };
+      },
+      search_repository: async (action) => {
+        if (!action.query) return { status: 'INPUT_REQUIRED', reason: 'A query is required.' };
+        return { status: 'FOUND', query: action.query, matches: await searchRepository(workspaceRoot, action.query) };
+      },
       discover_source_mapping: async () => sourceMapping ?? {
         status: 'NOT_FOUND',
         reason: 'No unique source mapping was discovered.',
       },
       rank_locator_candidates: async () => ({
-        status: deterministicProposedLocator ? 'CANDIDATE_AVAILABLE' : 'NO_SAFE_CANDIDATE',
-        proposedLocator: deterministicProposedLocator ?? null,
+        ...(() => {
+          const domRoot = (correlated.context as unknown as { domRoot?: unknown }).domRoot;
+          if (!domRoot) return { status: 'NO_DOM_EVIDENCE', candidates: [], proposedLocator: null };
+          try {
+            const candidates = CandidateExtractor.extractCandidates(domRoot as Parameters<typeof CandidateExtractor.extractCandidates>[0], correlated.context.failedAction);
+            const ranked = RepairCandidateRanker.rank(candidates, correlated.context.failedAction.selector, correlated.context.failedAction.action, intelligence);
+            const decision = AbstentionPolicy.evaluate(ranked);
+            return {
+              status: decision.shouldAbstain ? 'CANDIDATES_REQUIRE_REVIEW' : 'CANDIDATE_AVAILABLE',
+              proposedLocator: deterministicProposedLocator ?? null,
+              abstentionStage: decision.stage,
+              abstentionReason: decision.reason ?? null,
+              candidates: ranked.slice(0, 10).map((candidate) => ({
+                locator: candidate.locatorExpression,
+                score: candidate.breakdown.score,
+                identityMatch: candidate.breakdown.identityMatch,
+                matchCount: candidate.breakdown.matchCount,
+                element: {
+                  tag: candidate.element.tag,
+                  role: candidate.element.role,
+                  accessibleName: candidate.element.accessibleName,
+                  text: candidate.element.text,
+                  attributes: candidate.element.attributes,
+                },
+              })),
+            };
+          } catch (error) {
+            return { status: 'CANDIDATE_EXTRACTION_FAILED', candidates: [], proposedLocator: deterministicProposedLocator ?? null, reason: error instanceof Error ? error.message : String(error) };
+          }
+        })(),
       }),
       build_repair_proposal: async (action) => ({
         status: 'PROPOSAL_ONLY',
@@ -202,6 +282,18 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
         locator: action.locator ?? deterministicProposedLocator ?? null,
         message: 'PIE has not modified or executed any source. The model must return the final schema-validated proposal.',
       }),
+      run_target_test: async (action) => {
+        if (input.enableTestExecution !== true) return { status: 'DISABLED', reason: 'Targeted test execution requires explicit opt-in.' };
+        const target = action.testFile ?? action.sourceFile;
+        if (!target) return { status: 'INPUT_REQUIRED', reason: 'testFile or sourceFile is required.' };
+        const testPath = assertWorkspacePath(workspaceRoot, target, 'Target test');
+        const relativeTest = path.relative(workspaceRoot, testPath);
+        const args = ['playwright', 'test', relativeTest, '--reporter=line'];
+        if (action.configPath) args.push('--config', path.relative(workspaceRoot, assertWorkspacePath(workspaceRoot, action.configPath, 'Playwright config')));
+        const execution = await ExecutionRunner.run('npx', { cwd: workspaceRoot, args, timeoutMs: 120000 });
+        const clip = (value: string): string => EvidenceRedactor.redactText(value.slice(0, 8000)).redactedText;
+        return { status: execution.exitCode === 0 ? 'PASSED' : 'FAILED', exitCode: execution.exitCode, timedOut: execution.timedOut, stdout: clip(execution.stdout), stderr: clip(execution.stderr), durationMs: execution.durationMs };
+      },
       verify_repair: async () => ({
         status: 'NOT_EXECUTED',
         reason: 'Trace proposal workflow is proposal-only. Isolated verification requires the repair workflow and explicit execution policy.',

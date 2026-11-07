@@ -63,6 +63,38 @@ function selectorMatches(selector: string, locator: ExtractedLocatorAst): { scor
   return undefined;
 }
 
+function normalizedPath(value: string): string {
+  return value.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+}
+
+/**
+ * Trace source locations frequently point at a disposable checkout used by
+ * Playwright. Resolve that location back into the active repository only when
+ * the suffix identifies exactly one source file; never guess between twins.
+ */
+function resolveTestSourcePath(root: string, sourceFiles: string[], sourceFile: string | undefined): { path?: string; remapped: boolean } {
+  if (!sourceFile) return { remapped: false };
+  const resolved = path.resolve(root, sourceFile);
+  const inside = path.relative(root, resolved);
+  if (!inside.startsWith('..') && !path.isAbsolute(inside)) {
+    const exact = sourceFiles.find((file) => path.resolve(file) === resolved);
+    if (exact) return { path: exact, remapped: false };
+  }
+
+  const wanted = normalizedPath(sourceFile);
+  const suffixMatches = sourceFiles.filter((file) => {
+    const candidate = normalizedPath(path.relative(root, file));
+    return wanted.endsWith(`/${candidate}`) || candidate.endsWith(`/${wanted}`) || candidate === wanted;
+  });
+  if (suffixMatches.length === 1 && suffixMatches[0]) return { path: suffixMatches[0], remapped: true };
+
+  const basename = path.basename(sourceFile).toLowerCase();
+  const basenameMatches = sourceFiles.filter((file) => path.basename(file).toLowerCase() === basename);
+  return basenameMatches.length === 1 && basenameMatches[0]
+    ? { path: basenameMatches[0], remapped: true }
+    : { remapped: false };
+}
+
 /**
  * Finds a unique Page Object locator for a failed trace action. This is
  * intentionally selector-based and fail-closed; it does not infer a class or
@@ -77,6 +109,8 @@ export async function discoverRepairSourceMapping(input: {
   if (!selector) return undefined;
   const normalizedSelector = normalize(selector);
   const sourceFiles = await listSourceFiles(root);
+  const resolvedTestSource = resolveTestSourcePath(root, sourceFiles, input.failedAction.sourceFile);
+  if (input.failedAction.sourceFile && !resolvedTestSource.path) return undefined;
   const matches: Array<RepairSourceMapping & { score: number }> = [];
 
   for (const filePath of sourceFiles) {
@@ -97,15 +131,14 @@ export async function discoverRepairSourceMapping(input: {
       const matched = selectorMatches(input.failedAction.selector ?? '', locator);
       if (!matched) continue;
       matches.push({
-        testFilePath: input.failedAction.sourceFile
-          ? path.resolve(root, input.failedAction.sourceFile)
-          : '',
+        testFilePath: resolvedTestSource.path ?? '',
         pomFilePath: filePath,
         className: locator.className,
         memberName: locator.propertyName,
         confidence: matched.score / 100,
         evidence: [
           ...matched.evidence,
+          ...(resolvedTestSource.remapped ? ['Trace source path remapped to the unique active-repository source file'] : []),
           `Page Object member ${locator.className}.${locator.propertyName}`,
           `Source location ${path.relative(root, filePath)}:${locator.line}`,
         ],

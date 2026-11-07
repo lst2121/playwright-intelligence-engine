@@ -29,6 +29,7 @@ import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../di
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { runTraceProposalWorkflow } from '../intelligence/trace-proposal-workflow.js';
+import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -201,6 +202,30 @@ export class McpServer {
                     enableBrowserInvestigation: { type: 'boolean', description: 'Explicitly opt in to read-only browser-state investigation when the model requests it' },
                     browserUrl: { type: 'string', description: 'Browser URL for opt-in investigation' },
                     browserAllowedHosts: { type: 'array', items: { type: 'string' }, description: 'Explicit host allowlist required for browser investigation' },
+                  },
+                  required: ['tracePath'],
+                },
+              },
+              {
+                name: 'autonomous_repair',
+                description: 'Runs the bounded reasoning agent, allowlisted repository/browser tools, isolated repair verification, and optional explicitly authorized promotion.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePath: { type: 'string' },
+                    errorContextPath: { type: 'string' },
+                    testPath: { type: 'string' },
+                    pomPath: { type: 'string' },
+                    className: { type: 'string' },
+                    memberName: { type: 'string' },
+                    configPath: { type: 'string' },
+                    execute: { type: 'boolean' },
+                    autoPromote: { type: 'boolean', description: 'Promote only after isolated verification; use only under explicit repository policy.' },
+                    enableBrowserInvestigation: { type: 'boolean' },
+                    browserUrl: { type: 'string' },
+                    browserAllowedHosts: { type: 'array', items: { type: 'string' } },
+                    enableTestExecution: { type: 'boolean' },
+                    worktreeId: { type: 'string' },
                   },
                   required: ['tracePath'],
                 },
@@ -503,6 +528,40 @@ export class McpServer {
         };
       }
 
+      if (toolName === 'autonomous_repair') {
+        if (typeof args?.tracePath !== 'string' || !args.tracePath.trim()) {
+          return { jsonrpc: '2.0', id, error: { code: -32602, message: 'tracePath argument must be a non-empty string' } };
+        }
+        const result = await runAutonomousRepairWorkflow({
+          tracePath: args.tracePath,
+          workspaceRoot: this.workspaceRoot,
+          errorContextPath: typeof args?.errorContextPath === 'string' ? args.errorContextPath : undefined,
+          testFilePath: typeof args?.testPath === 'string' ? args.testPath : undefined,
+          pomFilePath: typeof args?.pomPath === 'string' ? args.pomPath : undefined,
+          className: typeof args?.className === 'string' ? args.className : undefined,
+          memberName: typeof args?.memberName === 'string' ? args.memberName : undefined,
+          configPath: typeof args?.configPath === 'string' ? args.configPath : undefined,
+          worktreeId: typeof args?.worktreeId === 'string' ? args.worktreeId : undefined,
+          execute: args?.execute === true,
+          autoPromote: args?.autoPromote === true,
+          enableBrowserInvestigation: args?.enableBrowserInvestigation === true,
+          browserUrl: typeof args?.browserUrl === 'string' ? args.browserUrl : undefined,
+          browserAllowedHosts: Array.isArray(args?.browserAllowedHosts) ? args.browserAllowedHosts.filter((host: unknown): host is string => typeof host === 'string') : undefined,
+          enableTestExecution: args?.enableTestExecution === true,
+        });
+        const response = {
+          status: result.status,
+          reason: result.reason,
+          modelInvoked: result.proposalRun.agent.modelInvoked,
+          state: result.proposalRun.agent.state,
+          classification: result.proposalRun.agent.classification,
+          proposal: result.proposal,
+          verification: result.verification,
+          promotion: result.promotion,
+        };
+        return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }], ...response } };
+      }
+
       if (toolName === 'initialize_project') {
         const initialized = await initProjectConfig(this.workspaceRoot);
         return { jsonrpc: '2.0', id, result: { status: initialized.created ? 'CREATED' : 'EXISTING', configPath: initialized.configPath, config: initialized.config } };
@@ -775,7 +834,7 @@ export class McpServer {
             provenance: getRuntimeProvenance(this.workspaceRoot),
             safetyMode: 'fail-closed',
             mutationPolicy: 'approval-required',
-            llmPolicy: 'provider-neutral-proposals-only',
+            llmPolicy: 'provider-neutral-bounded-agent-with-deterministic-verification',
             capabilities: {
               traceDiagnosis: true,
               liveReproduction: true,
@@ -785,9 +844,11 @@ export class McpServer {
               workflowRepairExecution: true,
               allowlistedOperationWorkflow: true,
               browserOperationExecutor: true,
-              workspacePromotion: false,
+              workspacePromotion: 'explicit-auto-promote-policy',
               builtInLlmProvider: false,
               boundedModelProposalWorkflow: true,
+              boundedAutonomousRepairWorkflow: true,
+              structuredGenerationAgent: true,
               repositoryInspection: true,
               repositoryBaselineRunner: true,
               externalRepositoryEvaluation: false,

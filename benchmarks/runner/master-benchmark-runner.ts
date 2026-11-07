@@ -14,6 +14,9 @@ import { ResolvedElement } from '../../src/trace/snapshot-resolver.js';
 import { CandidateExtractor } from '../../src/selector/candidate-extractor.js';
 import { LiveBrowserCollector } from '../../src/collectors/live-browser-collector.js';
 import { LiveLocatorVerifier } from '../../src/selector/live-locator-verifier.js';
+import { ExecutionRunner } from '../../src/sandbox/execution-runner.js';
+import { VerifiedExecutionProof } from '../../src/repair/intent-validator.js';
+import { PROOF_VERSION } from '../../src/core/version.js';
 
 export interface BenchmarkScenarioRecord {
   id: string;
@@ -466,6 +469,28 @@ export class MasterBenchmarkRunner {
                 const rerunDuration = parseFloat((performance.now() - rerunT0).toFixed(2));
 
                 if (repairedActionPassed) {
+                  let realExecutionResult;
+                  try {
+                    realExecutionResult = await ExecutionRunner.runPlaywrightTest({
+                      cwd: process.cwd(),
+                      testFilePath: specPath,
+                      timeoutMs: 30000,
+                    });
+                  } catch (err: any) {
+                    realExecutionResult = {
+                      exitCode: 1,
+                      stdout: '',
+                      stderr: err?.message || String(err),
+                      durationMs: 0,
+                      timedOut: false,
+                      truncated: false,
+                    };
+                  }
+
+                  const passedMatch = realExecutionResult.stdout.match(/(\d+)\s+passed/i);
+                  const passedCount = passedMatch ? parseInt(passedMatch[1] ?? '0', 10) : 0;
+                  const executionPassed = realExecutionResult.exitCode === 0 && passedCount > 0 && !realExecutionResult.timedOut;
+
                   const verifiedAuth = IntentValidator.authorizeVerifiedRepair({
                     testFilePath: specPath,
                     originalCompositeFingerprint: origFingerprint,
@@ -478,16 +503,23 @@ export class MasterBenchmarkRunner {
                     originalSelector: m.oldSelector,
                     executionProof: {
                       testFilePath: specPath,
+                      targetTestIdentity: path.relative(process.cwd(), specPath),
+                      command: `npx playwright test ${path.relative(process.cwd(), specPath)}`,
                       worktreeId: 'benchmark-emp-worktree',
-                      exitCode: 0,
-                      stdout: '1 passed',
-                      stderr: '',
-                      passed: true,
-                      executionOutcome: 'PASS',
+                      repositoryIdentity: process.cwd(),
+                      originalSourceHash: origFingerprint.compositeHash,
+                      modifiedSourceHash: origFingerprint.compositeHash,
+                      diffHash: '',
+                      exitCode: realExecutionResult.exitCode,
+                      stdout: realExecutionResult.stdout,
+                      stderr: realExecutionResult.stderr,
+                      passed: executionPassed,
+                      executionOutcome: executionPassed ? 'PASS' : 'FAIL',
                       assertionIntegrityValid: true,
-                      durationMs: rerunDuration,
-                      command: `${browser.browserType().name()}.locate(${expr}).click()`,
+                      durationMs: realExecutionResult.durationMs,
+                      targetTestEvidence: [`Passed tests: ${passedCount}`, `Exit code: ${realExecutionResult.exitCode}`],
                       timestamp: Date.now(),
+                      proofVersion: PROOF_VERSION,
                     },
                   });
 
@@ -568,6 +600,7 @@ export class MasterBenchmarkRunner {
       let actualOutcome: 'ABSTAIN' | 'REPAIR_SUCCESS' | 'FAIL' = 'FAIL';
       let intentInvariantPassed = true;
       let notes = '';
+      let classifiedCategory: string | undefined;
 
       try {
         const { tAction } = await c.run(page);
@@ -621,6 +654,7 @@ export class MasterBenchmarkRunner {
 
         // Real FailureClassifier evaluation against live captured evidence (P0: zero metadata cheating)
         const classification = FailureClassifier.classify(diagnosticContext);
+        classifiedCategory = classification.category;
 
         if (classification.shouldAbstain) {
           actualOutcome = 'ABSTAIN';
@@ -657,7 +691,7 @@ export class MasterBenchmarkRunner {
         targetApp: c.targetApp,
         expectedOutcome: 'ABSTAIN',
         actualOutcome,
-        diagnosticCategory: c.expectedCategory,
+        diagnosticCategory: classifiedCategory || c.expectedCategory,
         executionDurationMs: durationMs,
         intentInvariantPassed,
         notes,

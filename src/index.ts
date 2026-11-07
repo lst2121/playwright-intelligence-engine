@@ -1,4 +1,5 @@
 // Core Types & Schemas
+export * from './core/version.js';
 export * from './core/types/diagnostic-context.js';
 export * from './core/types/repair-evidence.js';
 export * from './core/errors/engine-errors.js';
@@ -66,6 +67,8 @@ export * from './intelligence/evidence-bundle.js';
 export * from './intelligence/repair-agent.js';
 export * from './intelligence/trace-proposal-workflow.js';
 export * from './intelligence/verified-llm-repair-workflow.js';
+export * from './intelligence/autonomous-repair-workflow.js';
+export * from './intelligence/generation-agent.js';
 export * from './intelligence/repository-profile.js';
 export * from './intelligence/project-intelligence.js';
 export * from './intelligence/failure-clustering.js';

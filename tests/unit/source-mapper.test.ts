@@ -50,4 +50,31 @@ describe('repair source mapper', () => {
     });
     expect(mapping).toBeUndefined();
   });
+
+  it('remaps a disposable trace source path to a unique active-repository test file', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pie-source-map-'));
+    temporaryRoots.push(root);
+    await fs.mkdir(path.join(root, 'tests'), { recursive: true });
+    await fs.mkdir(path.join(root, 'pages'), { recursive: true });
+    const testPath = path.join(root, 'tests', 'checkout.spec.ts');
+    const pomPath = path.join(root, 'pages', 'checkout.page.ts');
+    await fs.writeFile(testPath, "test('checkout', async ({ page }) => {});", 'utf8');
+    await fs.writeFile(pomPath, `export class CheckoutPage {
+  submit = this.page.getByRole('button', { name: 'Submit' });
+  constructor(private page: any) {}
+}`, 'utf8');
+
+    const mapping = await discoverRepairSourceMapping({
+      workspaceRoot: root,
+      failedAction: {
+        callId: 'call-3',
+        action: 'click',
+        selector: "getByRole('button', { name: 'Submit' })",
+        sourceFile: 'D:/temporary-disposable-checkout/tests/checkout.spec.ts',
+      },
+    });
+
+    expect(mapping?.testFilePath).toBe(testPath);
+    expect(mapping?.evidence).toContain('Trace source path remapped to the unique active-repository source file');
+  });
 });

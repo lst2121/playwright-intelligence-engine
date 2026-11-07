@@ -25,9 +25,11 @@ import { recordArchitectureWorkflow, recordCiWorkflow } from '../governance/work
 import { buildTeamDashboard, TeamEvidenceRun } from '../governance/team-dashboard.js';
 import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../diagnostics/external-failure-evidence.js';
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
+import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput } from '../intelligence/test-intelligence.js';
+import { runGenerationAgent } from '../intelligence/generation-agent.js';
 
 export async function runCli(argv: string[]): Promise<void> {
   const command = argv[2];
@@ -238,6 +240,57 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'autonomous-repair') {
+    const tracePath = argv[3];
+    if (!tracePath) {
+      console.error('Error: trace.zip path required. Usage: pw-intel autonomous-repair <trace.zip> [--execute] [--test <spec>] [--pom <page-object>] [--class <Class>] [--member <member>]');
+      process.exit(1);
+    }
+    try {
+      const option = (name: string): string | undefined => {
+        const index = argv.indexOf(name);
+        return index >= 0 ? argv[index + 1] : undefined;
+      };
+      const result = await runAutonomousRepairWorkflow({
+        tracePath,
+        workspaceRoot: process.cwd(),
+        errorContextPath: option('--error-context'),
+        testFilePath: option('--test'),
+        pomFilePath: option('--pom'),
+        className: option('--class'),
+        memberName: option('--member'),
+        configPath: option('--config'),
+        worktreeId: option('--worktree-id'),
+        enableBrowserInvestigation: argv.includes('--browser'),
+        browserUrl: option('--browser-url'),
+        browserAllowedHosts: (option('--allow-host') ?? '').split(',').map((host) => host.trim()).filter(Boolean),
+        enableTestExecution: argv.includes('--run-tests'),
+        autoPromote: argv.includes('--promote'),
+        execute: argv.includes('--execute'),
+      });
+      console.log(JSON.stringify({
+        provenance: getRuntimeProvenance(process.cwd()),
+        status: result.status,
+        reason: result.reason,
+        agent: {
+          state: result.proposalRun.agent.state,
+          modelInvoked: result.proposalRun.agent.modelInvoked,
+          classification: result.proposalRun.agent.classification,
+          proposal: result.proposal,
+          errors: result.proposalRun.agent.errors,
+          steps: result.proposalRun.agent.steps,
+        },
+        verification: result.verification,
+        promotion: result.promotion,
+      }, null, 2));
+      if (result.status === 'PROPOSAL_REJECTED' || result.status === 'VERIFICATION_FAILED') process.exitCode = 1;
+    } catch (err: any) {
+      console.error(`Autonomous repair failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
   if (command === 'reproduce') {
     const specFile = argv[3];
     if (!specFile) {
@@ -405,8 +458,15 @@ export async function runCli(argv: string[]): Promise<void> {
       process.exit(1);
     }
     try {
-      const requirementsRaw = JSON.parse(await fs.promises.readFile(path.resolve(requirementsPath), 'utf8')) as RequirementInput[] | { requirements?: RequirementInput[] };
-      const requirements = Array.isArray(requirementsRaw) ? requirementsRaw : requirementsRaw.requirements ?? [];
+      const requirementsRaw = JSON.parse(await fs.promises.readFile(path.resolve(requirementsPath), 'utf8')) as RequirementInput[] | { requirements?: RequirementInput[] | string; title?: string; steps?: ArchitectureGenerationInput['steps']; baseUrl?: string; includeCi?: boolean };
+      const requirements = Array.isArray(requirementsRaw)
+        ? requirementsRaw
+        : Array.isArray(requirementsRaw.requirements)
+          ? requirementsRaw.requirements
+          : typeof requirementsRaw.requirements === 'string'
+            ? [{ id: 'requirement-1', title: requirementsRaw.title ?? requirementsRaw.requirements.slice(0, 100), description: requirementsRaw.requirements }]
+            : [];
+      if (requirements.length === 0) throw new Error('The requirements document contains no requirements');
       const testsIndex = argv.indexOf('--tests');
       const testsPath = testsIndex >= 0 ? argv[testsIndex + 1] : undefined;
       let existingTests: ExistingTestInput[] = [];
@@ -425,6 +485,55 @@ export async function runCli(argv: string[]): Promise<void> {
       console.log(JSON.stringify(report, null, 2));
     } catch (err: any) {
       console.error(`Test intelligence planning failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (command === 'generate-agent') {
+    const requirementsPath = argv[3];
+    if (!requirementsPath) {
+      console.error('Error: requirements JSON path required. Usage: pw-intel generate-agent <requirements.json> [--mode greenfield|brownfield] [--tests <tests.json>] [--write]');
+      process.exit(1);
+    }
+    try {
+      const requirementsRaw = JSON.parse(await fs.promises.readFile(path.resolve(requirementsPath), 'utf8')) as RequirementInput[] | { requirements?: RequirementInput[] | string; title?: string; steps?: ArchitectureGenerationInput['steps']; baseUrl?: string; includeCi?: boolean };
+      const requirementsDocument = Array.isArray(requirementsRaw) ? undefined : requirementsRaw;
+      const requirements = Array.isArray(requirementsRaw)
+        ? requirementsRaw
+        : Array.isArray(requirementsRaw.requirements)
+          ? requirementsRaw.requirements
+          : typeof requirementsRaw.requirements === 'string'
+            ? [{ id: 'requirement-1', title: requirementsRaw.title ?? requirementsRaw.requirements.slice(0, 100), description: requirementsRaw.requirements }]
+            : [];
+      if (requirements.length === 0) throw new Error('The requirements document contains no requirements');
+      const testsIndex = argv.indexOf('--tests');
+      const testsPath = testsIndex >= 0 ? argv[testsIndex + 1] : undefined;
+      let existingTests: ExistingTestInput[] = [];
+      if (testsPath) {
+        const testsRaw = JSON.parse(await fs.promises.readFile(path.resolve(testsPath), 'utf8')) as ExistingTestInput[] | { tests?: ExistingTestInput[] };
+        existingTests = Array.isArray(testsRaw) ? testsRaw : testsRaw.tests ?? [];
+      }
+      const modeIndex = argv.indexOf('--mode');
+      const mode = (modeIndex >= 0 ? argv[modeIndex + 1] : 'brownfield') as 'greenfield' | 'brownfield';
+      if (mode !== 'greenfield' && mode !== 'brownfield') throw new Error("--mode must be 'greenfield' or 'brownfield'");
+      const baseUrlIndex = argv.indexOf('--base-url');
+      const baseUrl = baseUrlIndex >= 0 ? argv[baseUrlIndex + 1] : requirementsDocument?.baseUrl;
+      const result = await runGenerationAgent({
+        requirements,
+        existingTests,
+        mode,
+        workspaceRoot: process.cwd(),
+        ...(baseUrl ? { baseUrl } : {}),
+        ...(requirementsDocument?.steps ? { suggestedSteps: requirementsDocument.steps } : {}),
+        ...(requirementsDocument?.includeCi !== undefined ? { includeCi: requirementsDocument.includeCi } : {}),
+        write: argv.includes('--write'),
+        verify: argv.includes('--verify'),
+      });
+      console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requirementsPath: path.resolve(requirementsPath), ...result }, null, 2));
+      if (result.status === 'ABSTAINED' || result.status === 'MODEL_NOT_CONFIGURED' || result.status === 'NEEDS_INPUT' || result.status === 'VERIFICATION_FAILED') process.exitCode = 1;
+    } catch (err: any) {
+      console.error(`Generation agent failed: ${err?.message ?? String(err)}`);
       process.exit(1);
     }
     return;
@@ -787,6 +896,8 @@ Usage:
   pw-intel cluster-failures <json> Groups failure observations by deterministic fingerprints
   pw-intel evaluation-scorecard <json> Reconciles expected/predicted categories, repairs, abstentions, and latency
   pw-intel plan-test-intelligence <requirements.json> Plans coverage, missing scenarios, and duplicate tests
+  pw-intel generate-agent <requirements.json> Uses structured LLM planning, then deterministic Playwright generation
+                                   --mode greenfield|brownfield --tests <tests.json> --base-url <url> --write --verify
   pw-intel stability-feedback <selector> --outcome accepted|rejected Records operator repair feedback
   pw-intel suite-health <json>    Calculates flaky-test and duration summaries
   pw-intel team-dashboard <json> Aggregates repository CI evidence into a team dashboard
@@ -801,6 +912,11 @@ Usage:
                                    --test <spec> --pom <page-object> --class <Class> --member <member>
                                    --config <playwright.config> --error-context <file> --worktree-id <id>
                                    --operation <JSON> for an allowlisted frame/shadow/locator operation
+  pw-intel autonomous-repair <trace.zip> Runs the bounded LLM agent and deterministic isolated verifier
+                                   --execute applies the proposal only in a disposable worktree
+                                   --browser --browser-url <url> --allow-host <hostname[,hostname]>
+                                   --run-tests allows the agent to run an explicitly requested target test
+                                   --promote promotes only an independently verified repair; implies execution
   pw-intel reproduce <spec.ts>      Reruns a failing test with live multi-source diagnostic instrumentation
   pw-intel inspect-testbed <dir>    Inspects external Playwright repositories and emits a reproducible manifest
   pw-intel run-testbed <dir>       Runs bounded baseline commands for discovered repositories

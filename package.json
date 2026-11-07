@@ -1,6 +1,6 @@
 {
   "name": "playwright-intelligence-engine",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Enterprise-grade Playwright reliability, failure diagnosis, and intent-preserving test verification engine",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --clean && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=4",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json --noEmit && tsc -p tsconfig.benchmarks.json --noEmit",
     "benchmark": "tsx benchmarks/runner/master-benchmark-runner.ts",

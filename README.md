@@ -1,8 +1,8 @@
-# Playwright Intelligence Engine (pw-intel) v2.6.0-rc1
+# Playwright Intelligence Engine (pw-intel) v1.0.0
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-7.0-blue.svg)](https://www.typescriptlang.org/)
-[![Playwright](https://img.shields.io/badge/Playwright-1.64+-green.svg)](https://playwright.dev/)
-[![Tests](https://img.shields.io/badge/Tests-398%20Passed%20(0%20Failed)-brightgreen.svg)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue.svg)](https://www.typescriptlang.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-1.40+-green.svg)](https://playwright.dev/)
+[![Tests](https://img.shields.io/badge/Tests-507%20Passed%20(0%20Failed)-brightgreen.svg)]()
 [![Benchmark](https://img.shields.io/badge/Benchmark-Empirical%20Browser%20(125%20Scenarios%20Verified)-success.svg)]()
 [![License](https://img.shields.io/badge/License-Apache--2.0-purple.svg)](LICENSE)
 
@@ -129,12 +129,26 @@ npx pw-intel run-testbed D:/Work/pie-real-repository-testbed --repository playwr
 # 7. Generate verified Page Object and Spec scaffolding
 npx pw-intel generate UserDashboard
 
-# 8. Plan project-aware greenfield/brownfield architecture (create-only with --write)
+# 8. Run the bounded LLM repair agent and deterministic isolated verifier
+npx pw-intel autonomous-repair ./playwright-traces/trace.zip --execute
+
+# 9. Plan or write LLM-assisted scenarios through deterministic generators
+npx pw-intel generate-agent requirements.json --mode brownfield --write --verify
+
+# 10. Plan project-aware greenfield/brownfield architecture (create-only with --write)
 npx pw-intel architect "Checkout Flow" --mode greenfield --requirements requirements.json
 
-# 9. Convert Playwright JSON into CI evidence, annotations, and a quality gate
+# 11. Convert Playwright JSON into CI evidence, annotations, and a quality gate
 npx pw-intel ci-report playwright-report.json --repository checkout --out pie-ci-evidence.json
 ```
+
+`autonomous-repair` does not write to the active workspace. With `--execute`,
+PIE applies one validated operation in a disposable worktree, runs the target
+test, and returns `VERIFIED_READY_FOR_APPROVAL` only when all deterministic
+verification gates pass. Add `--promote` only when policy explicitly permits
+promotion after those gates pass. `generate-agent` uses the configured provider only to
+propose structured scenarios; PIE renders and optionally executes the generated
+Playwright files.
 
 ---
 
@@ -143,7 +157,7 @@ npx pw-intel ci-report playwright-report.json --repository checkout --out pie-ci
 The benchmark runner (`benchmarks/runner/master-benchmark-runner.ts`) executes **125 real end-to-end browser scenarios** in headless Chromium against a controlled `ControlledAppServer`. Outcomes, latencies, regressions, and defect masking rates are measured dynamically:
 
 - **Tier 1 (5 baselines):** Clean authentication, catalog, cart, checkout, and admin journeys.
-- **Tier 2 (60 mutations):** Controlled locator and DOM drift families, with live candidate verification, AST patching, browser re-execution, and regression checks. Reported repair precision and recall are 96.7%.
+- **Tier 2 (60 mutations):** Controlled locator and DOM drift families, with live candidate verification, AST patching, browser re-execution, and regression checks. Results must be generated from the current build; historical figures are not release evidence.
 - **Tier 3 (60 negative controls):** Backend, authentication, business-defect, ambiguity, assertion, missing-data, and unsupported-pattern controls. Reported safe abstention is 100%.
 - **Confidence intervals:** See `benchmarks/reports/master-benchmark-results.json` for current Wilson intervals and sample interpretation.
 

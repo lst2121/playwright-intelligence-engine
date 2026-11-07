@@ -57,8 +57,14 @@ function assertWorkspacePath(root: string, target: string, label: string): strin
   return canonicalTarget;
 }
 
+function resolveReadOnlyPath(root: string, target: string, label: string): string {
+  const resolved = path.isAbsolute(target) ? target : path.resolve(root, target);
+  if (!fsSync.existsSync(resolved)) throw new Error(`${label} not found: '${resolved}'`);
+  return fsSync.realpathSync(resolved);
+}
+
 async function loadCorrelatedEvidence(input: RepairWorkflowInput, workspaceRoot: string): Promise<CorrelatedEvidence> {
-  const tracePath = assertWorkspacePath(workspaceRoot, input.tracePath, 'Trace archive');
+  const tracePath = resolveReadOnlyPath(workspaceRoot, input.tracePath, 'Trace archive');
   const { traceEntryName, networkEntryName, traceEntryNames, networkEntryNames } = ArchiveReader.findTraceFileEntries(tracePath);
   if (!traceEntryName) throw new Error(`No .trace event stream found in archive '${tracePath}'`);
   const traceText = await ArchiveReader.readEntriesAsText(tracePath, traceEntryNames ?? [traceEntryName]);
@@ -67,7 +73,7 @@ async function loadCorrelatedEvidence(input: RepairWorkflowInput, workspaceRoot:
     : '';
   let context = TraceParser.assembleDiagnosticContext(traceText.split('\n'), networkText.split('\n'));
   if (input.errorContextPath) {
-    const errorContextPath = assertWorkspacePath(workspaceRoot, input.errorContextPath, 'Error context');
+    const errorContextPath = resolveReadOnlyPath(workspaceRoot, input.errorContextPath, 'Error context');
     context = supplementDiagnosticContext(context, parseExternalFailureEvidence(await fs.readFile(errorContextPath, 'utf8')));
   }
   return EvidenceCorrelator.correlate(context);

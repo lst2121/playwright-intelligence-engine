@@ -51,6 +51,12 @@ function assertWorkspacePath(root: string, target: string, label: string): strin
   return canonicalTarget;
 }
 
+function resolveReadOnlyPath(root: string, target: string, label: string): string {
+  const resolved = path.isAbsolute(target) ? target : path.resolve(root, target);
+  if (!fsSync.existsSync(resolved)) throw new Error(`${label} not found: '${resolved}'`);
+  return fsSync.realpathSync(resolved);
+}
+
 async function searchRepository(root: string, query: string): Promise<Array<{ filePath: string; line: number; snippet: string }>> {
   const ignored = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', 'test-results', 'playwright-report', '.pie', '.pw-intelligence']);
   const results: Array<{ filePath: string; line: number; snippet: string }> = [];
@@ -77,15 +83,16 @@ async function searchRepository(root: string, query: string): Promise<Array<{ fi
 }
 
 function configuredProvider(): ProposalProvider | undefined {
-  const endpoint = process.env.PIE_LLM_ENDPOINT;
-  const model = process.env.PIE_LLM_MODEL;
+  const apiKey = process.env.PIE_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+  const endpoint = process.env.PIE_LLM_ENDPOINT ?? (apiKey ? 'https://api.deepseek.com/chat/completions' : undefined);
+  const model = process.env.PIE_LLM_MODEL ?? (apiKey ? 'deepseek-chat' : undefined);
   if (!endpoint || !model) return undefined;
   const timeoutRaw = process.env.PIE_LLM_TIMEOUT_MS;
   const timeoutMs = timeoutRaw ? Number(timeoutRaw) : undefined;
   return new OpenAiCompatibleProposalProvider({
     endpoint,
     model,
-    apiKey: process.env.PIE_LLM_API_KEY,
+    ...(apiKey ? { apiKey } : {}),
     ...(Number.isFinite(timeoutMs) && timeoutMs && timeoutMs > 0 ? { timeoutMs } : {}),
   });
 }
@@ -97,7 +104,7 @@ function configuredProvider(): ProposalProvider | undefined {
  */
 export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput): Promise<TraceProposalWorkflowResult> {
   const workspaceRoot = path.resolve(input.workspaceRoot ?? process.cwd());
-  const tracePath = assertWorkspacePath(workspaceRoot, input.tracePath, 'Trace archive');
+  const tracePath = resolveReadOnlyPath(workspaceRoot, input.tracePath, 'Trace archive');
   const { traceEntryName, networkEntryName, traceEntryNames, networkEntryNames } = ArchiveReader.findTraceFileEntries(tracePath);
   if (!traceEntryName) throw new Error(`No .trace event stream found in archive '${tracePath}'`);
 
@@ -107,7 +114,7 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
     : '';
   let context = TraceParser.assembleDiagnosticContext(traceText.split('\n'), networkText.split('\n'));
   if (input.errorContextPath) {
-    const errorContextPath = assertWorkspacePath(workspaceRoot, input.errorContextPath, 'Error context');
+    const errorContextPath = resolveReadOnlyPath(workspaceRoot, input.errorContextPath, 'Error context');
     context = supplementDiagnosticContext(context, parseExternalFailureEvidence(await fs.readFile(errorContextPath, 'utf8')));
   }
 

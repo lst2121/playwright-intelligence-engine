@@ -205,7 +205,7 @@ export async function runCli(argv: string[]): Promise<void> {
       const operation = operationText ? JSON.parse(operationText) as unknown : undefined;
       const result = await runRepairWorkflow({
         tracePath,
-        workspaceRoot: process.cwd(),
+        workspaceRoot: option('--workspace') ?? process.cwd(),
         errorContextPath: option('--error-context'),
         testFilePath: option('--test'),
         pomFilePath: option('--pom'),
@@ -253,7 +253,7 @@ export async function runCli(argv: string[]): Promise<void> {
       };
       const result = await runAutonomousRepairWorkflow({
         tracePath,
-        workspaceRoot: process.cwd(),
+        workspaceRoot: option('--workspace') ?? process.cwd(),
         errorContextPath: option('--error-context'),
         testFilePath: option('--test'),
         pomFilePath: option('--pom'),
@@ -299,10 +299,14 @@ export async function runCli(argv: string[]): Promise<void> {
     }
 
     try {
+      const option = (name: string): string | undefined => {
+        const index = argv.indexOf(name);
+        return index >= 0 ? argv[index + 1] : undefined;
+      };
       console.log(`Running diagnostic reproduction for '${specFile}'...`);
       const result = await DiagnosticRerunner.rerunAndDiagnose({
         specFilePath: specFile,
-        workspaceRoot: process.cwd(),
+        workspaceRoot: option('--workspace') ?? process.cwd(),
       });
 
       console.log(result.report);
@@ -523,7 +527,7 @@ export async function runCli(argv: string[]): Promise<void> {
         requirements,
         existingTests,
         mode,
-        workspaceRoot: process.cwd(),
+        workspaceRoot: (argv.indexOf('--workspace') >= 0 ? argv[argv.indexOf('--workspace') + 1] : undefined) ?? process.cwd(),
         ...(baseUrl ? { baseUrl } : {}),
         ...(requirementsDocument?.steps ? { suggestedSteps: requirementsDocument.steps } : {}),
         ...(requirementsDocument?.includeCi !== undefined ? { includeCi: requirementsDocument.includeCi } : {}),

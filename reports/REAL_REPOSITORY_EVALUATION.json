@@ -45,3 +45,4 @@
     "rationale": "Deterministic triage and safety abstention achieves 100.0% safe abstentions with 0.0% false repairs on negative controls across 36 live captured traces in Juice Shop and Twenty CRM. Autonomous repair verification in worktrees returned INPUT_REQUIRED/VERIFICATION_FAILED on production apps, correctly adhering to fail-closed safety."
   }
 }
+

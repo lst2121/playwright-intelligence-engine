@@ -104,7 +104,30 @@ export function parseGenerationPlan(input: unknown): GenerationPlanParseResult {
 }
 
 function generationSystemPrompt(): string {
-  return 'Return exactly one JSON object. Use planVersion "1", status GENERATE, NEEDS_INPUT, or ABSTAIN, reasoningSummary, scenarios, requiredClarifications, and evidenceReferences. For every scenario include id, title, requirementId, steps, reasoningSummary, and evidenceReferences. Steps may only use click, fill, navigate, assert-visible, or assert-text. Do not return source code, patches, arbitrary selectors without evidence, credentials, or unsupported fields. If acceptance criteria are insufficient, return NEEDS_INPUT with explicit questions.';
+  return 'Return exactly one JSON object conforming to the schema:\n' +
+    '{\n' +
+    '  "planVersion": "1",\n' +
+    '  "status": "GENERATE",\n' +
+    '  "reasoningSummary": "string",\n' +
+    '  "scenarios": [\n' +
+    '    {\n' +
+    '      "id": "scenario-1",\n' +
+    '      "title": "string",\n' +
+    '      "requirementId": "string",\n' +
+    '      "steps": [\n' +
+    '        { "action": "navigate", "value": "/url" },\n' +
+    '        { "action": "fill", "role": "textbox", "name": "Field", "value": "val" },\n' +
+    '        { "action": "click", "role": "button", "name": "Button" },\n' +
+    '        { "action": "assert-text", "role": "status", "name": "Label", "expectedText": "Expected" }\n' +
+    '      ],\n' +
+    '      "reasoningSummary": "string",\n' +
+    '      "evidenceReferences": []\n' +
+    '    }\n' +
+    '  ],\n' +
+    '  "requiredClarifications": [],\n' +
+    '  "evidenceReferences": []\n' +
+    '}\n' +
+    'Steps may only use click, fill, navigate, assert-visible, or assert-text. Every scenario MUST contain at least one step in its steps array. Do not return raw code, patches, or unsupported fields.';
 }
 
 export interface OpenAiCompatibleGenerationProviderOptions {
@@ -157,10 +180,15 @@ export class OpenAiCompatibleGenerationProvider implements GenerationPlanProvide
 }
 
 function configuredGenerationProvider(): GenerationPlanProvider | undefined {
-  const endpoint = process.env.PIE_LLM_ENDPOINT;
-  const model = process.env.PIE_LLM_MODEL;
+  const apiKey = process.env.PIE_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+  const endpoint = process.env.PIE_LLM_ENDPOINT ?? (apiKey ? 'https://api.deepseek.com/chat/completions' : undefined);
+  const model = process.env.PIE_LLM_MODEL ?? (apiKey ? 'deepseek-chat' : undefined);
   if (!endpoint || !model) return undefined;
-  return new OpenAiCompatibleGenerationProvider({ endpoint, model, apiKey: process.env.PIE_LLM_API_KEY });
+  return new OpenAiCompatibleGenerationProvider({
+    endpoint,
+    model,
+    ...(apiKey ? { apiKey } : {}),
+  });
 }
 
 function validateGeneratedScenario(
@@ -180,8 +208,13 @@ function validateGeneratedScenario(
     if (step.action === 'assert-visible' && !hasSemanticTarget && !hasExplicitTarget) {
       errors.push(`Scenario '${scenario.id}' visibility assertion requires role/name or an explicit selector`);
     }
-    if (step.action === 'assert-text' && !step.expectedText?.trim()) {
-      errors.push(`Scenario '${scenario.id}' text assertion requires expectedText`);
+    if (step.action === 'assert-text') {
+      const text = step.expectedText?.trim() || step.value?.trim();
+      if (!text) {
+        errors.push(`Scenario '${scenario.id}' text assertion requires expectedText or value`);
+      } else if (!step.expectedText) {
+        step.expectedText = text;
+      }
     }
   }
   return errors;

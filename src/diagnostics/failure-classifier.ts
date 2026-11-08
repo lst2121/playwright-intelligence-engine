@@ -1,4 +1,5 @@
 import { DiagnosticContext, FailureCategory, NetworkEvent } from '../core/types/diagnostic-context.js';
+import { CandidateExtractor } from '../selector/candidate-extractor.js';
 
 export interface CausalEvidenceNode {
   type: 'action' | 'network' | 'console' | 'dom';
@@ -419,9 +420,20 @@ export class FailureClassifier {
       };
     }
 
-    if (!isAssertionAction && isFrameScopedSelector && context.evidenceCompleteness.domAvailable) {
-      // Frame-scoped selector where evidence is complete: candidate extraction is frame-aware
-      // (searches page.frames()), so this can be safely routed to LOCATOR_DRIFT repair.
+    const hasExtractableCandidates = Boolean(
+      (context as any).domRoot &&
+      (() => {
+        try {
+          return CandidateExtractor.extractCandidates((context as any).domRoot, context.failedAction).length > 0;
+        } catch {
+          return false;
+        }
+      })()
+    );
+
+    if (!isAssertionAction && isFrameScopedSelector && context.evidenceCompleteness.domAvailable && hasExtractableCandidates) {
+      // Frame-scoped selector where evidence is complete and child candidates are available:
+      // candidate extraction is frame-aware (searches page.frames()), so this can be safely routed to LOCATOR_DRIFT repair.
       supportingEvidence.push('The failed action was scoped to a frame, but evidence is complete and candidates can be extracted from child frames');
     } else if (!isAssertionAction && /frame.*(?:not found|detached|unavailable)|iframe.*(?:not found|detached|unavailable)|different frame|content frame|contentFrame|frame locator|frameLocator/i.test(diagnosticText)) {
       supportingEvidence.push('The failed action was associated with a missing, detached, or mismatched frame context');

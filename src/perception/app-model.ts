@@ -27,3 +27,4 @@ export const AppModelSchema = z.object({
   routes: z.array(AppRouteSchema).default([]),
 });
 export type AppModel = z.infer<typeof AppModelSchema>;
+

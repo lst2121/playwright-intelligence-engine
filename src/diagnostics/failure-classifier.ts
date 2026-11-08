@@ -403,7 +403,27 @@ export class FailureClassifier {
       };
     }
 
-    if (!isAssertionAction && /frame.*(?:not found|detached|unavailable)|iframe.*(?:not found|detached|unavailable)|different frame|content frame|contentFrame|frame locator|frameLocator/i.test(diagnosticText)) {
+    const isFrameScopedSelector = /contentFrame|frameLocator|\.frame\(/i.test(context.failedAction.selector ?? '');
+    const isFrameUnavailableError = /frame was detached|frame is detached|frame not found|target frame.*not found|frame.*navigated/i.test(diagnosticText);
+
+    if (!isAssertionAction && isFrameUnavailableError) {
+      supportingEvidence.push('The frame context was detached, navigated away, or destroyed');
+      return {
+        category: 'FRAME_OR_IFRAME',
+        confidence: 0.94,
+        reason: 'The target frame was detached or unavailable',
+        shouldAbstain: true,
+        abstentionReason: 'Frame-context failure detected: frame was detached or destroyed.',
+        supportingEvidence,
+        causalGraph,
+      };
+    }
+
+    if (!isAssertionAction && isFrameScopedSelector && context.evidenceCompleteness.domAvailable) {
+      // Frame-scoped selector where evidence is complete: candidate extraction is frame-aware
+      // (searches page.frames()), so this can be safely routed to LOCATOR_DRIFT repair.
+      supportingEvidence.push('The failed action was scoped to a frame, but evidence is complete and candidates can be extracted from child frames');
+    } else if (!isAssertionAction && /frame.*(?:not found|detached|unavailable)|iframe.*(?:not found|detached|unavailable)|different frame|content frame|contentFrame|frame locator|frameLocator/i.test(diagnosticText)) {
       supportingEvidence.push('The failed action was associated with a missing, detached, or mismatched frame context');
       return {
         category: 'FRAME_OR_IFRAME',

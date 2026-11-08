@@ -208,5 +208,61 @@
       "safeAbstentionRate": null,
       "falseRepairRate": null
     }
+  },
+  {
+    "runFile": "run-2026-11-08T13-27-07-037Z-e81bbe4.json",
+    "timestamp": 1794144427037,
+    "utcTimestamp": "2026-11-08T13-27-07-037Z",
+    "gitSha": "e81bbe4",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T13-32-40-431Z-7cf397b.json",
+    "timestamp": 1794144760431,
+    "utcTimestamp": "2026-11-08T13-32-40-431Z",
+    "gitSha": "7cf397b",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T13-34-56-869Z-f99e698.json",
+    "timestamp": 1794144896869,
+    "utcTimestamp": "2026-11-08T13-34-56-869Z",
+    "gitSha": "f99e698",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T13-43-49-654Z-7955520.json",
+    "timestamp": 1794145429654,
+    "utcTimestamp": "2026-11-08T13-43-49-654Z",
+    "gitSha": "7955520",
+    "totalScenarios": 125,
+    "summary": {
+      "baselinePassRate": 100,
+      "repairPrecision": 100,
+      "repairRecall": 95,
+      "safeAbstentionRate": 100,
+      "falseRepairRate": 0
+    }
   }
 ]

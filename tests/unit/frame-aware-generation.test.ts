@@ -92,3 +92,4 @@ describe('Frame-aware Generation & Perception Layer (Work Package A)', () => {
     expect(pageFile!.content).toContain("this.securityCodeInput = this.page.frameLocator('iframe[name=\"cvv-frame\"]').getByRole('textbox', { name: 'Security Code' });");
   });
 });
+

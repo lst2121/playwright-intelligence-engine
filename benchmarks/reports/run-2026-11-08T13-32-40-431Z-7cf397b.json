@@ -1,0 +1,60 @@
+{
+  "timestamp": 1794144760431,
+  "totalScenarios": 1,
+  "tier1BaselineCount": 0,
+  "tier2MutationCount": 1,
+  "tier3NegativeControlCount": 0,
+  "tier2RepairedCount": 1,
+  "tier2AbstainedCount": 0,
+  "tier2RepairExpectedCount": 1,
+  "totalAttemptedRepairsCount": 1,
+  "defectScenarioCount": 0,
+  "regressionCheckCount": 1,
+  "baselinePassRate": null,
+  "repairPrecision": 100,
+  "repairRecall": 100,
+  "safeAbstentionRate": null,
+  "falseRepairRate": null,
+  "repairCoverage": 100,
+  "regressionRate": 0,
+  "defectDetectionRate": null,
+  "defectMaskingRate": null,
+  "latencyP50Ms": 7519,
+  "latencyP95Ms": 7519,
+  "confidenceInterval95": {
+    "lower": 20.65,
+    "upper": 100
+  },
+  "confidenceIntervals": {
+    "baselinePassCI": null,
+    "repairPrecisionCI": {
+      "lower": 20.65,
+      "upper": 100
+    },
+    "repairRecallCI": {
+      "lower": 20.65,
+      "upper": 100
+    },
+    "safeAbstentionCI": null,
+    "overallEmpiricalCI": {
+      "lower": 20.65,
+      "upper": 100
+    }
+  },
+  "sampleInterpretationNote": "Wilson 95% CIs represent separate binomial confidence intervals over real empirical headless Chromium trials under controlled benchmark distributions, not an unconstrained universal production reliability guarantee.",
+  "scenarios": [
+    {
+      "id": "POS-MOD-01",
+      "tier": "TIER_2_MUTATION",
+      "category": "Dynamic Hashed IDs",
+      "name": "Module 1: Authentication: Dynamic Hashed IDs",
+      "targetApp": "Module 1: Authentication",
+      "expectedOutcome": "REPAIR_SUCCESS",
+      "actualOutcome": "REPAIR_SUCCESS",
+      "diagnosticCategory": "LOCATOR_DRIFT",
+      "executionDurationMs": 7519,
+      "intentInvariantPassed": true,
+      "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
+    }
+  ]
+}

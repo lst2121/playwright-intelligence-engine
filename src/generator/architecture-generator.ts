@@ -95,19 +95,49 @@ function renderLocator(step: GeneratedStep, preferredLocator: string): string {
   return `this.page.locator(${quote(step.selector ?? (step.action === 'fill' ? 'input' : 'button'))})`;
 }
 
+function toMemberIdentifier(step: GeneratedStep, index: number): string {
+  const raw = step.name ?? step.selector;
+  const suffix = step.action === 'click' ? 'Button' : 'Input';
+  if (!raw) return step.action === 'click' ? `actionButton${index + 1}` : `inputField${index + 1}`;
+  const words = raw.match(/[A-Za-z0-9]+/g);
+  if (!words || words.length === 0) return step.action === 'click' ? `actionButton${index + 1}` : `inputField${index + 1}`;
+  const pascal = words.map((w) => w[0]!.toUpperCase() + w.slice(1)).join('');
+  return `${pascal[0]!.toLowerCase()}${pascal.slice(1)}${suffix}`;
+}
+
+function toMethodIdentifier(step: GeneratedStep, index: number): string {
+  const raw = step.name ?? step.selector;
+  const verb = step.action === 'click' ? 'click' : 'fill';
+  if (!raw) return `${verb}${index + 1}`;
+  const words = raw.match(/[A-Za-z0-9]+/g);
+  if (!words || words.length === 0) return `${verb}${index + 1}`;
+  const pascal = words.map((w) => w[0]!.toUpperCase() + w.slice(1)).join('');
+  return `${verb}${pascal}`;
+}
+
 function renderPageObject(className: string, baseUrl: string, steps: GeneratedStep[], preferredLocator: string): string {
   const declarations: string[] = [];
   const assignments: string[] = [];
   const methods: string[] = [];
+  const usedProperties = new Set<string>();
+  const usedMethods = new Set<string>();
+
   steps.forEach((step, index) => {
     if (step.action !== 'click' && step.action !== 'fill') return;
-    const property = step.action === 'click' ? `actionButton${index + 1}` : `inputField${index + 1}`;
+    let property = toMemberIdentifier(step, index);
+    if (usedProperties.has(property)) property = `${property}${index + 1}`;
+    usedProperties.add(property);
+
+    let method = toMethodIdentifier(step, index);
+    if (usedMethods.has(method)) method = `${method}${index + 1}`;
+    usedMethods.add(method);
+
     declarations.push(`  readonly ${property}: Locator;`);
     assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator)};`);
     if (step.action === 'click') {
-      methods.push(`  async click${index + 1}(): Promise<void> {\n    await this.${property}.click();\n  }`);
+      methods.push(`  async ${method}(): Promise<void> {\n    await this.${property}.click();\n  }`);
     } else {
-      methods.push(`  async fill${index + 1}(value: string): Promise<void> {\n    await this.${property}.fill(value);\n  }`);
+      methods.push(`  async ${method}(value: string): Promise<void> {\n    await this.${property}.fill(value);\n  }`);
     }
   });
 
@@ -130,9 +160,17 @@ ${methods.length > 0 ? `\n${methods.join('\n\n')}\n` : ''}}
 function renderSpec(featureName: string, className: string, pageImport: string, steps: GeneratedStep[], requirements?: string): string {
   const variable = className[0]!.toLowerCase() + className.slice(1);
   const lines: string[] = [`    await ${variable}.goto();`];
+  const usedMethods = new Set<string>();
+
   steps.forEach((step, index) => {
-    if (step.action === 'click') lines.push(`    await ${variable}.click${index + 1}();`);
-    if (step.action === 'fill') lines.push(`    await ${variable}.fill${index + 1}(${quote(step.value ?? 'test-data')});`);
+    if (step.action === 'click' || step.action === 'fill') {
+      let method = toMethodIdentifier(step, index);
+      if (usedMethods.has(method)) method = `${method}${index + 1}`;
+      usedMethods.add(method);
+
+      if (step.action === 'click') lines.push(`    await ${variable}.${method}();`);
+      if (step.action === 'fill') lines.push(`    await ${variable}.${method}(${quote(step.value ?? 'test-data')});`);
+    }
     if (step.action === 'assert-visible') {
       lines.push(`    await expect(page.getByRole(${quote(step.role ?? 'heading')}, { name: ${quote(step.name ?? featureName)} })).toBeVisible();`);
     }

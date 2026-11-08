@@ -6,11 +6,13 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "pw-intel": "./bin/pw-intel.js"
+    "pw-intel": "bin/pw-intel.js"
   },
   "files": [
     "dist",
     "bin",
+    "src",
+    "benchmarks",
     "skills",
     "README.md",
     "LICENSE"
@@ -39,6 +41,7 @@
   "dependencies": {
     "adm-zip": "^0.6.1",
     "ts-morph": "^28.0.0",
+    "tsx": "^4.23.15",
     "zod": "^4.6.7"
   },
   "peerDependencies": {
@@ -54,8 +57,11 @@
     "@types/adm-zip": "^0.6.0",
     "@types/node": "^26.6.6",
     "tsup": "^9.0.0",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
   }
 }

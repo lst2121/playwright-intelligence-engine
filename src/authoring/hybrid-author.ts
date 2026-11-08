@@ -111,3 +111,4 @@ export class HybridAuthor implements Author {
     };
   }
 }
+

@@ -87,3 +87,4 @@ To prevent runaway loops or infinite token consumption, `runGenerationAgent` exe
 - **Maximum Steps:** 3 iterations
 - **Maximum Duration:** 120 seconds
 - **Transition Detection:** `AGENT_NO_PROGRESS` transition triggers when an author produces an identical proposal signature without resolving QualityGate violations.
+

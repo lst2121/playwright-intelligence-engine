@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
-import { chromium, firefox, webkit, Browser, Page } from 'playwright';
+import type { Browser, Page } from '@playwright/test';
 import { ControlledAppServer } from '../controlled-app/app-server.js';
 import { FailureClassifier } from '../../src/diagnostics/failure-classifier.js';
 import { SelectorScorer } from '../../src/selector/selector-scorer.js';
@@ -93,14 +93,27 @@ export class MasterBenchmarkRunner {
     console.log(' Evaluating Playwright Intelligence Engine Enterprise Reliability');
     console.log('========================================================================\n');
 
+    if (this.options.scenarioFilter?.startsWith('UNIT-CLS')) {
+      const unitRecords = this.runFastClassifierUnitScenarios();
+      const filtered = this.options.scenarioFilter === 'UNIT-CLS'
+        ? unitRecords
+        : unitRecords.filter((r) => r.id === this.options.scenarioFilter);
+      this.records.push(...filtered);
+      return this.generateReport();
+    }
+
     const port = this.options.port || 4173;
     const baseUrl = `http://127.0.0.1:${port}`;
     await this.app.start(port);
 
     const browserName = (this.options.browser || 'chromium').toLowerCase();
-    let browserType = chromium;
-    if (browserName === 'firefox') browserType = firefox;
-    if (browserName === 'webkit') browserType = webkit;
+    const pw = await import('@playwright/test').catch(() => import('playwright') as any).catch(() => null);
+    if (!pw || !pw.chromium) {
+      throw new Error("Playwright is required for browser benchmarks. Please install '@playwright/test' or 'playwright'.");
+    }
+    let browserType = pw.chromium;
+    if (browserName === 'firefox') browserType = pw.firefox;
+    if (browserName === 'webkit') browserType = pw.webkit;
 
     console.log(`[Setup] Launching headless browser engine: ${browserName.toUpperCase()}...`);
     const browser = await browserType.launch({ headless: true });

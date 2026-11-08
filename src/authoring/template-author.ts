@@ -36,3 +36,4 @@ export class TemplateAuthor implements Author {
     };
   }
 }
+

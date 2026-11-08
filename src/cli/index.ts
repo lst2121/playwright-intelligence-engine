@@ -322,20 +322,33 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'benchmark') {
-    const isWindows = process.platform === 'win32';
-    const benchmarkScript = path.resolve(process.cwd(), 'benchmarks', 'runner', 'master-benchmark-runner.ts');
-    let executable = 'npx';
-    let finalArgs = ['tsx', benchmarkScript, ...argv.slice(3)];
+    // Resolve benchmark script from package directory first, falling back to process.cwd()
+    const cliDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+    const packageRootDir = path.resolve(cliDir, '..');
+    const packageBenchmarkScript = path.resolve(packageRootDir, 'benchmarks', 'runner', 'master-benchmark-runner.ts');
+    const localBenchmarkScript = path.resolve(process.cwd(), 'benchmarks', 'runner', 'master-benchmark-runner.ts');
+    const benchmarkScript = fs.existsSync(packageBenchmarkScript)
+      ? packageBenchmarkScript
+      : localBenchmarkScript;
 
-    if (isWindows) {
-      const npxCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
-      if (fs.existsSync(npxCli)) {
-        executable = process.execPath;
-        finalArgs = [npxCli, 'tsx', benchmarkScript, ...argv.slice(3)];
-      } else {
-        executable = 'cmd.exe';
-        finalArgs = ['/d', '/s', '/c', 'npx', 'tsx', benchmarkScript, ...argv.slice(3)];
-      }
+    // Locate tsx CLI entry point
+    const tsxCandidatePaths = [
+      path.resolve(packageRootDir, 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+      path.resolve(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs'),
+    ];
+    const tsxCli = tsxCandidatePaths.find((p) => fs.existsSync(p));
+
+    let executable: string;
+    let finalArgs: string[];
+
+    if (tsxCli) {
+      executable = process.execPath;
+      finalArgs = [tsxCli, benchmarkScript, ...argv.slice(3)];
+    } else {
+      executable = process.platform === 'win32' ? 'cmd.exe' : 'npx';
+      finalArgs = process.platform === 'win32'
+        ? ['/d', '/s', '/c', 'npx', 'tsx', benchmarkScript, ...argv.slice(3)]
+        : ['tsx', benchmarkScript, ...argv.slice(3)];
     }
 
     const child = spawn(executable, finalArgs, {

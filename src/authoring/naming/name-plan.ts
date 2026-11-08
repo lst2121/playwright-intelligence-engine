@@ -24,3 +24,4 @@ export const NamePlanSchema = z.object({
   assumptions: z.array(z.string()).default([]),
 });
 export type NamePlan = z.infer<typeof NamePlanSchema>;
+

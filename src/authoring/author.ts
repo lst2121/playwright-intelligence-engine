@@ -37,3 +37,4 @@ export interface Author {
   readonly kind: AuthorKind;
   propose(input: AuthorInput): Promise<CandidateChange>;
 }
+

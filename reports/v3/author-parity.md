@@ -53,3 +53,4 @@ All metrics are evaluated against identical requirement inputs (`scratch/test-re
 1. **Zero Index-Derived Identifiers across All Authors**: The defect where identifiers like `actionButton1` or `fill2` were generated has been completely eliminated ($0$ across all three author engines).
 2. **Deterministic Gate Enforces Quality**: Both Hybrid and LLM authors are bound by `QualityGate.evaluate()`. Any non-conforming identifier or duplicate selector is rejected before disk write.
 3. **Brownfield Page Object Naming Conformance**: Both authors correctly emit application-centric Page Object classes (e.g., `LoginPage`) rather than leaking the full test scenario sentence (`UserLoginWithValidCredentialsPage`).
+

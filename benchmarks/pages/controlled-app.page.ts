@@ -55,7 +55,7 @@ export class ControlledAppPage {
     this.cartCheckoutButton = page.getByRole('button', { name: 'Proceed to Checkout' });
 
     this.userSearchInput = page.locator('#user-search');
-    this.editUserButton = page.getByRole('button', { name: 'Edit' });
+    this.editUserButton = page.locator('#btn-edit-user');
     this.saveUserButton = page.getByRole('button', { name: 'Save Changes' });
   }
 
@@ -65,6 +65,18 @@ export class ControlledAppPage {
 
   async gotoCheckout(baseUrl = 'http://localhost:4173') {
     await this.page.goto(`${baseUrl}/checkout`);
+  }
+
+  async gotoProducts(baseUrl = 'http://localhost:4173') {
+    await this.page.goto(`${baseUrl}/`);
+  }
+
+  async gotoCart(baseUrl = 'http://localhost:4173') {
+    await this.page.goto(`${baseUrl}/cart`);
+  }
+
+  async gotoAdmin(baseUrl = 'http://localhost:4173') {
+    await this.page.goto(`${baseUrl}/admin/users`);
   }
 
   async login(username: string, password: string) {

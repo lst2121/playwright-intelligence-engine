@@ -1,0 +1,198 @@
+[
+  {
+    "runFile": "run-2026-11-08T09-39-40-583Z-2ef248a.json",
+    "timestamp": 1794130780583,
+    "utcTimestamp": "2026-11-08T09-39-40-583Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 80,
+      "repairRecall": 80,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-40-28-142Z-2ef248a.json",
+    "timestamp": 1794130828142,
+    "utcTimestamp": "2026-11-08T09-40-28-142Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 0,
+      "repairRecall": 0,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-42-46-321Z-2ef248a.json",
+    "timestamp": 1794130966321,
+    "utcTimestamp": "2026-11-08T09-42-46-321Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 0,
+      "repairRecall": 0,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-46-09-337Z-2ef248a.json",
+    "timestamp": 1794131169337,
+    "utcTimestamp": "2026-11-08T09-46-09-337Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 0,
+      "repairRecall": 0,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-47-15-987Z-2ef248a.json",
+    "timestamp": 1794131235987,
+    "utcTimestamp": "2026-11-08T09-47-15-987Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 0,
+      "repairRecall": 0,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-48-15-884Z-2ef248a.json",
+    "timestamp": 1794131295884,
+    "utcTimestamp": "2026-11-08T09-48-15-884Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 0,
+      "repairRecall": 0,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-51-23-225Z-2ef248a.json",
+    "timestamp": 1794131483225,
+    "utcTimestamp": "2026-11-08T09-51-23-225Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 1,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-52-07-122Z-2ef248a.json",
+    "timestamp": 1794131527122,
+    "utcTimestamp": "2026-11-08T09-52-07-122Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-52-54-164Z-2ef248a.json",
+    "timestamp": 1794131574164,
+    "utcTimestamp": "2026-11-08T09-52-54-164Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-53-45-936Z-2ef248a.json",
+    "timestamp": 1794131625936,
+    "utcTimestamp": "2026-11-08T09-53-45-936Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-54-37-335Z-2ef248a.json",
+    "timestamp": 1794131677335,
+    "utcTimestamp": "2026-11-08T09-54-37-335Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-55-24-271Z-2ef248a.json",
+    "timestamp": 1794131724271,
+    "utcTimestamp": "2026-11-08T09-55-24-271Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T09-56-13-919Z-2ef248a.json",
+    "timestamp": 1794131773919,
+    "utcTimestamp": "2026-11-08T09-56-13-919Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 5,
+    "summary": {
+      "baselinePassRate": null,
+      "repairPrecision": 100,
+      "repairRecall": 100,
+      "safeAbstentionRate": null,
+      "falseRepairRate": null
+    }
+  },
+  {
+    "runFile": "run-2026-11-08T11-37-10-398Z-2ef248a.json",
+    "timestamp": 1794137830398,
+    "utcTimestamp": "2026-11-08T11-37-10-398Z",
+    "gitSha": "2ef248a",
+    "totalScenarios": 125,
+    "summary": {
+      "baselinePassRate": 100,
+      "repairPrecision": 95,
+      "repairRecall": 95,
+      "safeAbstentionRate": 100,
+      "falseRepairRate": 0
+    }
+  }
+]

@@ -81,13 +81,17 @@ export class ControlledAppServer {
       dynamicId: false,
       classVolatility: false,
     };
-    this.users = [
-      { id: 'usr-1', email: 'admin@example.com', name: 'System Admin', role: 'admin' },
-      { id: 'usr-2', email: 'customer@example.com', name: 'John Doe', role: 'customer' },
-    ];
+    this.resetUsers();
     this.cart = [{ productId: 'prod-1', quantity: 1 }];
     this.orders = [
       { id: 'ORD-101', customerEmail: 'customer@example.com', total: 99.0, status: 'PENDING' },
+    ];
+  }
+
+  public resetUsers(): void {
+    this.users = [
+      { id: 'usr-1', email: 'admin@example.com', name: 'System Admin', role: 'admin' },
+      { id: 'usr-2', email: 'customer@example.com', name: 'John Doe', role: 'customer' },
     ];
   }
 

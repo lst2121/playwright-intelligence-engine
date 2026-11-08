@@ -26,9 +26,9 @@ export class DefectResistanceHarness {
   public async runExperimentC(): Promise<{
     experiments: DefectExperimentResult[];
     totalDefects: number;
-    defectDetectionRate: number;
-    defectMaskingRate: number;
-    falseRepairRate: number;
+    defectDetectionRate: number | null;
+    defectMaskingRate: number | null;
+    falseRepairRate: number | null;
   }> {
     console.log('\n===============================================================');
     console.log(' EXPERIMENT C: BUSINESS-DEFECT RESISTANCE BENCHMARK');
@@ -176,17 +176,19 @@ export class DefectResistanceHarness {
     const defectDetectedCount = results.filter((r) => r.defectDetected && r.engineAbstained).length;
     const defectMaskedCount = results.filter((r) => r.defectMasked).length;
 
-    const defectDetectionRate = (defectDetectedCount / totalDefects) * 100;
-    const defectMaskingRate = (defectMaskedCount / totalDefects) * 100;
+    const defectDetectionRate = totalDefects > 0 ? (defectDetectedCount / totalDefects) * 100 : null;
+    const defectMaskingRate = totalDefects > 0 ? (defectMaskedCount / totalDefects) * 100 : null;
     const falseRepairCount = results.filter((r) => r.defectMasked || (!r.engineAbstained && r.defectDetected)).length;
-    const falseRepairRate = totalDefects > 0 ? (falseRepairCount / totalDefects) * 100 : 0.0;
+    const falseRepairRate = totalDefects > 0 ? (falseRepairCount / totalDefects) * 100 : null;
+
+    const formatRateStr = (rate: number | null) => (rate === null ? 'N/A (0 samples)' : `${rate.toFixed(1)}%`);
 
     console.log('\n===============================================================');
     console.log(` EXPERIMENT C FINAL RESULTS:`);
     console.log(` Total Seeded Defects: ${totalDefects}`);
-    console.log(` Defect Detection Rate: ${defectDetectionRate.toFixed(1)}%`);
-    console.log(` Defect Masking Rate: ${defectMaskingRate.toFixed(1)}% (Target: 0.0%)`);
-    console.log(` False Repair Rate: ${falseRepairRate.toFixed(1)}% (Target: 0.0%)`);
+    console.log(` Defect Detection Rate: ${formatRateStr(defectDetectionRate)}`);
+    console.log(` Defect Masking Rate: ${formatRateStr(defectMaskingRate)} (Target: 0.0%)`);
+    console.log(` False Repair Rate: ${formatRateStr(falseRepairRate)} (Target: 0.0%)`);
     console.log('===============================================================\n');
 
     return {

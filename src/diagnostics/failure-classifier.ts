@@ -210,7 +210,10 @@ export class FailureClassifier {
    * Evaluates the DiagnosticContext using causal evidence correlation to categorize
    * the failure and strictly enforce negative control abstentions.
    */
-  public static classify(context: DiagnosticContext): ClassificationResult {
+  public static classify(
+    context: DiagnosticContext,
+    options?: { provenUniqueScopedReplacement?: boolean }
+  ): ClassificationResult {
     const errorMsg = (context.failedAction.errorMessage ?? '').toLowerCase();
     const action = (context.failedAction.action ?? '').toLowerCase();
     const actionLogs = (context.failedAction.logs ?? []).join('\n').toLowerCase();
@@ -455,11 +458,15 @@ export class FailureClassifier {
       }
 
       supportingEvidence.push(`Strict mode violation detected: ${context.failedAction.errorMessage}`);
+      const isScopedUnique = options?.provenUniqueScopedReplacement === true;
       return {
         category: 'AMBIGUOUS_MATCH',
         confidence: 0.92,
         reason: 'Locator resolved to multiple matching elements in the DOM (strict mode violation)',
-        shouldAbstain: false, // Refinable
+        shouldAbstain: !isScopedUnique,
+        abstentionReason: isScopedUnique
+          ? undefined
+          : 'Strict mode multi-match detected; engine abstains by default unless live DOM investigation proves unique scoped replacement.',
         supportingEvidence,
         causalGraph,
       };

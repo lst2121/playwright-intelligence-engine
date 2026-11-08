@@ -13,7 +13,7 @@ describe('Naming Matrix Suite — Semantic Identifiers, Zero Index Names, Zero D
     { action: 'fill', role: 'searchbox', name: 'Product Search', expectedProperty: 'productSearchInput', expectedMethod: 'fillProductSearch' },
     { action: 'fill', role: 'textbox', name: 'Password', expectedProperty: 'passwordInput', expectedMethod: 'fillPassword' },
     { action: 'click', role: 'button', name: 'Sign in to Account', expectedProperty: 'signInToAccountButton', expectedMethod: 'signIn' },
-    { action: 'click', role: 'button', name: 'Submit Application', expectedProperty: 'submitApplicationButton', expectedMethod: 'submitSubmitApplication' },
+    { action: 'click', role: 'button', name: 'Submit Application', expectedProperty: 'submitApplicationButton', expectedMethod: 'submitApplication' },
     { action: 'click', role: 'button', name: 'Register Now', expectedProperty: 'registerNowButton', expectedMethod: 'signUp' },
     { action: 'click', role: 'link', name: 'Pricing Plans', expectedProperty: 'pricingPlansLink', expectedMethod: 'openPricingPlans' },
     { action: 'click', role: 'checkbox', name: 'Remember My Preference', expectedProperty: 'rememberMyPreferenceCheckbox', expectedMethod: 'clickRememberMyPreference' },

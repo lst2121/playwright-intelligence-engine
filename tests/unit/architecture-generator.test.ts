@@ -77,4 +77,52 @@ describe('Architecture generator', () => {
     expect(result.written).toContain('tests/login.spec.ts');
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it('resolves baseURL from profile.testConventions.baseUrl and falls back to / when omitted', () => {
+    // 1. Profile baseURL
+    const profileWithBaseUrl = {
+      version: 1,
+      generatedAt: new Date(0).toISOString(),
+      repository: { name: 'app', root: 'C:/app', packageManager: 'npm', scripts: {} },
+      structure: { testFiles: 1, pageObjectFiles: 1, fixtureFiles: 0, configFiles: ['playwright.config.ts'], usesPageObjects: true, usesCustomFixtures: false, usesApiHelpers: false, usesStorageState: false },
+      locatorConventions: { getByRole: 1, getByTestId: 0, getByLabel: 0, getByText: 0, locator: 0, cssOrXpath: 0, preferred: 'getByRole' },
+      testConventions: { tags: [], usesDescribeBlocks: false, usesTestSteps: false, usesAssertions: false, baseUrl: 'https://staging.example.com' },
+      domainTerms: [],
+      evidence: [],
+    } satisfies RepositoryConventionProfile;
+
+    const plan1 = planArchitecture({ featureName: 'Dashboard', mode: 'brownfield', profile: profileWithBaseUrl });
+    const po1 = plan1.files.find((f) => f.relativePath.endsWith('Page.ts'))?.content;
+    expect(po1).toContain("await this.page.goto(\"https://staging.example.com\");");
+
+    // 2. Fallback to '/'
+    const plan2 = planArchitecture({ featureName: 'Dashboard', mode: 'brownfield' });
+    const po2 = plan2.files.find((f) => f.relativePath.endsWith('Page.ts'))?.content;
+    expect(po2).toContain("await this.page.goto(\"/\");");
+    expect(po2).not.toContain("localhost:3000");
+  });
+
+  it('gates output directories by pathConfidence >= 0.5 defaulting to standard tests/pages', () => {
+    const profileLowConf = {
+      version: 1,
+      generatedAt: new Date(0).toISOString(),
+      repository: { name: 'app', root: 'C:/app', packageManager: 'npm', scripts: {} },
+      structure: { testFiles: 10, pageObjectFiles: 5, fixtureFiles: 0, configFiles: ['playwright.config.ts'], usesPageObjects: true, usesCustomFixtures: false, usesApiHelpers: false, usesStorageState: false },
+      paths: { testDirectory: 'src/weird/e2e', pageObjectDirectory: 'lib/deep/pages' },
+      pathConfidence: { testDirectory: 0.35, pageObjectDirectory: 0.2, fixtureDirectory: 0.1 },
+      locatorConventions: { getByRole: 1, getByTestId: 0, getByLabel: 0, getByText: 0, locator: 0, cssOrXpath: 0, preferred: 'getByRole' },
+      testConventions: { tags: [], usesDescribeBlocks: false, usesTestSteps: false, usesAssertions: false },
+      domainTerms: [],
+      evidence: [],
+    } satisfies RepositoryConventionProfile;
+
+    const plan = planArchitecture({ featureName: 'UserProfile', mode: 'brownfield', profile: profileLowConf });
+    expect(plan.conventions.testDirectory).toBe('tests');
+    expect(plan.conventions.pageObjectDirectory).toBe('tests/pages');
+    expect(plan.files.map((f) => f.relativePath)).toEqual(expect.arrayContaining([
+      'tests/user-profile.spec.ts',
+      'tests/pages/UserProfilePage.ts',
+    ]));
+    expect(plan.warnings.some((w) => w.includes('low confidence'))).toBe(true);
+  });
 });

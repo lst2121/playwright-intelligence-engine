@@ -196,7 +196,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: ${quote(baseUrl)},
+    baseURL: ${quote(baseUrl === '/' ? 'http://localhost:3000' : baseUrl)},
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -252,12 +252,16 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   const namingLintReport = NamingLinter.lint(namePlan);
 
   const profile = input.profile;
-  const testDirectory = normalizeRelativeDirectory(profile?.paths?.testDirectory, 'tests');
-  const pageObjectDirectory = normalizeRelativeDirectory(profile?.paths?.pageObjectDirectory, `${testDirectory}/pages`);
+  const testConfidence = profile?.pathConfidence?.testDirectory ?? 1;
+  const pageConfidence = profile?.pathConfidence?.pageObjectDirectory ?? 1;
+  const rawTestDir = (testConfidence >= 0.5 && profile?.paths?.testDirectory) ? profile.paths.testDirectory : 'tests';
+  const rawPageDir = (pageConfidence >= 0.5 && profile?.paths?.pageObjectDirectory) ? profile.paths.pageObjectDirectory : `${rawTestDir}/pages`;
+  const testDirectory = normalizeRelativeDirectory(rawTestDir, 'tests');
+  const pageObjectDirectory = normalizeRelativeDirectory(rawPageDir, `${testDirectory}/pages`);
   const fixtureDirectory = normalizeRelativeDirectory(profile?.paths?.fixtureDirectory, `${testDirectory}/fixtures`);
   const preferredLocator = profile?.locatorConventions.preferred ?? 'getByRole';
   const existingFiles = new Set((input.existingFiles ?? []).map((file) => file.replace(/\\/g, '/')));
-  const baseUrl = input.baseUrl ?? 'http://localhost:3000';
+  const baseUrl = input.baseUrl ?? profile?.testConventions?.baseUrl ?? '/';
   const testPath = `${testDirectory}/${slug}.spec.ts`;
   const pagePath = `${pageObjectDirectory}/${className}.ts`;
   const pageImport = path.posix.relative(path.posix.dirname(testPath), pagePath).replace(/\.ts$/, '');
@@ -283,8 +287,11 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
     if (profile?.structure.playwrightTestFiles === 0 && profile.structure.configFiles.length === 0) {
       warnings.push('No Playwright test source or configuration was detected; generated files require manual integration review.');
     }
-    if ((profile?.pathConfidence?.testDirectory ?? 1) < 0.5) {
-      warnings.push('Test-directory convention has low confidence because matching files are distributed across the repository.');
+    if (testConfidence < 0.5) {
+      warnings.push(`Test-directory convention has low confidence (${testConfidence}); defaulting to standard 'tests'.`);
+    }
+    if (pageConfidence < 0.5) {
+      warnings.push(`Page-object directory convention has low confidence (${pageConfidence}); defaulting to standard '${testDirectory}/pages'.`);
     }
     assumptions.push('Existing project configuration, fixtures, authentication, and test data remain authoritative.');
     assumptions.push('Generated files are additive and do not replace existing files.');

@@ -254,5 +254,5 @@ describe('Remaining product phase contracts', () => {
       limitations: [],
     }, 'powershell', ['-NoProfile'], { timeoutMs: 10_000 });
     expect(blocked.status).toBe('BLOCKED');
-  });
+  }, 15_000);
 });

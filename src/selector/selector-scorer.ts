@@ -79,14 +79,14 @@ export class SelectorScorer {
         return c.role === candidate.role && c.accessibleName === candidate.accessibleName;
       }
       // If testid exists, check match on testid
-      const candTestId = candidate.attributes['data-testid'] ?? candidate.attributes['data-test'];
+      const candTestId = candidate.attributes?.['data-testid'] ?? candidate.attributes?.['data-test'];
       if (candTestId) {
-        const cTestId = c.attributes['data-testid'] ?? c.attributes['data-test'];
+        const cTestId = c.attributes?.['data-testid'] ?? c.attributes?.['data-test'];
         return cTestId === candTestId;
       }
       // If id exists, check match on id
-      if (candidate.attributes['id']) {
-        return c.attributes['id'] === candidate.attributes['id'];
+      if (candidate.attributes?.['id']) {
+        return c.attributes?.['id'] === candidate.attributes?.['id'];
       }
       return c.tag === candidate.tag && c.role === candidate.role && c.accessibleName === candidate.accessibleName;
     }).length;

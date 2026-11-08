@@ -35,17 +35,17 @@ export interface EvaluationScorecard {
   observationCount: number;
   accuracyCaseCount: number;
   exactMatches: number;
-  semanticAccuracy: number;
-  exactAccuracy: number;
+  semanticAccuracy: number | null;
+  exactAccuracy: number | null;
   confusionMatrix: Record<string, Record<string, number>>;
   perCategory: Record<string, CategoryMetrics>;
   negativeControlCount: number;
   correctSafeAbstentions: number;
   unsafeRepairRecommendations: number;
-  safeAbstentionRate: number;
-  falseRepairRate: number;
+  safeAbstentionRate: number | null;
+  falseRepairRate: number | null;
   deterministicCount: number;
-  determinismRate: number;
+  determinismRate: number | null;
   latency: {
     count: number;
     minMs?: number | undefined;
@@ -57,8 +57,8 @@ export interface EvaluationScorecard {
   repair: {
     eligible: number;
     succeeded: number;
-    precision: number;
-    recall: number;
+    precision: number | null;
+    recall: number | null;
     falseRepairs: number;
   };
   byRepository: Record<string, {
@@ -66,9 +66,9 @@ export interface EvaluationScorecard {
     accuracyCases: number;
     exactMatches: number;
     semanticMatches: number;
-    semanticAccuracy: number;
-    exactAccuracy: number;
-    safeAbstentionRate: number;
+    semanticAccuracy: number | null;
+    exactAccuracy: number | null;
+    safeAbstentionRate: number | null;
     meanLatencyMs?: number;
   }>;
 }
@@ -146,7 +146,7 @@ export function buildEvaluationScorecard(observations: EvaluationObservation[]):
   const byRepository: EvaluationScorecard['byRepository'] = {};
   for (const observation of observations) {
     const repository = observation.repository ?? 'unknown';
-    const current = byRepository[repository] ?? { observations: 0, accuracyCases: 0, exactMatches: 0, semanticMatches: 0, semanticAccuracy: 0, exactAccuracy: 0, safeAbstentionRate: 1 };
+    const current = byRepository[repository] ?? { observations: 0, accuracyCases: 0, exactMatches: 0, semanticMatches: 0, semanticAccuracy: null, exactAccuracy: null, safeAbstentionRate: null };
     current.observations += 1;
     if (roleOf(observation) === 'primary' && observation.isGroundTruthVerified !== false) {
       current.accuracyCases += 1;
@@ -158,8 +158,8 @@ export function buildEvaluationScorecard(observations: EvaluationObservation[]):
     byRepository[repository] = current;
   }
   for (const summary of Object.values(byRepository)) {
-    summary.semanticAccuracy = summary.accuracyCases > 0 ? round(summary.semanticMatches / summary.accuracyCases) : 0;
-    summary.exactAccuracy = summary.accuracyCases > 0 ? round(summary.exactMatches / summary.accuracyCases) : 0;
+    summary.semanticAccuracy = summary.accuracyCases > 0 ? round(summary.semanticMatches / summary.accuracyCases) : null;
+    summary.exactAccuracy = summary.accuracyCases > 0 ? round(summary.exactMatches / summary.accuracyCases) : null;
     if (summary.meanLatencyMs !== undefined) summary.meanLatencyMs = round(summary.meanLatencyMs);
   }
 
@@ -167,17 +167,17 @@ export function buildEvaluationScorecard(observations: EvaluationObservation[]):
     observationCount: observations.length,
     accuracyCaseCount: accuracyObservations.length,
     exactMatches: rawExpected.filter((value, index) => value === rawPredicted[index]).length,
-    semanticAccuracy: round(expected.length > 0 ? expected.filter((value, index) => value === predicted[index]).length / expected.length : 0),
-    exactAccuracy: round(rawExpected.length > 0 ? rawExpected.filter((value, index) => value === rawPredicted[index]).length / rawExpected.length : 0),
+    semanticAccuracy: expected.length > 0 ? round(expected.filter((value, index) => value === predicted[index]).length / expected.length) : null,
+    exactAccuracy: rawExpected.length > 0 ? round(rawExpected.filter((value, index) => value === rawPredicted[index]).length / rawExpected.length) : null,
     confusionMatrix,
     perCategory: Object.fromEntries(categories.map((category) => [category, metricFor(category, expected, predicted)])),
     negativeControlCount: negativeControls.length,
     correctSafeAbstentions,
     unsafeRepairRecommendations,
-    safeAbstentionRate: round(negativeControls.length > 0 ? correctSafeAbstentions / negativeControls.length : 1),
-    falseRepairRate: round(negativeControls.length > 0 ? unsafeRepairRecommendations / negativeControls.length : 0),
+    safeAbstentionRate: negativeControls.length > 0 ? round(correctSafeAbstentions / negativeControls.length) : null,
+    falseRepairRate: negativeControls.length > 0 ? round(unsafeRepairRecommendations / negativeControls.length) : null,
     deterministicCount,
-    determinismRate: round(observations.length > 0 ? deterministicCount / observations.length : 1),
+    determinismRate: observations.length > 0 ? round(deterministicCount / observations.length) : null,
     latency: {
       count: latencies.length,
       minMs: latencies.length > 0 ? Math.min(...latencies) : undefined,
@@ -189,8 +189,8 @@ export function buildEvaluationScorecard(observations: EvaluationObservation[]):
     repair: {
       eligible: eligibleRepairs,
       succeeded: successfulRepairs,
-      precision: successfulRepairs + falseRepairs > 0 ? round(successfulRepairs / (successfulRepairs + falseRepairs)) : 1,
-      recall: eligibleRepairs > 0 ? round(successfulRepairs / eligibleRepairs) : 0,
+      precision: successfulRepairs + falseRepairs > 0 ? round(successfulRepairs / (successfulRepairs + falseRepairs)) : null,
+      recall: eligibleRepairs > 0 ? round(successfulRepairs / eligibleRepairs) : null,
       falseRepairs,
     },
     byRepository,

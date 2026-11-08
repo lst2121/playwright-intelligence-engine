@@ -71,6 +71,7 @@ export interface RepositoryConventionProfile {
     usesDescribeBlocks: boolean;
     usesTestSteps: boolean;
     usesAssertions: boolean;
+    baseUrl?: string | undefined;
   };
   domainTerms: string[];
   evidence: string[];
@@ -80,7 +81,7 @@ async function listSourceFiles(root: string, depth = 0): Promise<string[]> {
   if (depth > 6) return [];
   const ignored = new Set([
     'node_modules', '.git', 'dist', 'build', 'coverage', 'test-results',
-    'playwright-report', '.next', '.turbo', '.pie', '.pw-intelligence',
+    'playwright-report', 'reports', '.next', '.turbo', '.pie', '.pw-intelligence',
     'repositories', 'pie-evaluation', 'generation', 'repair-worktrees',
     'temp', 'tmp'
   ]);
@@ -95,7 +96,7 @@ async function listSourceFiles(root: string, depth = 0): Promise<string[]> {
     if (ignored.has(entry.name)) continue;
     const fullPath = path.join(root, entry.name);
     if (entry.isDirectory()) files.push(...await listSourceFiles(fullPath, depth + 1));
-    else if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/i.test(entry.name)) files.push(fullPath);
+    else if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/i.test(entry.name) && !/\.d\.ts$/i.test(entry.name)) files.push(fullPath);
   }
   return files;
 }
@@ -254,7 +255,15 @@ export async function sampleExemplars(pomFiles: string[], maxExemplars = 3): Pro
 }
 
 function extractDomainTerms(filePaths: string[], contents: string): string[] {
-  const ignored = new Set(['test', 'tests', 'spec', 'page', 'pages', 'fixture', 'fixtures', 'should', 'be', 'able', 'to', 'the', 'and', 'with', 'from', 'for', 'using', 'login', 'user']);
+  const ignored = new Set([
+    'test', 'tests', 'spec', 'specs', 'page', 'pages', 'pom', 'fixture', 'fixtures',
+    'should', 'be', 'able', 'to', 'the', 'and', 'with', 'from', 'for', 'using', 'login', 'user',
+    'expect', 'locator', 'bevisible', 'byrole', 'bytext', 'bytestid', 'bylabel', 'haveurl',
+    'eventlistener', 'containtext', 'havetext', 'totruthy', 'toequal', 'waitfor',
+    'click', 'fill', 'press', 'check', 'uncheck', 'select', 'focus', 'hover',
+    'promise', 'async', 'await', 'void', 'string', 'boolean', 'number', 'function',
+    'object', 'array', 'import', 'export', 'default', 'class', 'const', 'return',
+  ]);
   const terms = new Map<string, number>();
   const candidates = [
     ...filePaths.flatMap((file) => path.basename(file).replace(/\.(?:spec|test)\.[^.]+$/i, '').split(/[^A-Za-z0-9]+/)),
@@ -265,6 +274,41 @@ function extractDomainTerms(filePaths: string[], contents: string): string[] {
     if (!ignored.has(term) && /^[a-z][a-z0-9-]{3,}$/.test(term)) terms.set(term, (terms.get(term) ?? 0) + 1);
   }
   return [...terms.entries()].sort((left, right) => right[1] - left[1]).slice(0, 30).map(([term]) => term);
+}
+
+export async function extractBaseUrlFromConfigs(configPaths: string[], root: string): Promise<string | undefined> {
+  for (const configPath of configPaths) {
+    try {
+      const fullPath = path.isAbsolute(configPath) ? configPath : path.join(root, configPath);
+      const content = await fs.readFile(fullPath, 'utf8');
+
+      // 1. Direct baseURL: '...' or baseURL: "..." or baseURL: `...`
+      const directMatch = content.match(/baseURL:\s*(?:process\.env\.[A-Za-z0-9_]+\s*\|\|\s*)?['"`](https?:\/\/[^'"`]+)['"`]/);
+      if (directMatch?.[1]) {
+        return directMatch[1];
+      }
+
+      // 2. Identifier baseURL: baseURL: <identifier>
+      const identMatch = content.match(/baseURL:\s*([A-Za-z0-9_]+)/);
+      if (identMatch?.[1] && identMatch[1] !== 'process') {
+        const ident = identMatch[1];
+        const declRegex = new RegExp(`(?:const|let|var)\\s+${ident}\\s*=\\s*(?:process\\.env\\.[A-Za-z0-9_]+\\s*\\|\\|\\s*)?['"\`](https?:\\/\\/[^'"\`]+)['"\`]`);
+        const declMatch = content.match(declRegex);
+        if (declMatch?.[1]) {
+          return declMatch[1];
+        }
+      }
+
+      // 3. Fallback: match any baseURL: '...' even if relative or local
+      const anyMatch = content.match(/baseURL:\s*['"`]([^'"`]+)['"`]/);
+      if (anyMatch?.[1]) {
+        return anyMatch[1];
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+  return undefined;
 }
 
 function mostCommonDirectory(filePaths: string[], root: string, fallback: string): string {
@@ -340,13 +384,37 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
     : testFiles;
   const pageObjectFiles = sourceFiles.filter((file) => /(?:page|page-object)\.[^.]+$/i.test(file) || /pages?[\\/]/i.test(file));
   const fixtureFiles = sourceFiles.filter((file) => /fixture\.[^.]+$/i.test(file) || /fixtures?[\\/]/i.test(file));
-  const tags = [...new Set([...sourceContents.matchAll(/(@[A-Za-z][\w-]*)/g)].map((match) => match[1]!))].sort();
+
+  // Restrict tag and domain mining exclusively to source files containing /\btest(?:\.describe)?\s*\(/
+  const testSourceRecords = sourceRecords.filter(([file, content]) =>
+    /\.(?:spec|test)\.[^.]+$/i.test(file) &&
+    !/\.d\.ts$/i.test(file) &&
+    !/\.css$/i.test(file) &&
+    /\btest(?:\.describe)?\s*\(/.test(content)
+  );
+  const testSourceContents = testSourceRecords.map(([, content]) => content).join('\n');
+  const testSourcePaths = testSourceRecords.map(([file]) => file);
+
+  const JSDOC_TAGS = new Set([
+    '@param', '@returns', '@return', '@type', '@typedef', '@template',
+    '@override', '@deprecated', '@see', '@example', '@throws',
+    '@ts-expect-error', '@ts-ignore', '@ts-nocheck', '@ts-check',
+    '@jest-environment', '@vitest-environment'
+  ]);
+  const tags = [...new Set([...testSourceContents.matchAll(/(@[A-Za-z][\w-]*)/g)]
+    .map((match) => match[1]!)
+    .filter((tag) => !JSDOC_TAGS.has(tag.toLowerCase()))
+  )].sort();
+
+  const baseUrl = await extractBaseUrlFromConfigs(manifest.playwrightConfigs, path.resolve(root));
+
   const evidence: string[] = [];
   if (manifest.pageObjectFiles > 0) evidence.push('Page Object files detected');
   if (manifest.fixtureFiles > 0) evidence.push('Fixture files detected');
   if (/\b(?:request|apiRequestContext|APIRequestContext)\b/i.test(sourceContents)) evidence.push('API/request helpers detected');
   if (/storageState|storage-state/i.test(sourceContents)) evidence.push('Playwright storage state detected');
   if (manifest.playwrightConfigs.length > 0) evidence.push('Playwright configuration detected');
+  if (baseUrl) evidence.push(`Playwright baseURL discovered: ${baseUrl}`);
   if (playwrightTestFiles.length > 0) evidence.push(`${playwrightTestFiles.length} Playwright test source(s) detected`);
   else evidence.push('No Playwright test source detected; generic test files were not treated as Playwright conventions');
 
@@ -387,11 +455,12 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
     exemplars: await sampleExemplars(pageObjectFiles, 3),
     testConventions: {
       tags,
-      usesDescribeBlocks: /\btest\.describe\s*\(/.test(sourceContents),
-      usesTestSteps: /\btest\.step\s*\(/.test(sourceContents),
-      usesAssertions: /\bexpect\s*\(/.test(sourceContents),
+      usesDescribeBlocks: /\btest\.describe\s*\(/.test(testSourceContents || sourceContents),
+      usesTestSteps: /\btest\.step\s*\(/.test(testSourceContents || sourceContents),
+      usesAssertions: /\bexpect\s*\(/.test(testSourceContents || sourceContents),
+      baseUrl,
     },
-    domainTerms: extractDomainTerms(sourceFiles, sourceContents),
+    domainTerms: extractDomainTerms(testSourcePaths, testSourceContents),
     evidence,
   };
 }

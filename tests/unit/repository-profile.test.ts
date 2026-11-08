@@ -76,4 +76,51 @@ describe('repository convention profile', () => {
     expect(profile.evidence).toContain('1 Playwright test source(s) detected');
     await fs.rm(root, { recursive: true, force: true });
   });
+
+  it('restricts tag and domain mining to test sources and parses baseURL from config', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pie-profile-mining-'));
+    await fs.mkdir(path.join(root, 'src'), { recursive: true });
+    await fs.mkdir(path.join(root, 'tests'), { recursive: true });
+    await fs.writeFile(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { '@playwright/test': '^1.60.0' } }), 'utf8');
+    await fs.writeFile(path.join(root, 'package-lock.json'), '{}', 'utf8');
+
+    // Config with identifier-based baseURL
+    await fs.writeFile(path.join(root, 'playwright.config.ts'), `
+      const appUrl = process.env.APP_URL || 'http://localhost:8080';
+      export default {
+        use: {
+          baseURL: appUrl,
+        }
+      };
+    `, 'utf8');
+
+    // Non-test source with JSDoc annotations and non-test terms
+    await fs.writeFile(path.join(root, 'src', 'utils.ts'), `
+      /**
+       * @param {string} token
+       * @returns {boolean}
+       */
+      export function validateToken(token: string) { return true; }
+    `, 'utf8');
+
+    // Test file containing test(...) and @smoke tag
+    await fs.writeFile(path.join(root, 'tests', 'billing.spec.ts'), `
+      import { test, expect } from '@playwright/test';
+      test.describe('billing @smoke', () => {
+        test('invoices customer', async ({ page }) => {
+          await expect(page.locator('.invoice')).toBeVisible();
+        });
+      });
+    `, 'utf8');
+
+    const profile = await buildRepositoryProfile(root);
+    expect(profile.testConventions.baseUrl).toBe('http://localhost:8080');
+    expect(profile.testConventions.tags).toContain('@smoke');
+    expect(profile.testConventions.tags).not.toContain('@param');
+    expect(profile.testConventions.tags).not.toContain('@returns');
+    expect(profile.domainTerms).toContain('billing');
+    expect(profile.domainTerms).not.toContain('token');
+
+    await fs.rm(root, { recursive: true, force: true });
+  });
 });

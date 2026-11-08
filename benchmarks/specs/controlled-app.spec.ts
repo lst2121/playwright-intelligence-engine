@@ -27,5 +27,24 @@ test.describe('Controlled App Baseline & Defect Invariant Verification', () => {
     await appPage.checkout('000000000000', '123 Test St');
     await expect(page.locator('#checkout-result')).toContainText('Checkout Failed');
   });
+
+  test('PRODUCTS-01: Product Search Verification', async ({ page }) => {
+    await appPage.gotoProducts();
+    await appPage.productSearchInput.fill('Pro');
+    await appPage.searchButton.click();
+    await expect(page.locator('#search-status')).toContainText('Search Completed');
+  });
+
+  test('CART-01: Cart Checkout Verification', async ({ page }) => {
+    await appPage.gotoCart();
+    await appPage.cartCheckoutButton.click();
+    await expect(page.locator('#cart-status')).toContainText('Cart Checkout Initiated');
+  });
+
+  test('ADMIN-01: User Management Verification', async ({ page }) => {
+    await appPage.gotoAdmin();
+    await appPage.editUserButton.click();
+    await expect(page.locator('#admin-status')).toContainText('User Updated');
+  });
 });
 

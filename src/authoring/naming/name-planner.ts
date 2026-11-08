@@ -38,7 +38,9 @@ export function stripArticles(text: string): string {
 }
 
 export function toPascalCase(text: string): string {
-  const words = text.match(/[A-Za-z0-9]+/g);
+  const words = text
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .match(/[A-Za-z0-9]+/g);
   if (!words || words.length === 0) return 'Element';
   return words.map((w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase()).join('');
 }
@@ -99,7 +101,9 @@ export function extractPageName(featureOrTitle: string): { className: string; va
     cleaned = featureOrTitle;
   }
 
-  const words = cleaned.match(/[A-Za-z0-9]+/g) ?? ['Feature'];
+  const words = cleaned
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .match(/[A-Za-z0-9]+/g) ?? ['Feature'];
   // Keep meaningful domain words up to 3 words
   const domainWords = words.slice(0, 3);
   let baseName = domainWords.map((w) => w[0]!.toUpperCase() + w.slice(1).toLowerCase()).join('');
@@ -117,7 +121,9 @@ export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string
   const rawName = step.name ?? step.selector;
   if (rawName) {
     const stripped = stripArticles(rawName);
-    const words = stripped.match(/[A-Za-z0-9]+/g);
+    const words = stripped
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .match(/[A-Za-z0-9]+/g);
     if (words && words.length > 0) {
       const base = toCamelCase(stripped);
       const lowerBase = base.toLowerCase();
@@ -136,7 +142,12 @@ export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string
 
   // Fallback when no semantic name exists
   const role = step.role ?? (step.action === 'fill' ? 'textbox' : 'button');
-  const fallback = sanitizeIdentifier(`${toCamelCase(role)}${roleSuffix}`, roleSuffix);
+  const roleBase = toCamelCase(role);
+  let fallbackBase = roleBase;
+  if (roleBase.toLowerCase() === roleSuffix.toLowerCase()) {
+    fallbackBase = role === 'button' ? 'action' : 'input';
+  }
+  const fallback = sanitizeIdentifier(`${fallbackBase}${roleSuffix}`, roleSuffix);
   return { property: fallback, isFallback: true };
 }
 
@@ -145,9 +156,19 @@ export function deriveMethodIdentifier(step: GeneratedStep, propertyName: string
   const stripped = rawName ? stripArticles(rawName) : '';
   const pascalTarget = stripped ? toPascalCase(stripped) : toPascalCase(propertyName);
 
+  const formatWithVerb = (verb: string, target: string): string => {
+    const lowerVerb = verb.toLowerCase();
+    const lowerTarget = target.toLowerCase();
+    if (lowerTarget.startsWith(lowerVerb)) {
+      const remainder = target.slice(verb.length);
+      return sanitizeIdentifier(remainder.length > 0 ? `${verb}${remainder}` : verb, 'Action');
+    }
+    return sanitizeIdentifier(`${verb}${target}`, 'Action');
+  };
+
   if (step.action === 'fill') {
     return {
-      method: sanitizeIdentifier(`fill${pascalTarget}`, 'Action'),
+      method: formatWithVerb('fill', pascalTarget),
       verb: 'fill',
     };
   }
@@ -156,7 +177,7 @@ export function deriveMethodIdentifier(step: GeneratedStep, propertyName: string
     const lower = (rawName ?? '').toLowerCase();
     const roleLower = (step.role ?? '').toLowerCase();
     if (roleLower === 'link' || roleLower === 'tab' || /\b(open|goto|go\s*to|home|back|nav|view|plans|settings)\b/.test(lower)) {
-      return { method: sanitizeIdentifier(`open${pascalTarget}`, 'Action'), verb: 'open' };
+      return { method: formatWithVerb('open', pascalTarget), verb: 'open' };
     }
     if (/\b(sign\s*in|log\s*in|login|signin)\b/.test(lower)) {
       return { method: sanitizeIdentifier('signIn', 'Action'), verb: 'signIn' };
@@ -165,10 +186,10 @@ export function deriveMethodIdentifier(step: GeneratedStep, propertyName: string
       return { method: sanitizeIdentifier('signUp', 'Action'), verb: 'signUp' };
     }
     if (/\b(submit|send|confirm|save|apply|checkout)\b/.test(lower)) {
-      return { method: sanitizeIdentifier(`submit${pascalTarget}`, 'Action'), verb: 'submit' };
+      return { method: formatWithVerb('submit', pascalTarget), verb: 'submit' };
     }
     return {
-      method: sanitizeIdentifier(`click${pascalTarget}`, 'Action'),
+      method: formatWithVerb('click', pascalTarget),
       verb: 'click',
     };
   }
@@ -248,7 +269,7 @@ export class NamePlanner {
       if (usedMethods.has(method)) {
         let disambiguated = false;
         for (const qualifier of disambiguationQualifiers) {
-          const candidate = `${methodResult.verb}${qualifier[0]!.toUpperCase()}${qualifier.slice(1)}${property[0]!.toUpperCase()}${property.slice(1)}`;
+          const candidate = `${methodResult.verb}${qualifier[0]!.toUpperCase()}${qualifier.slice(1)}`;
           if (!usedMethods.has(candidate)) {
             assumptions.push(`Method name collision for '${method}'; disambiguated to '${candidate}'`);
             method = candidate;

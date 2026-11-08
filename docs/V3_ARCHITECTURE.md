@@ -76,7 +76,7 @@ A core architectural principle of PIE v3.0 is:
 | Customization Type | File Location | Responsibility | Rule |
 | :--- | :--- | :--- | :--- |
 | **Skill** | `skills/<skill-name>/SKILL.md` | Human/agent workflows, operational runbooks, and CLI procedures. | **Never encode repository facts or coding rules in skills.** |
-| **Convention** | `.pie/conventions.json` | Project-specific facts discovered at runtime (paths, locator priorities, naming suffixes). | Discovered dynamically by `RepositoryProfiler`. |
+| **Convention** | `.pie/conventions.json` | Project-specific facts discovered at runtime (paths, locator priorities, naming suffixes). | Discovered dynamically by `buildRepositoryProfile`. |
 | **Gate Invariant** | `src/gate/` | Hard mathematical and safety constraints ($V = A \land T \land F \land I \land D \land E$). | Enforced programmatically. Fail-closed. |
 
 ---

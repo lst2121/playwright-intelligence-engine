@@ -1,0 +1,112 @@
+{
+  "timestamp": 1794130780583,
+  "totalScenarios": 5,
+  "tier1BaselineCount": 0,
+  "tier2MutationCount": 5,
+  "tier3NegativeControlCount": 0,
+  "tier2RepairedCount": 4,
+  "tier2AbstainedCount": 0,
+  "tier2RepairExpectedCount": 5,
+  "totalAttemptedRepairsCount": 5,
+  "defectScenarioCount": 0,
+  "regressionCheckCount": 5,
+  "baselinePassRate": null,
+  "repairPrecision": 80,
+  "repairRecall": 80,
+  "safeAbstentionRate": null,
+  "falseRepairRate": null,
+  "repairCoverage": 100,
+  "regressionRate": 0,
+  "defectDetectionRate": null,
+  "defectMaskingRate": null,
+  "latencyP50Ms": 8741.24,
+  "latencyP95Ms": 31854.58,
+  "confidenceInterval95": {
+    "lower": 37.55,
+    "upper": 96.38
+  },
+  "confidenceIntervals": {
+    "baselinePassCI": null,
+    "repairPrecisionCI": {
+      "lower": 37.55,
+      "upper": 96.38
+    },
+    "repairRecallCI": {
+      "lower": 37.55,
+      "upper": 96.38
+    },
+    "safeAbstentionCI": null,
+    "overallEmpiricalCI": {
+      "lower": 37.55,
+      "upper": 96.38
+    }
+  },
+  "sampleInterpretationNote": "Wilson 95% CIs represent separate binomial confidence intervals over real empirical headless Chromium trials under controlled benchmark distributions, not an unconstrained universal production reliability guarantee.",
+  "scenarios": [
+    {
+      "id": "POS-MOD-01",
+      "tier": "TIER_2_MUTATION",
+      "category": "Dynamic Hashed IDs",
+      "name": "Module 1: Authentication: Dynamic Hashed IDs",
+      "targetApp": "Module 1: Authentication",
+      "expectedOutcome": "REPAIR_SUCCESS",
+      "actualOutcome": "REPAIR_SUCCESS",
+      "diagnosticCategory": "LOCATOR_DRIFT",
+      "executionDurationMs": 8763.9,
+      "intentInvariantPassed": true,
+      "notes": "Repaired via page.getByRole('button', { name: 'Sign In' }). Live verified in browser (count=1). Zero regressions confirmed."
+    },
+    {
+      "id": "POS-MOD-13",
+      "tier": "TIER_2_MUTATION",
+      "category": "Dynamic Hashed IDs",
+      "name": "Module 2: Products: Dynamic Hashed IDs",
+      "targetApp": "Module 2: Products",
+      "expectedOutcome": "REPAIR_SUCCESS",
+      "actualOutcome": "REPAIR_SUCCESS",
+      "diagnosticCategory": "LOCATOR_DRIFT",
+      "executionDurationMs": 8741.24,
+      "intentInvariantPassed": true,
+      "notes": "Repaired via page.getByRole('button', { name: 'Search' }). Live verified in browser (count=1). Zero regressions confirmed."
+    },
+    {
+      "id": "POS-MOD-25",
+      "tier": "TIER_2_MUTATION",
+      "category": "Dynamic Hashed IDs",
+      "name": "Module 3: Cart: Dynamic Hashed IDs",
+      "targetApp": "Module 3: Cart",
+      "expectedOutcome": "REPAIR_SUCCESS",
+      "actualOutcome": "REPAIR_SUCCESS",
+      "diagnosticCategory": "LOCATOR_DRIFT",
+      "executionDurationMs": 8170.5,
+      "intentInvariantPassed": true,
+      "notes": "Repaired via page.getByRole('button', { name: 'Proceed to Checkout' }). Live verified in browser (count=1). Zero regressions confirmed."
+    },
+    {
+      "id": "POS-MOD-37",
+      "tier": "TIER_2_MUTATION",
+      "category": "Dynamic Hashed IDs",
+      "name": "Module 4: Checkout: Dynamic Hashed IDs",
+      "targetApp": "Module 4: Checkout",
+      "expectedOutcome": "REPAIR_SUCCESS",
+      "actualOutcome": "REPAIR_SUCCESS",
+      "diagnosticCategory": "LOCATOR_DRIFT",
+      "executionDurationMs": 8352.53,
+      "intentInvariantPassed": true,
+      "notes": "Repaired via page.getByRole('button', { name: 'Place Order' }). Live verified in browser (count=1). Zero regressions confirmed."
+    },
+    {
+      "id": "POS-MOD-49",
+      "tier": "TIER_2_MUTATION",
+      "category": "Dynamic Hashed IDs",
+      "name": "Module 5: Admin: Dynamic Hashed IDs",
+      "targetApp": "Module 5: Admin",
+      "expectedOutcome": "REPAIR_SUCCESS",
+      "actualOutcome": "FAIL",
+      "diagnosticCategory": "LOCATOR_DRIFT",
+      "executionDurationMs": 31854.58,
+      "intentInvariantPassed": false,
+      "notes": "Repair passed target test but failed regression check or authorization: Authorization Rejected: Target test execution did not pass (exitCode=1)"
+    }
+  ]
+}

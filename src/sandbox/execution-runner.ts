@@ -269,12 +269,19 @@ export class ExecutionRunner {
     cwd: string;
     testFilePath: string;
     configPath?: string | undefined;
+    grep?: string | undefined;
     timeoutMs?: number | undefined;
     env?: Record<string, string> | undefined;
   }): Promise<ExecutionResult> {
-    const args = ['playwright', 'test', options.testFilePath, '--reporter=line'];
+    const relOrNormPath = path.isAbsolute(options.testFilePath)
+      ? path.relative(options.cwd, options.testFilePath).replace(/\\/g, '/') || options.testFilePath.replace(/\\/g, '/')
+      : options.testFilePath.replace(/\\/g, '/');
+    const args = ['playwright', 'test', relOrNormPath, '--reporter=line'];
     if (options.configPath) {
       args.push('--config', options.configPath);
+    }
+    if (options.grep) {
+      args.push('-g', options.grep);
     }
     const runnerOptions: ExecutionOptions = {
       cwd: options.cwd,

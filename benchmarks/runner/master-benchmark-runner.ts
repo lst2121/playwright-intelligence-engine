@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { execSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import type { Browser, Page } from '@playwright/test';
 import { ControlledAppServer } from '../controlled-app/app-server.js';
@@ -38,29 +39,47 @@ export interface MasterBenchmarkReport {
   tier1BaselineCount: number;
   tier2MutationCount: number;
   tier3NegativeControlCount: number;
-  baselinePassRate: number;
-  repairPrecision: number;
-  repairRecall: number;
-  safeAbstentionRate: number;
-  falseRepairRate: number;
-  repairCoverage: number;
-  regressionRate: number;
-  defectDetectionRate: number;
-  defectMaskingRate: number;
   tier2RepairedCount: number;
   tier2AbstainedCount: number;
+  tier2RepairExpectedCount: number;
+  totalAttemptedRepairsCount: number;
+  defectScenarioCount: number;
+  regressionCheckCount: number;
+  baselinePassRate: number | null;
+  repairPrecision: number | null;
+  repairRecall: number | null;
+  safeAbstentionRate: number | null;
+  falseRepairRate: number | null;
+  repairCoverage: number | null;
+  regressionRate: number | null;
+  defectDetectionRate: number | null;
+  defectMaskingRate: number | null;
   latencyP50Ms: number;
   latencyP95Ms: number;
-  confidenceInterval95: { lower: number; upper: number };
+  confidenceInterval95: { lower: number; upper: number } | null;
   confidenceIntervals: {
-    baselinePassCI: { lower: number; upper: number };
-    repairPrecisionCI: { lower: number; upper: number };
-    repairRecallCI: { lower: number; upper: number };
-    safeAbstentionCI: { lower: number; upper: number };
-    overallEmpiricalCI: { lower: number; upper: number };
+    baselinePassCI: { lower: number; upper: number } | null;
+    repairPrecisionCI: { lower: number; upper: number } | null;
+    repairRecallCI: { lower: number; upper: number } | null;
+    safeAbstentionCI: { lower: number; upper: number } | null;
+    overallEmpiricalCI: { lower: number; upper: number } | null;
   };
   sampleInterpretationNote: string;
   scenarios: BenchmarkScenarioRecord[];
+}
+
+export function formatRate(rate: number | null, sampleSize: number): string {
+  if (rate === null || sampleSize <= 0) {
+    return 'N/A (0 samples)';
+  }
+  return `${rate.toFixed(1)}%`;
+}
+
+export function formatCI(ci: { lower: number; upper: number } | null): string {
+  if (!ci) {
+    return 'N/A';
+  }
+  return `[${ci.lower}%, ${ci.upper}%]`;
 }
 
 export interface RunnerOptions {
@@ -149,6 +168,41 @@ export class MasterBenchmarkRunner {
     await fs.writeFile('artifacts/benchmark-report.json', jsonReport, 'utf-8');
     await fs.writeFile('benchmarks/reports/master-benchmark-results.json', jsonReport, 'utf-8');
     await fs.writeFile('reports/release-hardening/BENCHMARK_RESULTS.json', jsonReport, 'utf-8');
+
+    // Append-only history serialization: run-<UTC-timestamp>-<sha>.json and history.json
+    let gitSha = 'unknown';
+    try {
+      gitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+    } catch {
+      // fallback
+    }
+    const utcTimestamp = new Date(report.timestamp).toISOString().replace(/[:.]/g, '-');
+    const runFileName = `run-${utcTimestamp}-${gitSha}.json`;
+    await fs.writeFile(path.join('benchmarks/reports', runFileName), jsonReport, 'utf-8');
+
+    const historyPath = path.join('benchmarks/reports', 'history.json');
+    let history: Array<Record<string, unknown>> = [];
+    try {
+      const existing = await fs.readFile(historyPath, 'utf-8');
+      history = JSON.parse(existing);
+    } catch {
+      // file may not exist yet
+    }
+    history.push({
+      runFile: runFileName,
+      timestamp: report.timestamp,
+      utcTimestamp,
+      gitSha,
+      totalScenarios: report.totalScenarios,
+      summary: {
+        baselinePassRate: report.baselinePassRate,
+        repairPrecision: report.repairPrecision,
+        repairRecall: report.repairRecall,
+        safeAbstentionRate: report.safeAbstentionRate,
+        falseRepairRate: report.falseRepairRate,
+      },
+    });
+    await fs.writeFile(historyPath, JSON.stringify(history, null, 2), 'utf-8');
 
     const mdReport = this.generateMarkdownSummary(report);
     await fs.writeFile('artifacts/benchmark-report.md', mdReport, 'utf-8');
@@ -364,6 +418,7 @@ export class MasterBenchmarkRunner {
       }
 
       const t0 = performance.now();
+      this.app.reset();
       m.setup();
 
       const page = await browser.newPage();
@@ -510,9 +565,12 @@ export class MasterBenchmarkRunner {
                 if (repairedActionPassed) {
                   let realExecutionResult;
                   try {
+                    await fs.writeFile(pomPath, inMemPatch.patchedSource, 'utf-8');
+                    this.app.resetUsers();
                     realExecutionResult = await ExecutionRunner.runPlaywrightTest({
                       cwd: process.cwd(),
                       testFilePath: specPath,
+                      grep: m.targetTestPattern,
                       timeoutMs: 30000,
                     });
                   } catch (err: any) {
@@ -524,8 +582,9 @@ export class MasterBenchmarkRunner {
                       timedOut: false,
                       truncated: false,
                     };
+                  } finally {
+                    await fs.writeFile(pomPath, pomSource, 'utf-8');
                   }
-
                   const passedMatch = realExecutionResult.stdout.match(/(\d+)\s+passed/i);
                   const passedCount = passedMatch ? parseInt(passedMatch[1] ?? '0', 10) : 0;
                   const executionPassed = realExecutionResult.exitCode === 0 && passedCount > 0 && !realExecutionResult.timedOut;
@@ -563,6 +622,7 @@ export class MasterBenchmarkRunner {
                   });
 
                   // Step 8: Execute Regression Verification on Clean Baseline (affected module)
+                  this.app.reset();
                   const regressionPass = await this.runRegressionCheck(browser, baseUrl, m.targetApp);
 
                   if (verifiedAuth.isAuthorized && regressionPass) {
@@ -611,7 +671,7 @@ export class MasterBenchmarkRunner {
         notes,
       });
 
-      console.log(`  ✓ ${m.id}: ${m.name} -> ${actualOutcome} (${durationMs}ms)`);
+      console.log(`  ✓ ${m.id}: ${m.name} -> ${actualOutcome} (${durationMs}ms) [${notes}]`);
     }
   }
 
@@ -746,6 +806,7 @@ export class MasterBenchmarkRunner {
     const modules = [
       {
         name: 'Module 1: Authentication',
+        targetTestPattern: 'LOGIN-01',
         path: '/login',
         targetMember: 'loginButton',
         defaultId: 'btn-login',
@@ -761,6 +822,7 @@ export class MasterBenchmarkRunner {
       },
       {
         name: 'Module 2: Products',
+        targetTestPattern: 'PRODUCTS-01',
         path: '/',
         targetMember: 'searchButton',
         defaultId: 'btn-search-products',
@@ -776,6 +838,7 @@ export class MasterBenchmarkRunner {
       },
       {
         name: 'Module 3: Cart',
+        targetTestPattern: 'CART-01',
         path: '/cart',
         targetMember: 'cartCheckoutButton',
         defaultId: 'btn-cart-checkout',
@@ -791,6 +854,7 @@ export class MasterBenchmarkRunner {
       },
       {
         name: 'Module 4: Checkout',
+        targetTestPattern: 'CHECKOUT-01',
         path: '/checkout',
         targetMember: 'placeOrderButton',
         defaultId: 'btn-checkout',
@@ -806,6 +870,7 @@ export class MasterBenchmarkRunner {
       },
       {
         name: 'Module 5: Admin',
+        targetTestPattern: 'ADMIN-01',
         path: '/admin/users',
         targetMember: 'editUserButton',
         defaultId: 'btn-edit-user',
@@ -903,6 +968,7 @@ export class MasterBenchmarkRunner {
           oldSelector,
           intendedAction: mod.action,
           targetMember: mod.targetMember,
+          targetTestPattern: mod.targetTestPattern,
           runOldAction: async (page: Page) => {
             await page.locator(oldSelector).click({ timeout: 1000 });
           },
@@ -1040,7 +1106,7 @@ export class MasterBenchmarkRunner {
     const tier3 = this.records.filter((r) => r.tier === 'TIER_3_NEGATIVE_CONTROL');
 
     const baselinePass = tier1.filter((r) => r.actualOutcome === 'PASS').length;
-    const baselinePassRate = tier1.length > 0 ? (baselinePass / tier1.length) * 100 : 0.0;
+    const baselinePassRate = tier1.length > 0 ? (baselinePass / tier1.length) * 100 : null;
 
     const tier2Repaired = tier2.filter(
       (r) => r.expectedOutcome === 'REPAIR_SUCCESS' && r.actualOutcome === 'REPAIR_SUCCESS'
@@ -1056,15 +1122,15 @@ export class MasterBenchmarkRunner {
 
     // P0 Statistical Rigor: Repair precision includes failed repairs in denominator
     const totalAttemptedRepairs = tier2Repaired + tier2Failed + falseRepairs;
-    const repairPrecision = totalAttemptedRepairs > 0 ? (tier2Repaired / totalAttemptedRepairs) * 100 : 100.0;
-    const repairRecall = tier2RepairExpected > 0 ? (tier2Repaired / tier2RepairExpected) * 100 : 100.0;
-    const safeAbstentionRate = tier3.length > 0 ? (negAbstained / tier3.length) * 100 : 100.0;
-    const falseRepairRate = tier3.length > 0 ? (falseRepairs / tier3.length) * 100 : 0.0;
-    const repairCoverage = tier2.length > 0 ? (tier2RepairExpected / tier2.length) * 100 : 100.0;
+    const repairPrecision = totalAttemptedRepairs > 0 ? (tier2Repaired / totalAttemptedRepairs) * 100 : null;
+    const repairRecall = tier2RepairExpected > 0 ? (tier2Repaired / tier2RepairExpected) * 100 : null;
+    const safeAbstentionRate = tier3.length > 0 ? (negAbstained / tier3.length) * 100 : null;
+    const falseRepairRate = tier3.length > 0 ? (falseRepairs / tier3.length) * 100 : null;
+    const repairCoverage = tier2.length > 0 ? (tier2RepairExpected / tier2.length) * 100 : null;
 
     // Regressions dynamically calculated from regression verification checks
     const regressionFailures = this.regressionChecks.filter((c) => !c.passed).length;
-    const regressionRate = this.regressionChecks.length > 0 ? (regressionFailures / this.regressionChecks.length) * 100 : 0.0;
+    const regressionRate = this.regressionChecks.length > 0 ? (regressionFailures / this.regressionChecks.length) * 100 : null;
 
     // Seeded defect detection & masking dynamically calculated from defect scenarios
     const defectScenarios = tier3.filter(
@@ -1072,16 +1138,16 @@ export class MasterBenchmarkRunner {
     );
     const defectsDetected = defectScenarios.filter((r) => r.actualOutcome === 'ABSTAIN').length;
     const defectsMasked = defectScenarios.filter((r) => r.actualOutcome === 'REPAIR_SUCCESS').length;
-    const defectDetectionRate = defectScenarios.length > 0 ? (defectsDetected / defectScenarios.length) * 100 : 100.0;
-    const defectMaskingRate = defectScenarios.length > 0 ? (defectsMasked / defectScenarios.length) * 100 : 0.0;
+    const defectDetectionRate = defectScenarios.length > 0 ? (defectsDetected / defectScenarios.length) * 100 : null;
+    const defectMaskingRate = defectScenarios.length > 0 ? (defectsMasked / defectScenarios.length) * 100 : null;
 
     const latencies = this.records.map((r) => r.executionDurationMs).sort((a, b) => a - b);
     const p50 = latencies[Math.floor(latencies.length * 0.5)] ?? 0;
     const p95 = latencies[Math.floor(latencies.length * 0.95)] ?? 0;
 
     // P0 Statistical Rigor: Calculate separate Wilson 95% Confidence Intervals for distinct metrics
-    const calculateWilson = (k: number, sampleSize: number, z = 1.96): { lower: number; upper: number } => {
-      if (sampleSize <= 0) return { lower: 0, upper: 100 };
+    const calculateWilson = (k: number, sampleSize: number, z = 1.96): { lower: number; upper: number } | null => {
+      if (sampleSize <= 0) return null;
       const pRatio = Math.min(Math.max(k / sampleSize, 0), 1);
       const denom = 1 + (z * z) / sampleSize;
       const center = (pRatio + (z * z) / (2 * sampleSize)) / denom;
@@ -1093,8 +1159,7 @@ export class MasterBenchmarkRunner {
     };
 
     const successCount = baselinePass + tier2Repaired + negAbstained;
-    const n = total > 0 ? total : 1;
-    const overallEmpiricalCI = calculateWilson(successCount, n);
+    const overallEmpiricalCI = calculateWilson(successCount, total);
     const baselinePassCI = calculateWilson(baselinePass, tier1.length);
     const repairPrecisionCI = calculateWilson(tier2Repaired, totalAttemptedRepairs);
     const repairRecallCI = calculateWilson(tier2Repaired, tier2RepairExpected);
@@ -1106,6 +1171,12 @@ export class MasterBenchmarkRunner {
       tier1BaselineCount: tier1.length,
       tier2MutationCount: tier2.length,
       tier3NegativeControlCount: tier3.length,
+      tier2RepairedCount: tier2Repaired,
+      tier2AbstainedCount: tier2Abstained,
+      tier2RepairExpectedCount: tier2RepairExpected,
+      totalAttemptedRepairsCount: totalAttemptedRepairs,
+      defectScenarioCount: defectScenarios.length,
+      regressionCheckCount: this.regressionChecks.length,
       baselinePassRate,
       repairPrecision,
       repairRecall,
@@ -1115,8 +1186,6 @@ export class MasterBenchmarkRunner {
       regressionRate,
       defectDetectionRate,
       defectMaskingRate,
-      tier2RepairedCount: tier2Repaired,
-      tier2AbstainedCount: tier2Abstained,
       latencyP50Ms: p50,
       latencyP95Ms: p95,
       confidenceInterval95: overallEmpiricalCI,
@@ -1134,17 +1203,17 @@ export class MasterBenchmarkRunner {
 
     console.log('\n────────────────────────────────────────────────────────────────────────');
     console.log(` TOTAL EMPIRICAL BENCHMARK SCENARIOS EVALUATED: ${report.totalScenarios}`);
-    console.log(` • Tier 1 Baseline Scenarios       : ${report.tier1BaselineCount} (Pass Rate: ${report.baselinePassRate.toFixed(1)}% | 95% CI: [${baselinePassCI.lower}%, ${baselinePassCI.upper}%])`);
+    console.log(` • Tier 1 Baseline Scenarios       : ${report.tier1BaselineCount} (Pass Rate: ${formatRate(report.baselinePassRate, report.tier1BaselineCount)} | 95% CI: ${formatCI(baselinePassCI)})`);
     console.log(` • Tier 2 Structural Mutations     : ${report.tier2MutationCount} (${report.tier2RepairedCount} Repaired in Browser)`);
-    console.log(`   - Repair Precision              : ${report.repairPrecision.toFixed(1)}% (95% CI: [${repairPrecisionCI.lower}%, ${repairPrecisionCI.upper}%])`);
-    console.log(`   - Repair Recall                 : ${report.repairRecall.toFixed(1)}% (95% CI: [${repairRecallCI.lower}%, ${repairRecallCI.upper}%])`);
-    console.log(`   - Repair Coverage               : ${report.repairCoverage.toFixed(1)}% (Mutation population handled)`);
-    console.log(` • Tier 3 Negative Controls        : ${report.tier3NegativeControlCount} (Safe Abstention Rate: ${report.safeAbstentionRate.toFixed(1)}% | 95% CI: [${safeAbstentionCI.lower}%, ${safeAbstentionCI.upper}%])`);
-    console.log(` • Seeded Defect Detection Rate    : ${report.defectDetectionRate.toFixed(1)}% (Masking Rate: ${report.defectMaskingRate.toFixed(1)}%)`);
-    console.log(` • False Repair Rate               : ${report.falseRepairRate.toFixed(1)}% (Zero incorrect repairs accepted)`);
-    console.log(` • Regression Rate                 : ${report.regressionRate.toFixed(1)}% (Evaluated on ${this.regressionChecks.length} baseline re-runs)`);
+    console.log(`   - Repair Precision              : ${formatRate(report.repairPrecision, totalAttemptedRepairs)} (95% CI: ${formatCI(repairPrecisionCI)})`);
+    console.log(`   - Repair Recall                 : ${formatRate(report.repairRecall, tier2RepairExpected)} (95% CI: ${formatCI(repairRecallCI)})`);
+    console.log(`   - Repair Coverage               : ${formatRate(report.repairCoverage, report.tier2MutationCount)} (Mutation population handled)`);
+    console.log(` • Tier 3 Negative Controls        : ${report.tier3NegativeControlCount} (Safe Abstention Rate: ${formatRate(report.safeAbstentionRate, report.tier3NegativeControlCount)} | 95% CI: ${formatCI(safeAbstentionCI)})`);
+    console.log(` • Seeded Defect Detection Rate    : ${formatRate(report.defectDetectionRate, defectScenarios.length)} (Masking Rate: ${formatRate(report.defectMaskingRate, defectScenarios.length)})`);
+    console.log(` • False Repair Rate               : ${formatRate(report.falseRepairRate, report.tier3NegativeControlCount)} (Zero incorrect repairs accepted)`);
+    console.log(` • Regression Rate                 : ${formatRate(report.regressionRate, this.regressionChecks.length)} (Evaluated on ${this.regressionChecks.length} baseline re-runs)`);
     console.log(` • Latency P50 / P95               : ${report.latencyP50Ms} ms / ${report.latencyP95Ms} ms`);
-    console.log(` • Overall Benchmark Wilson 95% CI : [${report.confidenceInterval95.lower}%, ${report.confidenceInterval95.upper}%]`);
+    console.log(` • Overall Benchmark Wilson 95% CI : ${formatCI(report.confidenceInterval95)}`);
     console.log(` • Note: ${report.sampleInterpretationNote}`);
     console.log('========================================================================\n');
 
@@ -1157,20 +1226,26 @@ export class MasterBenchmarkRunner {
     md.push('');
     md.push(`**Generated:** ${new Date(report.timestamp).toISOString()}  `);
     md.push(`**Total Evaluated Scenarios:** ${report.totalScenarios} (Real Headless Chromium Executions)  `);
-    md.push(`**Wilson 95% Confidence Interval:** [${report.confidenceInterval95.lower}%, ${report.confidenceInterval95.upper}%]  `);
+    md.push(`**Wilson 95% Confidence Interval:** ${formatCI(report.confidenceInterval95)}  `);
     md.push('');
+
+    const formatStatus = (rate: number | null, targetMin: number, targetMax?: number): string => {
+      if (rate === null) return '⚠️ UNVERIFIED (0 samples)';
+      if (rate >= targetMin && (targetMax === undefined || rate <= targetMax)) return '✅ PASS';
+      return '❌ FAIL';
+    };
 
     md.push('## Executive Summary Metrics');
     md.push('| Metric | Value | 95% Confidence Interval | Target | Status | Verification Method |');
     md.push('|---|---|---|---|---|---|');
-    md.push(`| Baseline Pass Rate (Tier 1) | ${report.baselinePassRate.toFixed(1)}% | [${report.confidenceIntervals.baselinePassCI.lower}%, ${report.confidenceIntervals.baselinePassCI.upper}%] | 100.0% | ✅ PASS | Real Chromium browser execution |`);
-    md.push(`| Repair Precision (Tier 2) | ${report.repairPrecision.toFixed(1)}% | [${report.confidenceIntervals.repairPrecisionCI.lower}%, ${report.confidenceIntervals.repairPrecisionCI.upper}%] | 100.0% | ✅ PASS | AST patch re-run & verified in browser |`);
-    md.push(`| Repair Recall (Tier 2) | ${report.repairRecall.toFixed(1)}% | [${report.confidenceIntervals.repairRecallCI.lower}%, ${report.confidenceIntervals.repairRecallCI.upper}%] | ≥ 95.0% | ✅ PASS | Eligible mutations healed |`);
-    md.push(`| Safe Abstention Rate (Tier 3) | ${report.safeAbstentionRate.toFixed(1)}% | [${report.confidenceIntervals.safeAbstentionCI.lower}%, ${report.confidenceIntervals.safeAbstentionCI.upper}%] | 100.0% | ✅ PASS | FailureClassifier causal analysis |`);
-    md.push(`| False Repair Rate | ${report.falseRepairRate.toFixed(1)}% | N/A | 0.0% | ✅ PASS | Zero invalid repairs accepted |`);
-    md.push(`| Defect Detection Rate | ${report.defectDetectionRate.toFixed(1)}% | N/A | 100.0% | ✅ PASS | Seeded business logic bug blocked |`);
-    md.push(`| Defect Masking Rate | ${report.defectMaskingRate.toFixed(1)}% | N/A | 0.0% | ✅ PASS | Intent Invariant v2 protects assertions |`);
-    md.push(`| Regression Rate | ${report.regressionRate.toFixed(1)}% | N/A | 0.0% | ✅ PASS | Clean baselines re-verified after repairs |`);
+    md.push(`| Baseline Pass Rate (Tier 1) | ${formatRate(report.baselinePassRate, report.tier1BaselineCount)} | ${formatCI(report.confidenceIntervals.baselinePassCI)} | 100.0% | ${formatStatus(report.baselinePassRate, 100)} | Real Chromium browser execution |`);
+    md.push(`| Repair Precision (Tier 2) | ${formatRate(report.repairPrecision, report.totalAttemptedRepairsCount)} | ${formatCI(report.confidenceIntervals.repairPrecisionCI)} | 100.0% | ${formatStatus(report.repairPrecision, 100)} | AST patch re-run & verified in browser |`);
+    md.push(`| Repair Recall (Tier 2) | ${formatRate(report.repairRecall, report.tier2RepairExpectedCount)} | ${formatCI(report.confidenceIntervals.repairRecallCI)} | ≥ 95.0% | ${formatStatus(report.repairRecall, 95)} | Eligible mutations healed |`);
+    md.push(`| Safe Abstention Rate (Tier 3) | ${formatRate(report.safeAbstentionRate, report.tier3NegativeControlCount)} | ${formatCI(report.confidenceIntervals.safeAbstentionCI)} | 100.0% | ${formatStatus(report.safeAbstentionRate, 100)} | FailureClassifier causal analysis |`);
+    md.push(`| False Repair Rate | ${formatRate(report.falseRepairRate, report.tier3NegativeControlCount)} | N/A | 0.0% | ${formatStatus(report.falseRepairRate === null ? null : (100 - report.falseRepairRate), 100)} | Zero invalid repairs accepted |`);
+    md.push(`| Defect Detection Rate | ${formatRate(report.defectDetectionRate, report.defectScenarioCount)} | N/A | 100.0% | ${formatStatus(report.defectDetectionRate, 100)} | Seeded business logic bug blocked |`);
+    md.push(`| Defect Masking Rate | ${formatRate(report.defectMaskingRate, report.defectScenarioCount)} | N/A | 0.0% | ${formatStatus(report.defectMaskingRate === null ? null : (100 - report.defectMaskingRate), 100)} | Intent Invariant v2 protects assertions |`);
+    md.push(`| Regression Rate | ${formatRate(report.regressionRate, report.regressionCheckCount)} | N/A | 0.0% | ${formatStatus(report.regressionRate === null ? null : (100 - report.regressionRate), 100)} | Clean baselines re-verified after repairs |`);
     md.push(`| Latency P50 / P95 | ${report.latencyP50Ms} ms / ${report.latencyP95Ms} ms | N/A | < 5000 ms | ✅ PASS | Measured across live browser sessions |`);
     md.push('');
 

@@ -227,7 +227,7 @@ describe('Failure Classification and Causal Correlation Suite (40 Tests)', () =>
     });
   });
 
-  it('STRICT-01: should classify strict mode violation as AMBIGUOUS_MATCH', () => {
+  it('STRICT-01: should classify strict mode violation as AMBIGUOUS_MATCH and abstain by default', () => {
     const context = createBaseContext({
       failedAction: {
         callId: 'call@strict',
@@ -239,7 +239,28 @@ describe('Failure Classification and Causal Correlation Suite (40 Tests)', () =>
 
     const result = FailureClassifier.classify(context);
     expect(result.category).toBe('AMBIGUOUS_MATCH');
-    expect(result.shouldAbstain).toBe(false); // Refinable candidate
+    expect(result.shouldAbstain).toBe(true); // Ambiguity policy: abstains by default
+    expect(result.abstentionReason).toContain('Strict mode multi-match detected');
+
+    // Unless live DOM proves unique scoped replacement
+    const refined = FailureClassifier.classify(context, { provenUniqueScopedReplacement: true });
+    expect(refined.shouldAbstain).toBe(false);
+  });
+
+  it('MUT-06: should classify ambiguous match / strict-mode multi-match and abstain by default (shouldAbstain === true)', () => {
+    const context = createBaseContext({
+      failedAction: {
+        callId: 'call@mut-06',
+        action: 'page.click',
+        selector: '.btn-action',
+        errorMessage: 'Error: strict mode violation: locator(".btn-action") resolved to 3 elements',
+      },
+    });
+
+    const result = FailureClassifier.classify(context);
+    expect(result.category).toBe('AMBIGUOUS_MATCH');
+    expect(result.shouldAbstain).toBe(true);
+    expect(result.abstentionReason).toContain('Strict mode multi-match detected');
   });
 
   it('STRICT-02: should detect resolved to multiple elements in error message', () => {

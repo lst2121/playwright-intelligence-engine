@@ -77,15 +77,29 @@ async function extractFrameSelector(frame: any): Promise<string> {
 
 async function collectFrameElements(frameHandle: any, frameSelector?: string): Promise<AppElement[]> {
   try {
-    const raw = await frameHandle.$$eval('button, a, input, select, textarea, [role="button"], [role="textbox"], [role="status"], heading, h1, h2, h3', (nodes: any[]) => {
+    const raw = await frameHandle.$$eval('button, a, input, select, textarea, [role="button"], [role="textbox"], [role="status"], [role="list"], [role="listitem"], ul, ol, heading, h1, h2, h3', (nodes: any[]) => {
       return nodes.map((el) => {
         const tag = el.tagName.toLowerCase();
-        const role = el.getAttribute('role') || (tag === 'button' ? 'button' : tag === 'input' ? 'textbox' : undefined);
-        const accessibleName = el.getAttribute('aria-label') || el.innerText?.trim() || el.getAttribute('placeholder') || undefined;
+        const type = el.getAttribute('type') || undefined;
+        let role = el.getAttribute('role');
+        if (!role) {
+          if (tag === 'button') role = 'button';
+          else if (tag === 'input') {
+            if (type === 'checkbox') role = 'checkbox';
+            else if (type === 'radio') role = 'radio';
+            else if (type === 'submit' || type === 'button') role = 'button';
+            else role = 'textbox';
+          } else if (tag === 'textarea') role = 'textbox';
+          else if (tag === 'select') role = 'combobox';
+          else if (/^h[1-6]$/.test(tag)) role = 'heading';
+          else if (tag === 'ul' || tag === 'ol') role = 'list';
+        }
+        const placeholder = el.getAttribute('placeholder') || undefined;
+        const accessibleName = el.getAttribute('aria-label') || el.innerText?.trim() || placeholder || undefined;
         const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
         const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
         const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-        return { tag, role, accessibleName, label, testId, visible };
+        return { tag, role, accessibleName, label, testId, placeholder, type, visible };
       });
     });
 
@@ -95,6 +109,8 @@ async function collectFrameElements(frameHandle: any, frameSelector?: string): P
       accessibleName: item.accessibleName,
       label: item.label,
       testId: item.testId,
+      placeholder: item.placeholder,
+      type: item.type,
       frameSelector,
       count: 1,
       visible: item.visible,

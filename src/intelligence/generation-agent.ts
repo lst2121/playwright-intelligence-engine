@@ -8,12 +8,17 @@ import { Author, AuthorKind, CandidateChange, TemplateAuthor, HybridAuthor, LlmA
 import { QualityGate, QualityGateResult } from '../gate/index.js';
 
 const GeneratedStepSchema = z.object({
-  action: z.enum(['click', 'fill', 'navigate', 'assert-visible', 'assert-text']),
+  action: z.enum(['click', 'fill', 'press', 'navigate', 'assert-visible', 'assert-text', 'assert-count', 'assert-value']),
   role: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   selector: z.string().min(1).optional(),
   value: z.string().optional(),
+  placeholder: z.string().optional(),
   expectedText: z.string().optional(),
+  expectedCount: z.number().optional(),
+  expectedValue: z.string().optional(),
+  frame: z.string().optional(),
+  frameSelector: z.string().optional(),
 }).strict();
 
 const GeneratedScenarioSchema = z.object({

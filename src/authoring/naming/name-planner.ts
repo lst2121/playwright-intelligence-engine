@@ -118,7 +118,7 @@ export function extractPageName(featureOrTitle: string): { className: string; va
 }
 
 export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string): { property: string; isFallback: boolean } {
-  const rawName = step.name ?? step.selector;
+  const rawName = step.name ?? step.placeholder ?? step.selector;
   if (rawName) {
     const stripped = stripArticles(rawName);
     const words = stripped
@@ -152,7 +152,7 @@ export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string
 }
 
 export function deriveMethodIdentifier(step: GeneratedStep, propertyName: string): { method: string; verb: string } {
-  const rawName = step.name ?? step.selector;
+  const rawName = step.name ?? step.placeholder ?? step.selector;
   const stripped = rawName ? stripArticles(rawName) : '';
   const pascalTarget = stripped ? toPascalCase(stripped) : toPascalCase(propertyName);
 
@@ -165,6 +165,13 @@ export function deriveMethodIdentifier(step: GeneratedStep, propertyName: string
     }
     return sanitizeIdentifier(`${verb}${target}`, 'Action');
   };
+
+  if (step.action === 'press') {
+    return {
+      method: formatWithVerb('press', pascalTarget || 'Key'),
+      verb: 'press',
+    };
+  }
 
   if (step.action === 'fill') {
     return {
@@ -205,6 +212,20 @@ export function deriveMethodIdentifier(step: GeneratedStep, propertyName: string
     return {
       method: sanitizeIdentifier(`expect${pascalTarget}Text`, 'Action'),
       verb: 'expectText',
+    };
+  }
+
+  if (step.action === 'assert-count') {
+    return {
+      method: sanitizeIdentifier(`expect${pascalTarget}Count`, 'Action'),
+      verb: 'expectCount',
+    };
+  }
+
+  if (step.action === 'assert-value') {
+    return {
+      method: sanitizeIdentifier(`expect${pascalTarget}Value`, 'Action'),
+      verb: 'expectValue',
     };
   }
 

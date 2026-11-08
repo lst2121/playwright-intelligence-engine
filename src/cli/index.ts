@@ -19,6 +19,8 @@ import { bootstrapProjectIntelligence, recordProjectFailure, recordProjectRepair
 import { clusterFailures, FailureObservation } from '../intelligence/failure-clustering.js';
 import { analyzeTestStability, analyzeRepositoryImpact, TestRunObservation } from '../intelligence/suite-intelligence.js';
 import { planArchitecture, writeArchitecturePlan, ArchitectureMode, ArchitectureGenerationInput } from '../generator/architecture-generator.js';
+import { AppCrawler } from '../perception/crawler.js';
+import type { AppModel } from '../perception/app-model.js';
 import { ExecutionRunner } from '../sandbox/execution-runner.js';
 import { buildCiEvidenceReport } from '../integrations/playwright-report-adapter.js';
 import { buildSarifReport } from '../integrations/sarif-report.js';
@@ -662,7 +664,7 @@ export async function runCli(argv: string[]): Promise<void> {
   if (command === 'architect') {
     const featureName = argv[3];
     if (!featureName || featureName.startsWith('--')) {
-      console.error('Error: feature name required. Usage: pw-intel architect <featureName> [--mode greenfield|brownfield] [--requirements <json>] [--write]');
+      console.error('Error: feature name required. Usage: pw-intel architect <featureName> [--mode greenfield|brownfield] [--baseUrl <url>] [--crawl] [--app-model <path>] [--requirements <json>] [--write] [--verify]');
       process.exit(1);
     }
     try {
@@ -674,15 +676,33 @@ export async function runCli(argv: string[]): Promise<void> {
       const requirements = requirementsPath
         ? JSON.parse(await fs.promises.readFile(path.resolve(requirementsPath), 'utf8')) as Partial<ArchitectureGenerationInput>
         : {};
+      const baseUrlIndex = argv.indexOf('--baseUrl');
+      const baseUrlFromArg = baseUrlIndex >= 0 ? argv[baseUrlIndex + 1] : undefined;
+      const baseUrl = baseUrlFromArg ?? requirements.baseUrl;
+
+      let appModel = requirements.appModel;
+      const appModelIndex = argv.indexOf('--app-model');
+      if (appModelIndex >= 0 && argv[appModelIndex + 1]) {
+        const modelPath = path.resolve(argv[appModelIndex + 1]!);
+        appModel = JSON.parse(await fs.promises.readFile(modelPath, 'utf8')) as AppModel;
+      } else if (baseUrl && (argv.includes('--crawl') || (!requirements.steps || requirements.steps.length === 0))) {
+        try {
+          appModel = await AppCrawler.crawl({ baseUrl });
+        } catch {
+          // Graceful fallback if live crawl cannot connect
+        }
+      }
+
       const profile = mode === 'brownfield' ? await buildRepositoryProfile(process.cwd()) : undefined;
       const plan = planArchitecture({
         featureName,
         mode,
         profile,
-        baseUrl: requirements.baseUrl,
+        baseUrl,
         requirements: requirements.requirements,
         steps: requirements.steps,
         includeCi: requirements.includeCi,
+        appModel,
       });
       let writeResult;
       if (argv.includes('--write')) writeResult = await writeArchitecturePlan(process.cwd(), plan);
@@ -695,6 +715,30 @@ export async function runCli(argv: string[]): Promise<void> {
             args: ['playwright', 'test', spec.relativePath, '--reporter=line'],
             timeoutMs: 60_000,
           });
+
+          // Falsifiability Prover (Mutation Verification)
+          if (verification.exitCode === 0) {
+            try {
+              const specFullPath = path.resolve(process.cwd(), spec.relativePath);
+              const originalContent = await fs.promises.readFile(specFullPath, 'utf8');
+              const mutatedContent = originalContent.replace(
+                /expect\(page\.getByText\(['"][^'"]+['"]\)\)/,
+                `expect(page.getByText('__UNMATCHED_FALSIFICATION_TARGET__'))`
+              );
+              if (mutatedContent !== originalContent) {
+                await fs.promises.writeFile(specFullPath, mutatedContent, 'utf8');
+                const mutatedRun = await ExecutionRunner.run('npx', {
+                  cwd: process.cwd(),
+                  args: ['playwright', 'test', spec.relativePath, '--reporter=line'],
+                  timeoutMs: 60_000,
+                });
+                await fs.promises.writeFile(specFullPath, originalContent, 'utf8');
+                (verification as any).falsifiable = mutatedRun.exitCode !== 0;
+              }
+            } catch {
+              // Non-fatal if mutation check cannot run
+            }
+          }
         }
       }
       await recordArchitectureWorkflow(process.cwd(), plan, writeResult);

@@ -4,6 +4,7 @@ import type { GeneratedStep } from './test-generator.js';
 import type { RepositoryConventionProfile } from '../intelligence/repository-profile.js';
 import { NamePlanner, NamingLinter, type NamePlan, type NamingLintReport } from '../authoring/naming/index.js';
 import type { AppModel } from '../perception/app-model.js';
+import { AssertionQualityGate } from './assertion-quality-gate.js';
 
 export type ArchitectureMode = 'greenfield' | 'brownfield';
 export type ArchitecturePlanStatus = 'READY' | 'PARTIAL' | 'ABSTAIN' | 'NEEDS_INPUT';
@@ -83,8 +84,105 @@ function normalizeRelativeDirectory(value: string | undefined, fallback: string)
   return normalized;
 }
 
+export function inferBehavioralSteps(featureName: string, appModel?: AppModel): GeneratedStep[] | undefined {
+  if (!appModel || !appModel.routes || appModel.routes.length === 0) return undefined;
+
+  const targetSlug = toSlug(featureName);
+  let route = appModel.routes.find((r) =>
+    r.route.toLowerCase().includes(targetSlug) || (r.title && r.title.toLowerCase().includes(featureName.toLowerCase()))
+  );
+  if (!route) {
+    route = appModel.routes.find((r) => r.elements && r.elements.length > 0) ?? appModel.routes[0];
+  }
+  if (!route || !route.elements || route.elements.length === 0) return undefined;
+
+  const elements = route.elements;
+  const inputEl = elements.find((el) =>
+    (el.tag === 'input' && el.type !== 'checkbox' && el.type !== 'radio' && el.type !== 'submit' && el.type !== 'button') ||
+    el.tag === 'textarea' ||
+    Boolean(el.placeholder) ||
+    (el.role === 'textbox' && el.type !== 'checkbox')
+  );
+
+  const submitBtn = elements.find((el) =>
+    (el.tag === 'button' || el.role === 'button' || el.type === 'submit') &&
+    el.accessibleName &&
+    !/delete|remove|close|cancel/i.test(el.accessibleName)
+  );
+
+  const testValue = `Test ${featureName.replace(/Page$/, '')}`;
+
+  if (inputEl) {
+    const steps: GeneratedStep[] = [
+      { action: 'navigate' },
+      {
+        action: 'fill',
+        role: inputEl.role ?? 'textbox',
+        name: inputEl.accessibleName,
+        placeholder: inputEl.placeholder,
+        selector: inputEl.testId,
+        value: testValue,
+        frame: inputEl.frameSelector,
+        frameSelector: inputEl.frameSelector,
+      },
+    ];
+
+    if (submitBtn) {
+      steps.push({
+        action: 'click',
+        role: 'button',
+        name: submitBtn.accessibleName,
+        frame: submitBtn.frameSelector,
+        frameSelector: submitBtn.frameSelector,
+      });
+    } else {
+      steps.push({
+        action: 'press',
+        name: inputEl.accessibleName,
+        placeholder: inputEl.placeholder,
+        value: 'Enter',
+        frame: inputEl.frameSelector,
+        frameSelector: inputEl.frameSelector,
+      });
+    }
+
+    steps.push({
+      action: 'assert-visible',
+      expectedText: testValue,
+      name: testValue,
+    });
+
+    return steps;
+  }
+
+  const actionEl = elements.find((el) => (el.tag === 'button' || el.role === 'button' || el.tag === 'a') && el.accessibleName);
+  if (actionEl) {
+    return [
+      { action: 'navigate' },
+      {
+        action: 'click',
+        role: actionEl.role ?? 'button',
+        name: actionEl.accessibleName,
+        frame: actionEl.frameSelector,
+        frameSelector: actionEl.frameSelector,
+      },
+      {
+        action: 'assert-visible',
+        role: 'heading',
+        name: featureName,
+      },
+    ];
+  }
+
+  return undefined;
+}
+
 function defaultSteps(input: ArchitectureGenerationInput): GeneratedStep[] {
   if (input.steps && input.steps.length > 0) return input.steps;
+  if (input.appModel) {
+    const inferred = inferBehavioralSteps(input.featureName, input.appModel);
+    if (inferred && inferred.length > 0) return inferred;
+  }
   return [
     { action: 'navigate' },
     { action: 'assert-visible', role: 'heading', name: input.featureName },
@@ -93,7 +191,9 @@ function defaultSteps(input: ArchitectureGenerationInput): GeneratedStep[] {
 
 export function renderLocator(step: GeneratedStep, preferredLocator: string, frameSelector?: string): string {
   let inner: string;
-  if (step.action === 'click' && step.role && step.name) {
+  if (step.placeholder) {
+    inner = `getByPlaceholder('${step.placeholder}')`;
+  } else if (step.action === 'click' && step.role && step.name) {
     inner = `getByRole('${step.role}', { name: '${step.name}' })`;
   } else if (step.action === 'fill' && step.name) {
     if (preferredLocator === 'getByLabel') inner = `getByLabel('${step.name}')`;
@@ -115,17 +215,25 @@ function renderPageObject(className: string, baseUrl: string, steps: GeneratedSt
   const declarations: string[] = [];
   const assignments: string[] = [];
   const methods: string[] = [];
+  const seenProperties = new Set<string>();
+
   steps.forEach((step, index) => {
-    if (step.action !== 'click' && step.action !== 'fill') return;
+    if (step.action !== 'click' && step.action !== 'fill' && step.action !== 'press') return;
     const symbol = namePlan.symbols.find((s) => s.ref === `step-${index + 1}`) ?? namePlan.symbols[index];
     const property = symbol?.property ?? (step.action === 'click' ? `actionButton` : `inputField`);
-    const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : `fillInput`);
+    const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : step.action === 'press' ? `pressKey` : `fillInput`);
     const frame = symbol?.frame ?? step.frame ?? step.frameSelector;
 
-    declarations.push(`  readonly ${property}: Locator;`);
-    assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator, frame)};`);
+    if (!seenProperties.has(property)) {
+      seenProperties.add(property);
+      declarations.push(`  readonly ${property}: Locator;`);
+      assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator, frame)};`);
+    }
+
     if (step.action === 'click') {
       methods.push(`  async ${method}(): Promise<void> {\n    await this.${property}.click();\n  }`);
+    } else if (step.action === 'press') {
+      methods.push(`  async ${method}(key = ${quote(step.value ?? 'Enter')}): Promise<void> {\n    await this.${property}.press(key);\n  }`);
     } else {
       methods.push(`  async ${method}(value: string): Promise<void> {\n    await this.${property}.fill(value);\n  }`);
     }
@@ -147,48 +255,109 @@ ${methods.length > 0 ? `\n${methods.join('\n\n')}\n` : ''}}
 `;
 }
 
-function renderSpec(featureName: string, className: string, pageImport: string, steps: GeneratedStep[], namePlan: NamePlan, requirements?: string): string {
+function renderSpec(
+  featureName: string,
+  className: string,
+  pageImport: string,
+  fixtureImport: string | undefined,
+  steps: GeneratedStep[],
+  namePlan: NamePlan,
+  requirements?: string,
+  useFixtures = false,
+): string {
   const variable = className[0]!.toLowerCase() + className.slice(1);
-  const lines: string[] = [`    await ${variable}.goto();`];
+  const lines: string[] = [];
+
+  if (!useFixtures) {
+    lines.push(`    const ${variable} = new ${className}(page);`);
+    lines.push(`    await ${variable}.goto();`);
+  }
+
   steps.forEach((step, index) => {
     const symbol = namePlan.symbols.find((s) => s.ref === `step-${index + 1}`) ?? namePlan.symbols[index];
-    const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : `fillInput`);
+    const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : step.action === 'press' ? `pressKey` : `fillInput`);
+    const action = String(step.action || '').replace(/([A-Z])/g, '-$1').toLowerCase();
 
-    if (step.action === 'navigate' && step.value) {
+    if (action === 'navigate' && step.value) {
       lines.push(`    await page.goto(${quote(step.value)});`);
-    }
-    if (step.action === 'click') {
+    } else if (action === 'click') {
       lines.push(`    await ${variable}.${method}();`);
-    }
-    if (step.action === 'fill') {
+    } else if (action === 'press') {
+      lines.push(`    await ${variable}.${method}(${quote(step.value ?? 'Enter')});`);
+    } else if (action === 'fill') {
       lines.push(`    await ${variable}.${method}(${quote(step.value ?? 'test-data')});`);
-    }
-    if (step.action === 'assert-visible') {
-      lines.push(`    await expect(page.getByRole('${step.role ?? 'heading'}', { name: '${step.name ?? featureName}' })).toBeVisible();`);
-    }
-    if (step.action === 'assert-text') {
+    } else if (action === 'assert-visible') {
+      if (step.expectedText) {
+        lines.push(`    await expect(page.getByText(${quote(step.expectedText)})).toBeVisible();`);
+      } else if (step.role && step.name) {
+        lines.push(`    await expect(page.getByRole('${step.role}', { name: '${step.name}' })).toBeVisible();`);
+      } else if (step.name) {
+        lines.push(`    await expect(page.getByRole('${step.role ?? 'heading'}', { name: '${step.name}' })).toBeVisible();`);
+      } else if (step.selector) {
+        lines.push(`    await expect(page.locator(${quote(step.selector)})).toBeVisible();`);
+      } else {
+        lines.push(`    await expect(page.getByRole('${step.role ?? 'heading'}', { name: '${featureName}' })).toBeVisible();`);
+      }
+    } else if (action === 'assert-text') {
       lines.push(`    await expect(page.locator('${step.selector ?? 'body'}')).toContainText('${step.expectedText ?? ''}');`);
+    } else if (action === 'assert-count') {
+      lines.push(`    await expect(page.locator('${step.selector ?? 'li'}')).toHaveCount(${step.expectedCount ?? 1});`);
+    } else if (action === 'assert-value') {
+      lines.push(`    await expect(page.locator('${step.selector ?? 'input'}')).toHaveValue('${step.expectedValue ?? ''}');`);
     }
   });
+
   const requirementComment = requirements?.trim()
     ? `\n    // Requirement: ${requirements.trim().replace(/\r?\n/g, ' ').replace(/\*\//g, '* /')}`
     : '';
+
+  if (useFixtures && fixtureImport) {
+    return `import { test, expect } from ${quote(fixtureImport)};
+import { ${className} } from ${quote(pageImport)};
+
+test.describe(${quote(`${featureName} workflow`)}, () => {
+  test(${quote(`should complete ${featureName}`)}, async ({ ${variable}, page }) => {${requirementComment}
+${lines.join('\n')}
+  });
+});
+`;
+  }
+
   return `import { test, expect } from '@playwright/test';
 import { ${className} } from ${quote(pageImport)};
 
 test.describe(${quote(`${featureName} workflow`)}, () => {
   test(${quote(`should complete ${featureName}`)}, async ({ page }) => {${requirementComment}
-    const ${variable} = new ${className}(page);
 ${lines.join('\n')}
   });
 });
 `;
 }
 
-function renderFixtureFile(): string {
-  return `import { test as base } from '@playwright/test';
+function renderFixtureFile(className?: string, pageImport?: string): string {
+  if (!className || !pageImport) {
+    return `import { test as base } from '@playwright/test';
 
 export const test = base.extend({});
+export { expect } from '@playwright/test';
+`;
+  }
+  const variable = className[0]!.toLowerCase() + className.slice(1);
+  return `import { test as base } from '@playwright/test';
+import { ${className} } from ${quote(pageImport)};
+
+type ${className}Fixtures = {
+  ${variable}: ${className};
+};
+
+export const test = base.extend<${className}Fixtures>({
+  ${variable}: async ({ page }, use) => {
+    const ${variable} = new ${className}(page);
+    await ${variable}.goto();
+    await use(${variable});
+  },
+});
+
 export { expect } from '@playwright/test';
 `;
 }
@@ -322,18 +491,37 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   }
 
   const files: ArchitectureFile[] = [];
+  const fixtureFileRelative = `${fixtureDirectory}/test.ts`;
+  const pageImportFromFixture = path.posix.relative(path.posix.dirname(fixtureFileRelative), pagePath).replace(/\.ts$/, '');
+  const normalizedPageImportFromFixture = pageImportFromFixture.startsWith('.') ? pageImportFromFixture : `./${pageImportFromFixture}`;
+
+  const fixtureImport = path.posix.relative(path.posix.dirname(testPath), fixtureFileRelative).replace(/\.ts$/, '');
+  const normalizedFixtureImport = fixtureImport.startsWith('.') ? fixtureImport : `./${fixtureImport}`;
+
+  const usesCustomFixtures = input.mode === 'greenfield' || (profile?.structure.usesCustomFixtures ?? false);
+
   files.push(makeFile(pagePath, renderPageObject(className, baseUrl, steps, preferredLocator, namePlan), 'Feature Page Object with explicit locators and actions.', existingFiles));
-  files.push(makeFile(testPath, renderSpec(featureName, className, normalizedPageImport, steps, namePlan, input.requirements), 'Workflow spec with web-first assertions.', existingFiles));
+  files.push(makeFile(testPath, renderSpec(featureName, className, normalizedPageImport, normalizedFixtureImport, steps, namePlan, input.requirements, usesCustomFixtures), 'Workflow spec with web-first assertions.', existingFiles));
 
   if (input.mode === 'greenfield') {
     files.push(makeFile('playwright.config.ts', renderPlaywrightConfig(baseUrl, testDirectory), 'Minimal reproducible Playwright configuration.', existingFiles));
-    files.push(makeFile(`${fixtureDirectory}/test.ts`, renderFixtureFile(), 'Composable fixture entry point.', existingFiles));
+    files.push(makeFile(fixtureFileRelative, renderFixtureFile(className, normalizedPageImportFromFixture), 'Composable fixture entry point.', existingFiles));
     if (input.includeCi !== false) files.push(makeFile('.github/workflows/playwright.yml', renderCiWorkflow(), 'Pull-request Playwright execution workflow.', existingFiles));
   } else if (profile?.structure.usesCustomFixtures) {
-    files.push(makeFile(`${fixtureDirectory}/test.ts`, renderFixtureFile(), 'Fixture extension point matching the profiled repository layout.', existingFiles));
+    files.push(makeFile(fixtureFileRelative, renderFixtureFile(className, normalizedPageImportFromFixture), 'Fixture extension point matching the profiled repository layout.', existingFiles));
   }
 
-  const groundedSteps = steps.filter((s) => s.action !== 'navigate' && (s.name || s.selector));
+  const specFile = files.find((f) => f.relativePath.endsWith('.spec.ts'));
+  if (specFile) {
+    const qualityReport = AssertionQualityGate.evaluate(specFile.content, featureName);
+    if (!qualityReport.passed) {
+      for (const v of qualityReport.violations) {
+        warnings.push(`Assertion quality violation: ${v}`);
+      }
+    }
+  }
+
+  const groundedSteps = steps.filter((s) => s.action !== 'navigate' && (s.name || s.selector || s.placeholder));
   const ungrounded = steps.length > 0 && groundedSteps.length === 0;
   if (ungrounded) {
     warnings.push('No grounded steps provided: every step must carry an accessible name or selector. Supply requirements or observed steps.');

@@ -1,14 +1,17 @@
 import { planArchitecture, toClassName } from './architecture-generator.js';
 
 export interface GeneratedStep {
-  action: 'click' | 'fill' | 'navigate' | 'assert-visible' | 'assert-text';
-  role?: string;
-  name?: string;
-  selector?: string;
-  value?: string;
-  expectedText?: string;
-  frame?: string;
-  frameSelector?: string;
+  action: 'click' | 'fill' | 'press' | 'navigate' | 'assert-visible' | 'assert-text' | 'assert-count' | 'assert-value';
+  role?: string | undefined;
+  name?: string | undefined;
+  selector?: string | undefined;
+  value?: string | undefined;
+  placeholder?: string | undefined;
+  expectedText?: string | undefined;
+  expectedCount?: number | undefined;
+  expectedValue?: string | undefined;
+  frame?: string | undefined;
+  frameSelector?: string | undefined;
 }
 
 export interface GeneratedSuiteOutput {

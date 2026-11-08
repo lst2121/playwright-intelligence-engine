@@ -6,6 +6,8 @@ export const AppElementSchema = z.object({
   accessibleName: z.string().optional(),
   label: z.string().optional(),
   testId: z.string().optional(),
+  placeholder: z.string().optional(),
+  type: z.string().optional(),
   frameSelector: z.string().optional(),
   count: z.number().int().min(1).default(1),
   visible: z.boolean().default(true),

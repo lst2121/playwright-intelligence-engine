@@ -125,4 +125,76 @@ describe('Architecture generator', () => {
     ]));
     expect(plan.warnings.some((w) => w.includes('low confidence'))).toBe(true);
   });
+
+  it('infers behavioral steps from AppModel perception without manual step configuration', () => {
+    const plan = planArchitecture({
+      featureName: 'Task Manager',
+      mode: 'greenfield',
+      baseUrl: 'http://localhost:5173/todo-app',
+      appModel: {
+        version: '1',
+        baseUrl: 'http://localhost:5173/todo-app',
+        fingerprint: 'test-fingerprint',
+        capturedAt: new Date().toISOString(),
+        routes: [
+          {
+            route: '/todo-app',
+            title: 'ToDO App',
+            elements: [
+              {
+                tag: 'input',
+                role: 'textbox',
+                placeholder: 'Add a New Task',
+                accessibleName: 'Add a New Task',
+                visible: true,
+                count: 1,
+              },
+              {
+                tag: 'button',
+                role: 'button',
+                accessibleName: 'Create',
+                visible: true,
+                count: 1,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(plan.status).toBe('READY');
+    const poFile = plan.files.find((f) => f.relativePath.endsWith('Page.ts'))?.content;
+    const specFile = plan.files.find((f) => f.relativePath.endsWith('.spec.ts'))?.content;
+    const fixtureFile = plan.files.find((f) => f.relativePath.endsWith('test.ts'))?.content;
+
+    // Check POM
+    expect(poFile).toContain("getByPlaceholder('Add a New Task')");
+    expect(poFile).toContain("getByRole('button', { name: 'Create' })");
+
+    // Check Fixtures
+    expect(fixtureFile).toContain('base.extend');
+    expect(fixtureFile).toContain('taskManagerPage: async ({ page }, use)');
+
+    // Check Spec
+    expect(specFile).toContain("import { test, expect } from \"./fixtures/test\"");
+    expect(specFile).toContain("taskManagerPage.fillAddNewTask(\"Test Task Manager\")");
+    expect(specFile).toContain("taskManagerPage.clickCreate()");
+    expect(specFile).toContain("expect(page.getByText(\"Test Task Manager\")).toBeVisible()");
+  });
+
+  it('normalizes camelCase actions like assertVisible and handles placeholder locators', () => {
+    const plan = planArchitecture({
+      featureName: 'Search',
+      mode: 'greenfield',
+      steps: [
+        { action: 'fill', placeholder: 'Search products', value: 'shoes' } as any,
+        { action: 'press', placeholder: 'Search products', value: 'Enter' } as any,
+        { action: 'assertVisible', expectedText: 'Search results for shoes' } as any,
+      ],
+    });
+
+    expect(plan.status).toBe('READY');
+    const specFile = plan.files.find((f) => f.relativePath.endsWith('.spec.ts'))?.content;
+    expect(specFile).toContain("expect(page.getByText(\"Search results for shoes\")).toBeVisible()");
+  });
 });

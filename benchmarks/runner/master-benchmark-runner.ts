@@ -471,26 +471,39 @@ export class MasterBenchmarkRunner {
           const classification = FailureClassifier.classify(diagnosticContext);
 
           if (classification.category === 'LOCATOR_DRIFT' && !classification.shouldAbstain) {
-            // Step 4: Autonomous Candidate Extraction directly from Chromium DOM
-            // Completely independent: ZERO oracle callbacks or ground truth assistance
-            const rawElements = await page.$$eval('button, a, input, [role="button"]', (nodes) => {
-              return nodes.map((el) => {
-                const attrs: Record<string, string> = {};
-                for (const attr of Array.from(el.attributes) as any[]) {
-                  attrs[attr.name] = attr.value;
-                }
-                return {
-                  tag: el.tagName.toLowerCase(),
-                  role: el.getAttribute('role') || (el.tagName.toLowerCase() === 'button' ? 'button' : undefined),
-                  accessibleName: el.getAttribute('aria-label') || el.textContent?.trim() || undefined,
-                  attributes: attrs,
-                  text: el.textContent?.trim() || '',
-                  children: [],
-                };
-              });
-            });
+            // Step 4: Frame-aware Autonomous Candidate Extraction.
+            // Collect interactive elements from the main frame AND every same-origin
+            // child frame, so a target living inside an <iframe> is discoverable
+            // instead of causing a blind FRAME_OR_IFRAME abstention.
+            const collectElements = (handle: any) =>
+              handle.$$eval('button, a, input, [role="button"]', (nodes: any[]) =>
+                nodes.map((el: any) => {
+                  const attrs: Record<string, string> = {};
+                  for (const attr of Array.from(el.attributes) as any[]) {
+                    attrs[attr.name] = attr.value;
+                  }
+                  return {
+                    tag: el.tagName.toLowerCase(),
+                    role: el.getAttribute('role') || (el.tagName.toLowerCase() === 'button' ? 'button' : undefined),
+                    accessibleName: el.getAttribute('aria-label') || el.textContent?.trim() || undefined,
+                    attributes: attrs,
+                    text: el.textContent?.trim() || '',
+                    children: [],
+                  };
+                }),
+              );
 
-            const elements: ResolvedElement[] = rawElements.map((el) => ({
+            const rawElements = await collectElements(page);
+            const childFrames = page.frames().slice(1); // skip main frame
+            for (const frame of childFrames) {
+              try {
+                rawElements.push(...await collectElements(frame));
+              } catch {
+                // Cross-origin frame cannot be pierced; skip it (safe abstention).
+              }
+            }
+
+            const elements: ResolvedElement[] = rawElements.map((el: any) => ({
               tag: el.tag,
               role: el.role,
               accessibleName: el.accessibleName,

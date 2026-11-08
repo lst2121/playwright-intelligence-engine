@@ -167,24 +167,50 @@ export class MasterBenchmarkRunner {
   }
 
   // --- REGRESSION VERIFICATION: Real baseline check executed after repairs ---
-  private async runRegressionCheck(browser: Browser, baseUrl: string): Promise<boolean> {
+  private async runRegressionCheck(browser: Browser, baseUrl: string, targetApp?: string): Promise<boolean> {
     const t0 = performance.now();
     const page = await browser.newPage();
     try {
       this.app.reset();
-      await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 5000 });
-      await page.locator('#username').fill('admin@example.com');
-      await page.locator('#password').fill('admin123');
-      await page.getByRole('button', { name: 'Sign In' }).click();
-      await page.locator('#login-status').waitFor({ timeout: 3000 });
-      const text = await page.locator('#login-status').innerText();
-      const passed = text.includes('Login Successful');
+      let passed = false;
+      if (targetApp?.includes('Products')) {
+        await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+        await page.locator('#product-search').fill('Pro');
+        await page.getByRole('button', { name: 'Search' }).click();
+        passed = (await page.locator('table').count()) > 0;
+      } else if (targetApp?.includes('Cart')) {
+        await page.goto(`${baseUrl}/cart`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+        passed = (await page.getByRole('button', { name: 'Proceed to Checkout' }).count()) === 1;
+      } else if (targetApp?.includes('Checkout')) {
+        await page.goto(`${baseUrl}/checkout`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+        const total = await page.locator('#order-total').innerText();
+        if (total === '$99.00') {
+          await page.locator('#card').fill('4532015099881234');
+          await page.locator('#address').fill('123 Test St, Silicon Valley, CA');
+          await page.getByRole('button', { name: 'Place Order' }).click();
+          await page.locator('#checkout-result').waitFor({ timeout: 3000 });
+          const resText = await page.locator('#checkout-result').innerText();
+          passed = resText.includes('Order Confirmed') && resText.includes('$99.00');
+        }
+      } else if (targetApp?.includes('Admin')) {
+        await page.goto(`${baseUrl}/admin/users`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+        passed = (await page.locator('table tbody tr').count()) >= 2;
+      } else {
+        // Default: Authentication module
+        await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded', timeout: 5000 });
+        await page.locator('#username').fill('admin@example.com');
+        await page.locator('#password').fill('admin123');
+        await page.getByRole('button', { name: 'Sign In' }).click();
+        await page.locator('#login-status').waitFor({ timeout: 3000 });
+        const text = await page.locator('#login-status').innerText();
+        passed = text.includes('Login Successful');
+      }
       const durationMs = parseFloat((performance.now() - t0).toFixed(2));
-      this.regressionChecks.push({ scenarioId: 'REGRESSION_CHECK', passed, durationMs });
+      this.regressionChecks.push({ scenarioId: targetApp ?? 'REGRESSION_CHECK', passed, durationMs });
       return passed;
     } catch {
       const durationMs = parseFloat((performance.now() - t0).toFixed(2));
-      this.regressionChecks.push({ scenarioId: 'REGRESSION_CHECK', passed: false, durationMs });
+      this.regressionChecks.push({ scenarioId: targetApp ?? 'REGRESSION_CHECK', passed: false, durationMs });
       return false;
     } finally {
       await page.close();
@@ -523,8 +549,8 @@ export class MasterBenchmarkRunner {
                     },
                   });
 
-                  // Step 8: Execute Regression Verification on Clean Baseline
-                  const regressionPass = await this.runRegressionCheck(browser, baseUrl);
+                  // Step 8: Execute Regression Verification on Clean Baseline (affected module)
+                  const regressionPass = await this.runRegressionCheck(browser, baseUrl, m.targetApp);
 
                   if (verifiedAuth.isAuthorized && regressionPass) {
                     actualOutcome = 'REPAIR_SUCCESS';

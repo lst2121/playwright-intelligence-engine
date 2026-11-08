@@ -26,6 +26,8 @@ describe('repository convention profile', () => {
     expect(profile.structure.usesPageObjects).toBe(true);
     expect(profile.structure.usesCustomFixtures).toBe(true);
     expect(profile.locatorConventions.preferred).toBe('getByRole');
+    expect(profile.identifierConventions).toBeDefined();
+    expect(profile.identifierConventions?.recommendedLocatorPolicy).toBe('prefer-role-over-css');
     expect(profile.testConventions.usesDescribeBlocks).toBe(true);
     expect(profile.testConventions.usesTestSteps).toBe(true);
     expect(profile.testConventions.tags).toContain('@critical');
@@ -33,7 +35,9 @@ describe('repository convention profile', () => {
 
     const written = await writeRepositoryProfile(root, profile);
     expect(written.profilePath).toBe(path.join(root, '.pie', 'repository-profile.json'));
+    expect(written.conventionsPath).toBe(path.join(root, '.pie', 'conventions.json'));
     await expect(fs.access(written.profilePath)).resolves.toBeUndefined();
+    await expect(fs.access(written.conventionsPath)).resolves.toBeUndefined();
   });
 
   it('refreshes project profile when source metadata changes', async () => {

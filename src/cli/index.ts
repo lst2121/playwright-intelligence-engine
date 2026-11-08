@@ -212,6 +212,7 @@ export async function runCli(argv: string[]): Promise<void> {
         className: option('--class'),
         memberName: option('--member'),
         configPath: option('--config'),
+        project: option('--project'),
         execute: argv.includes('--execute'),
         worktreeId: option('--worktree-id'),
         operation,
@@ -523,10 +524,18 @@ export async function runCli(argv: string[]): Promise<void> {
       if (mode !== 'greenfield' && mode !== 'brownfield') throw new Error("--mode must be 'greenfield' or 'brownfield'");
       const baseUrlIndex = argv.indexOf('--base-url');
       const baseUrl = baseUrlIndex >= 0 ? argv[baseUrlIndex + 1] : requirementsDocument?.baseUrl;
+      const authorArg = argv.find((arg) => arg.startsWith('--author='));
+      const authorIndex = argv.indexOf('--author');
+      const author = authorArg
+        ? (authorArg.slice('--author='.length) as 'template' | 'hybrid' | 'llm')
+        : authorIndex >= 0
+          ? (argv[authorIndex + 1] as 'template' | 'hybrid' | 'llm')
+          : 'hybrid';
       const result = await runGenerationAgent({
         requirements,
         existingTests,
         mode,
+        author,
         workspaceRoot: (argv.indexOf('--workspace') >= 0 ? argv[argv.indexOf('--workspace') + 1] : undefined) ?? process.cwd(),
         ...(baseUrl ? { baseUrl } : {}),
         ...(requirementsDocument?.steps ? { suggestedSteps: requirementsDocument.steps } : {}),
@@ -535,7 +544,7 @@ export async function runCli(argv: string[]): Promise<void> {
         verify: argv.includes('--verify'),
       });
       console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requirementsPath: path.resolve(requirementsPath), ...result }, null, 2));
-      if (result.status === 'ABSTAINED' || result.status === 'MODEL_NOT_CONFIGURED' || result.status === 'NEEDS_INPUT' || result.status === 'VERIFICATION_FAILED') process.exitCode = 1;
+      if (result.status === 'ABSTAINED' || result.status === 'MODEL_NOT_CONFIGURED' || result.status === 'NEEDS_INPUT' || result.status === 'VERIFICATION_FAILED' || result.status === 'AGENT_NO_PROGRESS') process.exitCode = 1;
     } catch (err: any) {
       console.error(`Generation agent failed: ${err?.message ?? String(err)}`);
       process.exit(1);

@@ -25,6 +25,7 @@ export interface RepairWorkflowInput {
   className?: string | undefined;
   memberName?: string | undefined;
   configPath?: string | undefined;
+  project?: string | undefined;
   execute?: boolean | undefined;
   worktreeId?: string | undefined;
   operation?: unknown;
@@ -201,6 +202,7 @@ export async function runRepairWorkflow(input: RepairWorkflowInput): Promise<Rep
     worktreeId: worktree.id,
     workspaceRoot,
     configPath,
+    project: input.project,
   });
   const stagedProposal = ApprovalService.getInstance().stageProposal({
     targetFilePath: proposal.pomFilePath,

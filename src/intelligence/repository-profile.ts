@@ -1,9 +1,25 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { Project } from 'ts-morph';
 import { inspectRepository, RepositoryManifest } from '../evaluation/repository-inspector.js';
 
 export const REPOSITORY_PROFILE_VERSION = 1;
+
+export interface IdentifierConventions {
+  propertySuffixes: string[];
+  methodVerbs: Record<string, number>;
+  usesReadonly: boolean;
+  pageInjection: 'constructor-param-property' | 'constructor-assignment' | 'getter' | 'inline';
+  gotoMethodName: string;
+  recommendedLocatorPolicy: 'prefer-role-over-css' | 'prefer-testid' | 'prefer-label' | 'prefer-locator' | 'unknown';
+}
+
+export interface PageObjectExemplar {
+  filePath: string;
+  className: string;
+  content: string;
+}
 
 export interface RepositoryConventionProfile {
   version: typeof REPOSITORY_PROFILE_VERSION;
@@ -48,6 +64,8 @@ export interface RepositoryConventionProfile {
     cssOrXpath: number;
     preferred: 'getByRole' | 'getByTestId' | 'getByLabel' | 'getByText' | 'locator' | 'unknown';
   };
+  identifierConventions?: IdentifierConventions | undefined;
+  exemplars?: PageObjectExemplar[] | undefined;
   testConventions: {
     tags: string[];
     usesDescribeBlocks: boolean;
@@ -113,16 +131,126 @@ function countMatches(contents: string, pattern: RegExp): number {
 }
 
 function preferredLocator(counts: Omit<RepositoryConventionProfile['locatorConventions'], 'preferred'>): RepositoryConventionProfile['locatorConventions']['preferred'] {
-  const ranked: Array<[RepositoryConventionProfile['locatorConventions']['preferred'], number]> = [
-    ['getByRole', counts.getByRole],
-    ['getByTestId', counts.getByTestId],
-    ['getByLabel', counts.getByLabel],
-    ['getByText', counts.getByText],
-    ['locator', counts.locator],
-  ];
-  ranked.sort((left, right) => right[1] - left[1]);
-  const winner = ranked[0];
-  return winner && winner[1] > 0 ? winner[0] : 'unknown';
+  // Policy order: role > label > testid > text > locator
+  if (counts.getByRole > 0) return 'getByRole';
+  if (counts.getByLabel > 0) return 'getByLabel';
+  if (counts.getByTestId > 0) return 'getByTestId';
+  if (counts.getByText > 0) return 'getByText';
+  if (counts.locator > 0) return 'locator';
+  return 'unknown';
+}
+
+async function sampleIdentifierConventions(
+  pomFiles: string[],
+  locatorCounts: Omit<RepositoryConventionProfile['locatorConventions'], 'preferred'>
+): Promise<IdentifierConventions> {
+  const propertySuffixesCount = new Map<string, number>();
+  const methodVerbs: Record<string, number> = {};
+  let readonlyCount = 0;
+  let totalProperties = 0;
+  let pageInjection: IdentifierConventions['pageInjection'] = 'constructor-assignment';
+  let gotoMethodName = 'goto';
+
+  const knownSuffixes = ['Button', 'Input', 'Link', 'Select', 'Checkbox', 'Dialog', 'Modal', 'Heading', 'Cell', 'Table', 'Tab', 'Radio', 'Status', 'Card'];
+  const sampleFiles = pomFiles.slice(0, 5);
+
+  if (sampleFiles.length > 0) {
+    try {
+      const project = new Project({ useInMemoryFileSystem: true });
+      for (const filePath of sampleFiles) {
+        try {
+          const content = await fs.readFile(filePath, 'utf8');
+          const sourceFile = project.createSourceFile(path.basename(filePath), content, { overwrite: true });
+
+          for (const cls of sourceFile.getClasses()) {
+            const ctor = cls.getConstructors()[0];
+            if (ctor) {
+              const params = ctor.getParameters();
+              if (params.some((p) => p.getScope() || p.isReadonly())) {
+                pageInjection = 'constructor-param-property';
+              }
+            }
+
+            for (const prop of cls.getProperties()) {
+              totalProperties++;
+              if (prop.isReadonly()) readonlyCount++;
+              const name = prop.getName();
+              for (const suffix of knownSuffixes) {
+                if (name.endsWith(suffix)) {
+                  propertySuffixesCount.set(suffix, (propertySuffixesCount.get(suffix) ?? 0) + 1);
+                }
+              }
+            }
+
+            for (const getter of cls.getGetAccessors()) {
+              const name = getter.getName();
+              for (const suffix of knownSuffixes) {
+                if (name.endsWith(suffix)) {
+                  propertySuffixesCount.set(suffix, (propertySuffixesCount.get(suffix) ?? 0) + 1);
+                }
+              }
+            }
+
+            for (const method of cls.getMethods()) {
+              const name = method.getName();
+              if (name === 'goto' || name === 'open' || name === 'navigate' || name === 'load') {
+                gotoMethodName = name;
+              }
+              const match = name.match(/^([a-z]+)/);
+              if (match) {
+                const verb = match[1]!;
+                methodVerbs[verb] = (methodVerbs[verb] ?? 0) + 1;
+              }
+            }
+          }
+        } catch {
+          // Continue to next sample file
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  let recommendedLocatorPolicy: IdentifierConventions['recommendedLocatorPolicy'] = 'unknown';
+  if (locatorCounts.getByRole > 0) recommendedLocatorPolicy = 'prefer-role-over-css';
+  else if (locatorCounts.getByLabel > 0) recommendedLocatorPolicy = 'prefer-label';
+  else if (locatorCounts.getByTestId > 0) recommendedLocatorPolicy = 'prefer-testid';
+  else if (locatorCounts.locator > 0) recommendedLocatorPolicy = 'prefer-locator';
+
+  const propertySuffixes = [...propertySuffixesCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([s]) => s);
+  if (propertySuffixes.length === 0) {
+    propertySuffixes.push('Button', 'Input');
+  }
+
+  return {
+    propertySuffixes,
+    methodVerbs,
+    usesReadonly: totalProperties > 0 ? readonlyCount / totalProperties >= 0.5 : true,
+    pageInjection,
+    gotoMethodName,
+    recommendedLocatorPolicy,
+  };
+}
+
+export async function sampleExemplars(pomFiles: string[], maxExemplars = 3): Promise<PageObjectExemplar[]> {
+  const exemplars: PageObjectExemplar[] = [];
+  for (const file of pomFiles.slice(0, maxExemplars)) {
+    try {
+      const content = await fs.readFile(file, 'utf8');
+      const lines = content.split(/\r?\n/).slice(0, 120);
+      const match = content.match(/export\s+class\s+([A-Za-z0-9_]+)/);
+      const className = match ? match[1]! : path.basename(file, path.extname(file));
+      exemplars.push({
+        filePath: file,
+        className,
+        content: lines.join('\n'),
+      });
+    } catch {}
+  }
+  return exemplars;
 }
 
 function extractDomainTerms(filePaths: string[], contents: string): string[] {
@@ -255,6 +383,8 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
       fixtureDirectory: directoryConfidence(fixtureFiles, path.resolve(root)),
     },
     locatorConventions: { ...locatorCounts, preferred: preferredLocator(locatorCounts) },
+    identifierConventions: await sampleIdentifierConventions(pageObjectFiles, locatorCounts),
+    exemplars: await sampleExemplars(pageObjectFiles, 3),
     testConventions: {
       tags,
       usesDescribeBlocks: /\btest\.describe\s*\(/.test(sourceContents),
@@ -269,11 +399,26 @@ export async function buildRepositoryProfile(root: string, now = new Date()): Pr
 export async function writeRepositoryProfile(
   root: string,
   profile?: RepositoryConventionProfile,
-): Promise<{ profile: RepositoryConventionProfile; profilePath: string }> {
+): Promise<{ profile: RepositoryConventionProfile; profilePath: string; conventionsPath: string }> {
   const projectRoot = path.resolve(root);
   const resolvedProfile = profile ?? await buildRepositoryProfile(projectRoot);
-  const profilePath = path.join(projectRoot, '.pie', 'repository-profile.json');
-  await fs.mkdir(path.dirname(profilePath), { recursive: true });
+  const pieDir = path.join(projectRoot, '.pie');
+  await fs.mkdir(pieDir, { recursive: true });
+
+  const profilePath = path.join(pieDir, 'repository-profile.json');
   await fs.writeFile(profilePath, `${JSON.stringify(resolvedProfile, null, 2)}\n`, 'utf8');
-  return { profile: resolvedProfile, profilePath };
+
+  const conventionsPath = path.join(pieDir, 'conventions.json');
+  const conventionsData = {
+    version: 1,
+    generatedAt: resolvedProfile.generatedAt,
+    sourceFingerprint: resolvedProfile.sourceFingerprint,
+    locatorConventions: resolvedProfile.locatorConventions,
+    identifierConventions: resolvedProfile.identifierConventions,
+    paths: resolvedProfile.paths,
+    structure: resolvedProfile.structure,
+  };
+  await fs.writeFile(conventionsPath, `${JSON.stringify(conventionsData, null, 2)}\n`, 'utf8');
+
+  return { profile: resolvedProfile, profilePath, conventionsPath };
 }

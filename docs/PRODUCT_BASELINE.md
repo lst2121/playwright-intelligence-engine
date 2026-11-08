@@ -6,8 +6,8 @@ counts or commands.
 
 ## Identity
 
-- Package version: `0.1.0`
-- Engineering milestone: `2.6.0-rc1`
+- Package version: `1.0.0`
+- Engineering milestone: `3.0.0-rc1`
 - Runtime: Node.js 20+
 - Primary framework: Microsoft Playwright
 
@@ -31,7 +31,11 @@ PIE currently provides deterministic, local-first workflows for:
 - live verification for a constrained state-wait operation vocabulary;
 - repository-aware changed-file impact analysis;
 - SARIF CI output and local team dashboard aggregation;
-- CLI, MCP, and test-generation entry points.
+- CLI, MCP, and test-generation entry points;
+- decoupled Author / Gate architecture with 3-tier capability ladder (L0: Template, L1: Hybrid, L2: LLM);
+- semantic NamePlan symbol table and NamingLinter with 0 index-derived identifiers;
+- runtime convention discovery (.pie/conventions.json) and exemplar extraction;
+- bounded generation agent loop (max 3 steps, max 120s) with AGENT_NO_PROGRESS transition detection.
 
 PIE does not currently provide a managed model service, unrestricted code
 generation, or general multi-step workflow repair. An optional OpenAI-compatible
@@ -48,7 +52,7 @@ npm run verify:baseline
 
 This runs typecheck, the automated test suite, and the production build.
 
-The current automated suite contains 473 passing tests across 43 test files.
+The current automated suite contains 531 passing tests across 53 test files.
 
 The current controlled browser artifact contains 125 scenarios:
 

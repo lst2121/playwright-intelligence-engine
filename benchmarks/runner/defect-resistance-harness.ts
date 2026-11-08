@@ -178,7 +178,8 @@ export class DefectResistanceHarness {
 
     const defectDetectionRate = (defectDetectedCount / totalDefects) * 100;
     const defectMaskingRate = (defectMaskedCount / totalDefects) * 100;
-    const falseRepairRate = 0.0;
+    const falseRepairCount = results.filter((r) => r.defectMasked || (!r.engineAbstained && r.defectDetected)).length;
+    const falseRepairRate = totalDefects > 0 ? (falseRepairCount / totalDefects) * 100 : 0.0;
 
     console.log('\n===============================================================');
     console.log(` EXPERIMENT C FINAL RESULTS:`);

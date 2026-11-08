@@ -55,6 +55,7 @@ export interface RepairVerificationInput {
   worktreeId: string;
   workspaceRoot?: string | undefined;
   configPath?: string | undefined;
+  project?: string | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
 }
 
@@ -198,13 +199,17 @@ export class RepairPlanner {
     await fs.promises.writeFile(worktreePomPath, proposal.proposedPatchedSource, 'utf-8');
     let currentState: RepairLifecycleState = 'PATCHED_IN_ISOLATION';
 
-    // Stage 4: Execute target test inside worktree
-    const execArgs = ['playwright', 'test', relSpec];
+    // Stage 4: Execute target test inside worktree (normalize to forward slashes for Playwright regex matcher)
+    const normalizedRelSpec = relSpec.replace(/\\/g, '/');
+    const execArgs = ['playwright', 'test', normalizedRelSpec];
     if (input.configPath) {
       const relConfig = path.isAbsolute(input.configPath)
         ? path.relative(rootDir, input.configPath)
         : input.configPath;
-      execArgs.push('--config', relConfig);
+      execArgs.push('--config', relConfig.replace(/\\/g, '/'));
+    }
+    if (input.project) {
+      execArgs.push('--project', input.project);
     }
 
     const execResult = await ExecutionRunner.run('npx', {

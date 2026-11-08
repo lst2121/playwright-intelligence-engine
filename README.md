@@ -1,20 +1,26 @@
-# Playwright Intelligence Engine (pw-intel) v1.0.0
+# Playwright Intelligence Engine (pw-intel) v3.0.0
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue.svg)](https://www.typescriptlang.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-1.40+-green.svg)](https://playwright.dev/)
-[![Tests](https://img.shields.io/badge/Tests-507%20Passed%20(0%20Failed)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-531%20Passed%20(0%20Failed)-brightgreen.svg)]()
+[![Files](https://img.shields.io/badge/Test%20Files-53%20Passed-brightgreen.svg)]()
 [![Benchmark](https://img.shields.io/badge/Benchmark-Empirical%20Browser%20(125%20Scenarios%20Verified)-success.svg)]()
 [![License](https://img.shields.io/badge/License-Apache--2.0-purple.svg)](LICENSE)
 
-An enterprise-grade, deterministic intelligence, diagnosis, and self-healing engine for Microsoft Playwright suites. Operates with zero mandatory cloud backend, zero forced LLM dependencies, and zero unsolicited file mutations. Ingests post-mortem trace archives (`trace.zip`), performs multi-source live browser reproductions (`pw-intel reproduce`), classifies failures via action-anchored causal graphs, scores candidates via probabilistic models, enforces strict intent invariants ($V = A \land T \land F \land I \land D \land E$), and promotes verified repairs via cryptographic token authorization and atomic Compare-And-Swap (CAS) file operations.
+An enterprise-grade, deterministic intelligence, diagnosis, self-healing, and code generation engine for Microsoft Playwright suites. Ingests post-mortem trace archives (`trace.zip`), performs multi-source live browser reproductions (`pw-intel reproduce`), classifies failures via action-anchored causal graphs, scores candidates via probabilistic models, enforces strict intent invariants ($V = A \land T \land F \land I \land D \land E$), and promotes verified repairs via cryptographic token authorization and atomic Compare-And-Swap (CAS) file operations.
+
+PIE v3.0 introduces a decoupled **Author / Gate** architecture: language models author semantic candidates guided by runtime-discovered conventions (`.pie/conventions.json`) and exemplar sibling Page Objects, while an independent deterministic Gate proves safety, zero assertion weakenings, diff minimality, and zero index-derived identifiers (`actionButton1`, `fill2`).
 
 ---
 
 ## Key Differentiators
 
-| Capability | Playwright Intelligence Engine v2.6 | Generic Auto-Healers | LLM Code Agents |
+| Capability | Playwright Intelligence Engine v3.0 | Generic Auto-Healers | LLM Coding Agents |
 | :--- | :--- | :--- | :--- |
-| **Execution Model** | **Local-First & Deterministic** (Node.js ESM) | In-browser DOM mutation proxies | Non-deterministic prompt completions |
+| **Architecture** | **Decoupled Author / Gate** (L0-L2 Capability Ladder) | In-browser DOM mutation proxies | Generic prompt completions |
+| **Naming Intelligence** | **Semantic `NamePlan` & `NamingLinter`** (0 index-derived names) | None | Random hallucinated variable names |
+| **Conventions Discovery** | **Runtime Profiling (`.pie/conventions.json`)** | None | Prompt-encoded rules (ignored/drift) |
+| **Execution Model** | **Local-First & Deterministic** (Node.js ESM) | In-browser DOM proxies | Non-deterministic prompt outputs |
 | **Diagnostic Model** | **Action-Anchored Causal Graph** ($T_{\text{action}}$ window) | Shallow string matching (`TimeoutError`) | Unstructured prompt reasoning |
 | **Reproduction** | **Live Multi-Source Collectors** (DOM, ariaSnapshot, net) | None | Re-runs full suite blindly |
 | **Candidate Scoring** | Calibrated Sigmoid Probability $P(\text{valid})$ | Ad-hoc priority lists / CSS heuristics | Unconstrained token generation |
@@ -133,7 +139,7 @@ npx pw-intel generate UserDashboard
 npx pw-intel autonomous-repair ./playwright-traces/trace.zip --execute
 
 # 9. Plan or write LLM-assisted scenarios through deterministic generators
-npx pw-intel generate-agent requirements.json --mode brownfield --write --verify
+npx pw-intel generate-agent requirements.json --mode brownfield --author hybrid --write --verify
 
 # 10. Plan project-aware greenfield/brownfield architecture (create-only with --write)
 npx pw-intel architect "Checkout Flow" --mode greenfield --requirements requirements.json

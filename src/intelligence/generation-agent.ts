@@ -4,6 +4,8 @@ import { GeneratedStep } from '../generator/test-generator.js';
 import { buildRepositoryProfile, RepositoryConventionProfile } from './repository-profile.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput, TestIntelligencePlan } from './test-intelligence.js';
 import { ExecutionRunner, ExecutionResult } from '../sandbox/execution-runner.js';
+import { Author, AuthorKind, CandidateChange, TemplateAuthor, HybridAuthor, LlmAuthor } from '../authoring/index.js';
+import { QualityGate, QualityGateResult } from '../gate/index.js';
 
 const GeneratedStepSchema = z.object({
   action: z.enum(['click', 'fill', 'navigate', 'assert-visible', 'assert-text']),
@@ -56,10 +58,14 @@ export interface GenerationPlanParseResult {
 export interface GenerationAgentInput extends GenerationPlanInput {
   workspaceRoot?: string | undefined;
   provider?: GenerationPlanProvider | undefined;
+  authorImpl?: Author | undefined;
   write?: boolean | undefined;
   existingFiles?: string[] | undefined;
   includeCi?: boolean | undefined;
   verify?: boolean | undefined;
+  author?: AuthorKind | undefined;
+  maxSteps?: number | undefined;
+  maxDurationMs?: number | undefined;
 }
 
 export interface GeneratedScenarioResult {
@@ -67,11 +73,15 @@ export interface GeneratedScenarioResult {
   architecture: ArchitecturePlan;
   writeResult?: ArchitectureWriteResult | undefined;
   verification?: ExecutionResult | undefined;
+  loopState?: 'SUCCESS' | 'AGENT_NO_PROGRESS' | 'AGENT_TIME_BUDGET' | 'MAX_STEPS_EXCEEDED' | undefined;
+  stepsCount?: number | undefined;
+  qualityGateResult?: QualityGateResult | undefined;
 }
 
 export interface GenerationAgentResult {
-  status: 'MODEL_NOT_CONFIGURED' | 'ABSTAINED' | 'NEEDS_INPUT' | 'PLANNED' | 'WRITTEN' | 'VERIFIED' | 'VERIFICATION_FAILED';
+  status: 'MODEL_NOT_CONFIGURED' | 'ABSTAINED' | 'NEEDS_INPUT' | 'PLANNED' | 'WRITTEN' | 'VERIFIED' | 'VERIFICATION_FAILED' | 'AGENT_NO_PROGRESS';
   provider: 'llm' | 'deterministic-fallback';
+  authorKind?: AuthorKind | undefined;
   intelligence: TestIntelligencePlan;
   plan?: GenerationPlan | undefined;
   scenarios: GeneratedScenarioResult[];
@@ -275,8 +285,70 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
     return { status: 'ABSTAINED', provider: providerMode, intelligence, plan: generatedPlan, scenarios: [], errors: scenarioValidationErrors };
   }
 
+  const authorKind: AuthorKind = input.author ?? 'hybrid';
+  const author: Author = input.authorImpl ?? (
+    authorKind === 'template'
+      ? new TemplateAuthor()
+      : authorKind === 'llm'
+        ? new LlmAuthor()
+        : new HybridAuthor()
+  );
+
   const scenarios: GeneratedScenarioResult[] = [];
   for (const scenario of generatedPlan.scenarios) {
+    const maxSteps = input.maxSteps ?? 3;
+    const maxDurationMs = input.maxDurationMs ?? 120_000;
+    const startTime = Date.now();
+    const seenSignatures = new Set<string>();
+
+    let candidate: CandidateChange | undefined;
+    let gateResult: QualityGateResult | undefined;
+    let loopState: 'SUCCESS' | 'AGENT_NO_PROGRESS' | 'AGENT_TIME_BUDGET' | 'MAX_STEPS_EXCEEDED' = 'SUCCESS';
+    let stepCount = 0;
+
+    for (let stepIndex = 0; stepIndex < maxSteps; stepIndex++) {
+      stepCount++;
+      if (Date.now() - startTime >= maxDurationMs) {
+        loopState = 'AGENT_TIME_BUDGET';
+        break;
+      }
+
+      candidate = await author.propose({
+        featureName: scenario.title,
+        mode: input.mode,
+        baseUrl: input.baseUrl,
+        requirements: input.requirements.find((r) => r.id === scenario.requirementId)?.description
+          ?? input.requirements.find((r) => r.id === scenario.requirementId)?.title,
+        steps: scenario.steps as GeneratedStep[],
+        profile,
+        existingFiles: input.existingFiles,
+        exemplars: profile?.exemplars,
+      });
+
+      gateResult = QualityGate.evaluate({
+        symbols: candidate.symbols,
+        files: candidate.files,
+        locatorPolicy: profile?.identifierConventions?.recommendedLocatorPolicy,
+      });
+
+      const signature = `${candidate.symbols.pageClassName}:${candidate.symbols.symbols.map((s) => `${s.property}:${s.method}`).join(',')}:${gateResult.violations.join(';')}`;
+
+      if (seenSignatures.has(signature)) {
+        loopState = 'AGENT_NO_PROGRESS';
+        break;
+      }
+      seenSignatures.add(signature);
+
+      if (gateResult.passed) {
+        loopState = 'SUCCESS';
+        break;
+      }
+
+      if (stepIndex === maxSteps - 1) {
+        loopState = 'MAX_STEPS_EXCEEDED';
+      }
+    }
+
     const architectureInput: ArchitectureGenerationInput = {
       featureName: scenario.title,
       mode: input.mode,
@@ -287,13 +359,16 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
       profile,
       existingFiles: input.existingFiles,
       includeCi: input.includeCi,
+      namePlan: candidate?.symbols,
     };
     const architecture = planArchitecture(architectureInput);
-    const writeResult = input.write === true
+
+    const writeResult = (input.write === true && loopState === 'SUCCESS')
       ? await writeArchitecturePlan(input.workspaceRoot ?? process.cwd(), architecture)
       : undefined;
+
     let verification: ExecutionResult | undefined;
-    if (input.verify === true) {
+    if (input.verify === true && loopState === 'SUCCESS') {
       const spec = architecture.files.find((file) => file.relativePath.endsWith('.spec.ts'));
       if (!spec) throw new Error(`Generated scenario '${scenario.id}' did not produce a spec file`);
       verification = await ExecutionRunner.run('npx', {
@@ -302,23 +377,50 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
         timeoutMs: 120_000,
       });
     }
+
     scenarios.push({
       scenario,
       architecture,
       ...(writeResult ? { writeResult } : {}),
       ...(verification ? { verification } : {}),
+      loopState,
+      stepsCount: stepCount,
+      ...(gateResult ? { qualityGateResult: gateResult } : {}),
     });
   }
 
-  const verificationFailed = scenarios.some((scenario) => scenario.verification && scenario.verification.exitCode !== 0);
+  const anyNoProgress = scenarios.some((s) => s.loopState === 'AGENT_NO_PROGRESS');
+  const anyGateFailed = scenarios.some((s) => s.qualityGateResult && !s.qualityGateResult.passed);
+  const anyVerificationFailed = scenarios.some((s) => s.verification && s.verification.exitCode !== 0);
+
+  const errors: string[] = [];
+  if (anyNoProgress) {
+    errors.push('Generation agent detected no progress: author proposed duplicate invalid states.');
+  }
+  if (anyGateFailed) {
+    errors.push(...scenarios.flatMap((s) => s.qualityGateResult?.violations ?? []));
+  }
+
+  let status: GenerationAgentResult['status'];
+  if (anyNoProgress) {
+    status = 'AGENT_NO_PROGRESS';
+  } else if (anyGateFailed) {
+    status = 'ABSTAINED';
+  } else if (input.verify === true) {
+    status = anyVerificationFailed ? 'VERIFICATION_FAILED' : 'VERIFIED';
+  } else if (input.write === true) {
+    status = 'WRITTEN';
+  } else {
+    status = 'PLANNED';
+  }
+
   return {
-    status: input.verify === true
-      ? verificationFailed ? 'VERIFICATION_FAILED' : 'VERIFIED'
-      : input.write === true ? 'WRITTEN' : 'PLANNED',
+    status,
     provider: providerMode,
+    authorKind,
     intelligence,
     plan: generatedPlan,
     scenarios,
-    errors: [],
+    errors,
   };
 }

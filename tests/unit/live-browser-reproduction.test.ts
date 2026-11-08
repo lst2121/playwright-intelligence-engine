@@ -201,7 +201,7 @@ describe('Live Browser Reproduction & Verification Suite (Gate B)', () => {
     expect(result.scorecard).toBeDefined();
 
     // Verify relative spec path was passed to Playwright runner, not original absolute path (B2)
-    const relativeSpec = path.relative(tmpWorkspace, insideSpec);
+    const relativeSpec = path.relative(tmpWorkspace, insideSpec).replace(/\\/g, '/');
     expect(runSpy).toHaveBeenCalledWith(
       'npx',
       expect.objectContaining({

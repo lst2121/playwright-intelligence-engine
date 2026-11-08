@@ -102,4 +102,106 @@ describe('generation agent', () => {
     expect(result.status).toBe('ABSTAINED');
     expect(result.errors[0]).toContain('requires role/name or an explicit selector');
   });
+
+  it('stops and transitions to AGENT_NO_PROGRESS when author repeats identical invalid proposal', async () => {
+    const provider: GenerationPlanProvider = {
+      async propose() {
+        return { isValid: true, plan, errors: [] };
+      },
+    };
+    // Mock author that repeatedly returns an index-derived name plan (which violates QualityGate)
+    let callCount = 0;
+    const loopingAuthor = {
+      kind: 'hybrid' as const,
+      async propose() {
+        callCount++;
+        return {
+          files: [{ relativePath: 'tests/pages/CheckoutPage.ts', content: 'export class CheckoutPage {}' }],
+          symbols: {
+            planVersion: '1' as const,
+            pageClassName: 'CheckoutPage',
+            pageVariable: 'checkoutPage',
+            symbols: [
+              {
+                ref: 'step-1',
+                role: 'button',
+                property: 'actionButton1', // violation!
+                method: 'clickActionButton1',
+                verb: 'click',
+                confidence: 0.9,
+                source: 'heuristic' as const,
+                assumptions: [],
+              },
+            ],
+            assumptions: [],
+          },
+          rationale: 'repeating invalid proposal',
+          authorKind: 'hybrid' as const,
+          featureName: 'Checkout flow',
+          slug: 'checkout-flow',
+          mode: 'greenfield' as const,
+        };
+      },
+    };
+
+    const result = await runGenerationAgent({
+      requirements: [{ id: 'checkout', title: 'Checkout' }],
+      mode: 'greenfield',
+      provider,
+      authorImpl: loopingAuthor,
+      maxSteps: 3,
+    });
+
+    expect(result.status).toBe('AGENT_NO_PROGRESS');
+    expect(result.scenarios[0]?.loopState).toBe('AGENT_NO_PROGRESS');
+    expect(callCount).toBe(2); // First iteration sees signature, second sees identical signature and breaks!
+    expect(result.errors[0]).toContain('detected no progress');
+  });
+
+  it('stops before running when time budget is already exhausted', async () => {
+    const provider: GenerationPlanProvider = {
+      async propose() {
+        return { isValid: true, plan, errors: [] };
+      },
+    };
+    const result = await runGenerationAgent({
+      requirements: [{ id: 'checkout', title: 'Checkout' }],
+      mode: 'greenfield',
+      provider,
+      maxDurationMs: 0,
+    });
+
+    expect(result.scenarios[0]?.loopState).toBe('AGENT_TIME_BUDGET');
+  });
+
+  it('records authorKind correctly across template, hybrid, and llm', async () => {
+    const provider: GenerationPlanProvider = {
+      async propose() {
+        return { isValid: true, plan, errors: [] };
+      },
+    };
+    const templateResult = await runGenerationAgent({
+      requirements: [{ id: 'checkout', title: 'Checkout' }],
+      mode: 'greenfield',
+      provider,
+      author: 'template',
+    });
+    expect(templateResult.authorKind).toBe('template');
+
+    const hybridResult = await runGenerationAgent({
+      requirements: [{ id: 'checkout', title: 'Checkout' }],
+      mode: 'greenfield',
+      provider,
+      author: 'hybrid',
+    });
+    expect(hybridResult.authorKind).toBe('hybrid');
+
+    const llmResult = await runGenerationAgent({
+      requirements: [{ id: 'checkout', title: 'Checkout' }],
+      mode: 'greenfield',
+      provider,
+      author: 'llm',
+    });
+    expect(llmResult.authorKind).toBe('llm');
+  });
 });

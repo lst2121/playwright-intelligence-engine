@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { GeneratedStep } from './test-generator.js';
 import type { RepositoryConventionProfile } from '../intelligence/repository-profile.js';
+import { NamePlanner, NamingLinter, type NamePlan, type NamingLintReport } from '../authoring/naming/index.js';
 
 export type ArchitectureMode = 'greenfield' | 'brownfield';
 export type ArchitecturePlanStatus = 'READY' | 'PARTIAL' | 'ABSTAIN';
@@ -15,6 +16,7 @@ export interface ArchitectureGenerationInput {
   profile?: RepositoryConventionProfile | undefined;
   existingFiles?: string[] | undefined;
   includeCi?: boolean | undefined;
+  namePlan?: NamePlan | undefined;
 }
 
 export interface ArchitectureFile {
@@ -40,6 +42,8 @@ export interface ArchitecturePlan {
   assumptions: string[];
   warnings: string[];
   files: ArchitectureFile[];
+  namePlan?: NamePlan | undefined;
+  namingLintReport?: NamingLintReport | undefined;
 }
 
 export interface ArchitectureWriteResult {
@@ -51,7 +55,7 @@ function quote(value: string): string {
   return JSON.stringify(value);
 }
 
-function toSlug(value: string): string {
+export function toSlug(value: string): string {
   return value
     .trim()
     .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -60,9 +64,13 @@ function toSlug(value: string): string {
     .toLowerCase() || 'feature';
 }
 
-function toClassName(value: string): string {
-  const words = value.match(/[A-Za-z0-9]+/g) ?? ['Feature'];
-  const className = words.map((word) => word[0]!.toUpperCase() + word.slice(1)).join('');
+export function toClassName(value: string): string {
+  const words = value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .match(/[A-Za-z0-9]+/g) ?? ['Feature'];
+  const className = words
+    .map((word) => word[0]!.toUpperCase() + word.slice(1).toLowerCase())
+    .join('');
   return /^[A-Za-z_]/.test(className) ? className : `Feature${className}`;
 }
 
@@ -83,31 +91,34 @@ function defaultSteps(input: ArchitectureGenerationInput): GeneratedStep[] {
 
 function renderLocator(step: GeneratedStep, preferredLocator: string): string {
   if (step.action === 'click' && step.role && step.name) {
-    return `this.page.getByRole(${quote(step.role)}, { name: ${quote(step.name)} })`;
+    return `this.page.getByRole('${step.role}', { name: '${step.name}' })`;
   }
   if (step.action === 'fill' && step.name) {
-    if (preferredLocator === 'getByLabel') return `this.page.getByLabel(${quote(step.name)})`;
-    return `this.page.getByRole(${quote('textbox')}, { name: ${quote(step.name)} })`;
+    if (preferredLocator === 'getByLabel') return `this.page.getByLabel('${step.name}')`;
+    return `this.page.getByRole('textbox', { name: '${step.name}' })`;
   }
   if (step.selector && preferredLocator === 'getByTestId' && /^[A-Za-z0-9_-]+$/.test(step.selector)) {
-    return `this.page.getByTestId(${quote(step.selector)})`;
+    return `this.page.getByTestId('${step.selector}')`;
   }
-  return `this.page.locator(${quote(step.selector ?? (step.action === 'fill' ? 'input' : 'button'))})`;
+  return `this.page.locator('${step.selector ?? (step.action === 'fill' ? 'input' : 'button')}')`;
 }
 
-function renderPageObject(className: string, baseUrl: string, steps: GeneratedStep[], preferredLocator: string): string {
+function renderPageObject(className: string, baseUrl: string, steps: GeneratedStep[], preferredLocator: string, namePlan: NamePlan): string {
   const declarations: string[] = [];
   const assignments: string[] = [];
   const methods: string[] = [];
   steps.forEach((step, index) => {
     if (step.action !== 'click' && step.action !== 'fill') return;
-    const property = step.action === 'click' ? `actionButton${index + 1}` : `inputField${index + 1}`;
+    const symbol = namePlan.symbols[index] ?? namePlan.symbols.find((s) => s.ref === `step-${index + 1}`);
+    const property = symbol?.property ?? (step.action === 'click' ? `actionButton` : `inputField`);
+    const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : `fillInput`);
+
     declarations.push(`  readonly ${property}: Locator;`);
     assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator)};`);
     if (step.action === 'click') {
-      methods.push(`  async click${index + 1}(): Promise<void> {\n    await this.${property}.click();\n  }`);
+      methods.push(`  async ${method}(): Promise<void> {\n    await this.${property}.click();\n  }`);
     } else {
-      methods.push(`  async fill${index + 1}(value: string): Promise<void> {\n    await this.${property}.fill(value);\n  }`);
+      methods.push(`  async ${method}(value: string): Promise<void> {\n    await this.${property}.fill(value);\n  }`);
     }
   });
 
@@ -127,17 +138,27 @@ ${methods.length > 0 ? `\n${methods.join('\n\n')}\n` : ''}}
 `;
 }
 
-function renderSpec(featureName: string, className: string, pageImport: string, steps: GeneratedStep[], requirements?: string): string {
+function renderSpec(featureName: string, className: string, pageImport: string, steps: GeneratedStep[], namePlan: NamePlan, requirements?: string): string {
   const variable = className[0]!.toLowerCase() + className.slice(1);
   const lines: string[] = [`    await ${variable}.goto();`];
   steps.forEach((step, index) => {
-    if (step.action === 'click') lines.push(`    await ${variable}.click${index + 1}();`);
-    if (step.action === 'fill') lines.push(`    await ${variable}.fill${index + 1}(${quote(step.value ?? 'test-data')});`);
+    const symbol = namePlan.symbols[index] ?? namePlan.symbols.find((s) => s.ref === `step-${index + 1}`);
+    const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : `fillInput`);
+
+    if (step.action === 'navigate' && step.value) {
+      lines.push(`    await page.goto(${quote(step.value)});`);
+    }
+    if (step.action === 'click') {
+      lines.push(`    await ${variable}.${method}();`);
+    }
+    if (step.action === 'fill') {
+      lines.push(`    await ${variable}.${method}(${quote(step.value ?? 'test-data')});`);
+    }
     if (step.action === 'assert-visible') {
-      lines.push(`    await expect(page.getByRole(${quote(step.role ?? 'heading')}, { name: ${quote(step.name ?? featureName)} })).toBeVisible();`);
+      lines.push(`    await expect(page.getByRole('${step.role ?? 'heading'}', { name: '${step.name ?? featureName}' })).toBeVisible();`);
     }
     if (step.action === 'assert-text') {
-      lines.push(`    await expect(page.locator(${quote(step.selector ?? 'body')})).toContainText(${quote(step.expectedText ?? '')});`);
+      lines.push(`    await expect(page.locator('${step.selector ?? 'body'}')).toContainText('${step.expectedText ?? ''}');`);
     }
   });
   const requirementComment = requirements?.trim()
@@ -223,13 +244,18 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   if (input.mode !== 'greenfield' && input.mode !== 'brownfield') throw new Error(`Unsupported architecture mode '${input.mode}'`);
 
   const slug = toSlug(featureName);
-  const className = `${toClassName(featureName)}Page`;
+  const rawBaseName = toClassName(featureName);
+  const fallbackClassName = rawBaseName.endsWith('Page') ? rawBaseName : `${rawBaseName}Page`;
+  const steps = defaultSteps(input);
+  const namePlan = input.namePlan ?? NamePlanner.planNames(featureName, steps, input.mode === 'greenfield' ? { existingPageClassName: fallbackClassName } : undefined);
+  const className = input.mode === 'brownfield' && namePlan.pageClassName ? namePlan.pageClassName : fallbackClassName;
+  const namingLintReport = NamingLinter.lint(namePlan);
+
   const profile = input.profile;
   const testDirectory = normalizeRelativeDirectory(profile?.paths?.testDirectory, 'tests');
   const pageObjectDirectory = normalizeRelativeDirectory(profile?.paths?.pageObjectDirectory, `${testDirectory}/pages`);
   const fixtureDirectory = normalizeRelativeDirectory(profile?.paths?.fixtureDirectory, `${testDirectory}/fixtures`);
   const preferredLocator = profile?.locatorConventions.preferred ?? 'getByRole';
-  const steps = defaultSteps(input);
   const existingFiles = new Set((input.existingFiles ?? []).map((file) => file.replace(/\\/g, '/')));
   const baseUrl = input.baseUrl ?? 'http://localhost:3000';
   const testPath = `${testDirectory}/${slug}.spec.ts`;
@@ -239,6 +265,15 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
 
   const assumptions: string[] = [];
   const warnings: string[] = [];
+  if (namePlan.assumptions.length > 0) {
+    assumptions.push(...namePlan.assumptions);
+  }
+  if (!namingLintReport.passed) {
+    for (const v of namingLintReport.violations) {
+      warnings.push(`Naming lint violation [${v.kind}]: ${v.message}`);
+    }
+  }
+
   if (input.mode === 'greenfield') {
     assumptions.push('The application will be available at the supplied base URL when tests execute.');
     assumptions.push('The generated workflow is a scaffold and requires review of business assertions and test data.');
@@ -256,8 +291,8 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   }
 
   const files: ArchitectureFile[] = [];
-  files.push(makeFile(pagePath, renderPageObject(className, baseUrl, steps, preferredLocator), 'Feature Page Object with explicit locators and actions.', existingFiles));
-  files.push(makeFile(testPath, renderSpec(featureName, className, normalizedPageImport, steps, input.requirements), 'Workflow spec with web-first assertions.', existingFiles));
+  files.push(makeFile(pagePath, renderPageObject(className, baseUrl, steps, preferredLocator, namePlan), 'Feature Page Object with explicit locators and actions.', existingFiles));
+  files.push(makeFile(testPath, renderSpec(featureName, className, normalizedPageImport, steps, namePlan, input.requirements), 'Workflow spec with web-first assertions.', existingFiles));
 
   if (input.mode === 'greenfield') {
     files.push(makeFile('playwright.config.ts', renderPlaywrightConfig(baseUrl, testDirectory), 'Minimal reproducible Playwright configuration.', existingFiles));
@@ -284,6 +319,8 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
     assumptions,
     warnings,
     files,
+    namePlan,
+    namingLintReport,
   };
 }
 

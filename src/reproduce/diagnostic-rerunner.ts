@@ -118,8 +118,8 @@ export class DiagnosticRerunner {
       });
       addRedacted(astRecords);
 
-      // 4. Execute Playwright test strictly targeting the worktree copy with --trace on
-      const playwrightArgs = ['playwright', 'test', relativeSpec, '--trace', 'on'];
+      // 4. Execute Playwright test strictly targeting the worktree copy with --trace on (forward slashes for Windows regex matcher)
+      const playwrightArgs = ['playwright', 'test', relativeSpec.replace(/\\/g, '/'), '--trace', 'on'];
       if (options.testNamePattern) {
         playwrightArgs.push('-g', options.testNamePattern);
       }

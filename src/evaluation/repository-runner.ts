@@ -33,7 +33,7 @@ function executableFor(manager: RepositoryManifest['packageManager']): string {
 
 function chooseScript(manifest: RepositoryManifest, requested?: string): string | undefined {
   if (requested) return requested;
-  const candidates = ['test:e2e', 'test:smoke', 'test', 'pw:ui'];
+  const candidates = ['test:e2e', 'test:smoke', 'test:sanity', 'test'];
   return candidates.find((candidate) => manifest.scripts[candidate]);
 }
 

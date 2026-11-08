@@ -9,7 +9,8 @@ export interface NamingLintViolation {
     | 'CLASS_NAME_CASING'
     | 'RESERVED_WORD_COLLISION'
     | 'MISSING_VERB'
-    | 'ZERO_SEMANTIC_OVERLAP';
+    | 'ZERO_SEMANTIC_OVERLAP'
+    | 'UNGROUNDED_IDENTIFIER';
   message: string;
   identifier: string;
   ref?: string | undefined;
@@ -39,6 +40,9 @@ const ALLOWED_VERBS = new Set([
   'fill', 'enter', 'click', 'submit', 'signIn', 'signUp', 'open', 'goTo', 'select', 'check',
   'uncheck', 'expectVisible', 'expectText', 'expectHidden', 'perform', 'press', 'hover', 'clear',
 ]);
+
+/** Generic role-derived identifiers with no accessible name (actionButton, buttonButton). */
+const GENERIC_ROLE_NAME_RE = /^(action|button|input|element|field|link|text|heading|checkbox|combobox|radio|select|tab|cell|status|dialog|content|widget)(Button|Input|Element|Field|Link|Text|Heading|Checkbox|Combobox|Radio|Select|Tab|Cell|Status|Dialog|Content|Widget)?$/i;
 
 const SEMANTIC_SYNONYMS: Record<string, string[]> = {
   register: ['signup', 'sign', 'up', 'register', 'enroll'],
@@ -255,6 +259,13 @@ export class NamingLinter {
             ref: sym.ref,
           });
         }
+      } else if (GENERIC_ROLE_NAME_RE.test(sym.property)) {
+        violations.push({
+          kind: 'UNGROUNDED_IDENTIFIER',
+          message: `Property '${sym.property}' is a generic role-derived name with no accessible name`,
+          identifier: sym.property,
+          ref: sym.ref,
+        });
       }
       // Note: If no accessibleName is provided, semanticMatches is NOT incremented (absent evidence is not covered)
     }

@@ -234,6 +234,15 @@ export class NamePlanner {
 
     steps.forEach((step, idx) => {
       const ref = `step-${idx + 1}`;
+      // Grounding rule: a step with no accessible name AND no selector has no
+      // DOM identity. Never invent a symbol for it (a navigate step must not
+      // silently become a synthetic "button").
+      if (!step.name && !step.selector) {
+        if (step.action !== 'navigate') {
+          assumptions.push(`Step ${ref} (${step.action}) has no accessible name or selector and was skipped as ungrounded.`);
+        }
+        return;
+      }
       const role = step.role ?? (step.action === 'fill' ? 'textbox' : step.action === 'click' ? 'button' : undefined);
       const roleSuffix = ROLE_SUFFIXES[role?.toLowerCase() ?? ''] ?? (step.action === 'fill' ? 'Input' : 'Button');
 

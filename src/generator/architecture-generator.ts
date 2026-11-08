@@ -5,7 +5,7 @@ import type { RepositoryConventionProfile } from '../intelligence/repository-pro
 import { NamePlanner, NamingLinter, type NamePlan, type NamingLintReport } from '../authoring/naming/index.js';
 
 export type ArchitectureMode = 'greenfield' | 'brownfield';
-export type ArchitecturePlanStatus = 'READY' | 'PARTIAL' | 'ABSTAIN';
+export type ArchitecturePlanStatus = 'READY' | 'PARTIAL' | 'ABSTAIN' | 'NEEDS_INPUT';
 
 export interface ArchitectureGenerationInput {
   featureName: string;
@@ -309,7 +309,15 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
     files.push(makeFile(`${fixtureDirectory}/test.ts`, renderFixtureFile(), 'Fixture extension point matching the profiled repository layout.', existingFiles));
   }
 
-  const status: ArchitecturePlanStatus = warnings.some((warning) => warning.includes('No repository profile')) ? 'PARTIAL' : 'READY';
+  const groundedSteps = steps.filter((s) => s.action !== 'navigate' && (s.name || s.selector));
+  const ungrounded = steps.length > 0 && groundedSteps.length === 0;
+  if (ungrounded) {
+    warnings.push('No grounded steps provided: every step must carry an accessible name or selector. Supply requirements or observed steps.');
+  }
+
+  const status: ArchitecturePlanStatus = ungrounded
+    ? 'NEEDS_INPUT'
+    : warnings.some((warning) => warning.includes('No repository profile')) ? 'PARTIAL' : 'READY';
   return {
     mode: input.mode,
     status,

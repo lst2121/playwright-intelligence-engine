@@ -13,6 +13,7 @@ export const SymbolEntrySchema = z.object({
   confidence: z.number().min(0).max(1),
   source: SymbolSourceSchema,
   assumptions: z.array(z.string()).default([]),
+  frame: z.string().optional(),
 });
 export type SymbolEntry = z.infer<typeof SymbolEntrySchema>;
 

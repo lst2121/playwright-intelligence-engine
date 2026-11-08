@@ -19,6 +19,7 @@ import { bootstrapProjectIntelligence, recordProjectFailure, recordProjectRepair
 import { clusterFailures, FailureObservation } from '../intelligence/failure-clustering.js';
 import { analyzeTestStability, analyzeRepositoryImpact, TestRunObservation } from '../intelligence/suite-intelligence.js';
 import { planArchitecture, writeArchitecturePlan, ArchitectureMode, ArchitectureGenerationInput } from '../generator/architecture-generator.js';
+import { ExecutionRunner } from '../sandbox/execution-runner.js';
 import { buildCiEvidenceReport } from '../integrations/playwright-report-adapter.js';
 import { buildSarifReport } from '../integrations/sarif-report.js';
 import { recordArchitectureWorkflow, recordCiWorkflow } from '../governance/workflow-audit.js';
@@ -685,8 +686,19 @@ export async function runCli(argv: string[]): Promise<void> {
       });
       let writeResult;
       if (argv.includes('--write')) writeResult = await writeArchitecturePlan(process.cwd(), plan);
+      let verification;
+      if (argv.includes('--verify') && writeResult && writeResult.written.length > 0) {
+        const spec = plan.files.find((file) => file.relativePath.endsWith('.spec.ts'));
+        if (spec) {
+          verification = await ExecutionRunner.run('npx', {
+            cwd: process.cwd(),
+            args: ['playwright', 'test', spec.relativePath, '--reporter=line'],
+            timeoutMs: 60_000,
+          });
+        }
+      }
       await recordArchitectureWorkflow(process.cwd(), plan, writeResult);
-      const report = { generatedAt: new Date().toISOString(), plan, writeResult };
+      const report = { generatedAt: new Date().toISOString(), plan, writeResult, ...(verification ? { verification } : {}) };
       const outputIndex = argv.indexOf('--out');
       const outputPath = outputIndex >= 0 ? argv[outputIndex + 1] : undefined;
       if (outputPath) {

@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { GeneratedStep } from './test-generator.js';
 import type { RepositoryConventionProfile } from '../intelligence/repository-profile.js';
 import { NamePlanner, NamingLinter, type NamePlan, type NamingLintReport } from '../authoring/naming/index.js';
+import type { AppModel } from '../perception/app-model.js';
 
 export type ArchitectureMode = 'greenfield' | 'brownfield';
 export type ArchitecturePlanStatus = 'READY' | 'PARTIAL' | 'ABSTAIN' | 'NEEDS_INPUT';
@@ -17,6 +18,7 @@ export interface ArchitectureGenerationInput {
   existingFiles?: string[] | undefined;
   includeCi?: boolean | undefined;
   namePlan?: NamePlan | undefined;
+  appModel?: AppModel | undefined;
 }
 
 export interface ArchitectureFile {
@@ -89,18 +91,24 @@ function defaultSteps(input: ArchitectureGenerationInput): GeneratedStep[] {
   ];
 }
 
-function renderLocator(step: GeneratedStep, preferredLocator: string): string {
+export function renderLocator(step: GeneratedStep, preferredLocator: string, frameSelector?: string): string {
+  let inner: string;
   if (step.action === 'click' && step.role && step.name) {
-    return `this.page.getByRole('${step.role}', { name: '${step.name}' })`;
+    inner = `getByRole('${step.role}', { name: '${step.name}' })`;
+  } else if (step.action === 'fill' && step.name) {
+    if (preferredLocator === 'getByLabel') inner = `getByLabel('${step.name}')`;
+    else inner = `getByRole('textbox', { name: '${step.name}' })`;
+  } else if (step.selector && preferredLocator === 'getByTestId' && /^[A-Za-z0-9_-]+$/.test(step.selector)) {
+    inner = `getByTestId('${step.selector}')`;
+  } else {
+    inner = `locator('${step.selector ?? (step.action === 'fill' ? 'input' : 'button')}')`;
   }
-  if (step.action === 'fill' && step.name) {
-    if (preferredLocator === 'getByLabel') return `this.page.getByLabel('${step.name}')`;
-    return `this.page.getByRole('textbox', { name: '${step.name}' })`;
+
+  const frame = frameSelector ?? step.frame ?? step.frameSelector;
+  if (frame) {
+    return `this.page.frameLocator('${frame}').${inner}`;
   }
-  if (step.selector && preferredLocator === 'getByTestId' && /^[A-Za-z0-9_-]+$/.test(step.selector)) {
-    return `this.page.getByTestId('${step.selector}')`;
-  }
-  return `this.page.locator('${step.selector ?? (step.action === 'fill' ? 'input' : 'button')}')`;
+  return `this.page.${inner}`;
 }
 
 function renderPageObject(className: string, baseUrl: string, steps: GeneratedStep[], preferredLocator: string, namePlan: NamePlan): string {
@@ -109,12 +117,13 @@ function renderPageObject(className: string, baseUrl: string, steps: GeneratedSt
   const methods: string[] = [];
   steps.forEach((step, index) => {
     if (step.action !== 'click' && step.action !== 'fill') return;
-    const symbol = namePlan.symbols[index] ?? namePlan.symbols.find((s) => s.ref === `step-${index + 1}`);
+    const symbol = namePlan.symbols.find((s) => s.ref === `step-${index + 1}`) ?? namePlan.symbols[index];
     const property = symbol?.property ?? (step.action === 'click' ? `actionButton` : `inputField`);
     const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : `fillInput`);
+    const frame = symbol?.frame ?? step.frame ?? step.frameSelector;
 
     declarations.push(`  readonly ${property}: Locator;`);
-    assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator)};`);
+    assignments.push(`    this.${property} = ${renderLocator(step, preferredLocator, frame)};`);
     if (step.action === 'click') {
       methods.push(`  async ${method}(): Promise<void> {\n    await this.${property}.click();\n  }`);
     } else {
@@ -142,7 +151,7 @@ function renderSpec(featureName: string, className: string, pageImport: string, 
   const variable = className[0]!.toLowerCase() + className.slice(1);
   const lines: string[] = [`    await ${variable}.goto();`];
   steps.forEach((step, index) => {
-    const symbol = namePlan.symbols[index] ?? namePlan.symbols.find((s) => s.ref === `step-${index + 1}`);
+    const symbol = namePlan.symbols.find((s) => s.ref === `step-${index + 1}`) ?? namePlan.symbols[index];
     const method = symbol?.method ?? (step.action === 'click' ? `clickAction` : `fillInput`);
 
     if (step.action === 'navigate' && step.value) {
@@ -246,7 +255,22 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   const slug = toSlug(featureName);
   const rawBaseName = toClassName(featureName);
   const fallbackClassName = rawBaseName.endsWith('Page') ? rawBaseName : `${rawBaseName}Page`;
-  const steps = defaultSteps(input);
+  let steps = defaultSteps(input);
+  if (input.appModel && input.appModel.routes) {
+    const allElements = input.appModel.routes.flatMap((r) => r.elements);
+    steps = steps.map((s) => {
+      if (s.frame || s.frameSelector) return s;
+      const match = allElements.find((el) =>
+        el.frameSelector &&
+        ((s.name && (el.accessibleName === s.name || el.label === s.name)) ||
+         (s.role && el.role === s.role && s.name && el.accessibleName === s.name))
+      );
+      if (match?.frameSelector) {
+        return { ...s, frame: match.frameSelector, frameSelector: match.frameSelector };
+      }
+      return s;
+    });
+  }
   const namePlan = input.namePlan ?? NamePlanner.planNames(featureName, steps, input.mode === 'greenfield' ? { existingPageClassName: fallbackClassName } : undefined);
   const className = input.mode === 'brownfield' && namePlan.pageClassName ? namePlan.pageClassName : fallbackClassName;
   const namingLintReport = NamingLinter.lint(namePlan);

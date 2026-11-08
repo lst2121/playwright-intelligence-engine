@@ -7,6 +7,8 @@ export interface GeneratedStep {
   selector?: string;
   value?: string;
   expectedText?: string;
+  frame?: string;
+  frameSelector?: string;
 }
 
 export interface GeneratedSuiteOutput {

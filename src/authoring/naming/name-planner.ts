@@ -292,6 +292,7 @@ export class NamePlanner {
       }
       usedMethods.add(method);
 
+      const frame = step.frame ?? step.frameSelector;
       symbols.push({
         ref,
         role: step.role,
@@ -302,6 +303,7 @@ export class NamePlanner {
         confidence: propResult.isFallback ? 0.75 : 0.95,
         source,
         assumptions: [],
+        ...(frame ? { frame } : {}),
       });
     });
 

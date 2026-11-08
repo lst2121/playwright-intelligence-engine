@@ -101,6 +101,30 @@ export interface RegressionCheckRecord {
  *  latency sample. */
 const SCENARIO_BUDGET_MS = 180_000;
 
+/**
+ * WP4 drift attestation — "prove the app changed before repairing".
+ * A LOCATOR_DRIFT classification is only legitimate when the failed selector's
+ * target identity is genuinely absent from the captured DOM. If the target is
+ * still present, the failure is a visibility/timing/actionability problem, not
+ * drift, and the engine must abstain.
+ */
+function selectorTargetStillPresent(selector: string, html: string): boolean {
+  if (!selector || !html) return false;
+  const tokens: string[] = [];
+  const name = selector.match(/name\s*:\s*['"]([^'"]+)['"]/);
+  if (name?.[1]) tokens.push(name[1]);
+  const label = selector.match(/getByLabel\(['"]([^'"]+)['"]\)/);
+  if (label?.[1]) tokens.push(label[1]);
+  const text = selector.match(/getByText\(['"]([^'"]+)['"]\)/);
+  if (text?.[1]) tokens.push(text[1]);
+  const testId = selector.match(/getByTestId\(['"]([^'"]+)['"]\)/);
+  if (testId?.[1]) tokens.push(testId[1]);
+  const id = selector.match(/locator\(['"]#([^'")\s]+)/);
+  if (id?.[1]) tokens.push(id[1]);
+  const lower = html.toLowerCase();
+  return tokens.some((t) => t.length > 0 && lower.includes(t.toLowerCase()));
+}
+
 export class MasterBenchmarkRunner {
   private app = new ControlledAppServer();
   private records: BenchmarkScenarioRecord[] = [];
@@ -469,8 +493,9 @@ export class MasterBenchmarkRunner {
             evidenceCompleteness: { domAvailable: true, networkAvailable: true, sourceAvailable: true },
           };
           const classification = FailureClassifier.classify(diagnosticContext);
+          const targetStillPresent = selectorTargetStillPresent(m.oldSelector, domSnapshot);
 
-          if (classification.category === 'LOCATOR_DRIFT' && !classification.shouldAbstain) {
+          if (classification.category === 'LOCATOR_DRIFT' && !classification.shouldAbstain && !targetStillPresent) {
             // Step 4: Frame-aware Autonomous Candidate Extraction.
             // Collect interactive elements from the main frame AND every same-origin
             // child frame, so a target living inside an <iframe> is discoverable
@@ -665,7 +690,9 @@ export class MasterBenchmarkRunner {
             }
           } else {
             actualOutcome = 'ABSTAIN';
-            notes = `Failure classifier triggered safe abstention: ${classification.reason}`;
+            notes = targetStillPresent
+              ? 'NOT_DRIFT: failed selector target is still present in the live DOM — the app did not change; abstaining (no drift).'
+              : `Failure classifier triggered safe abstention: ${classification.reason}`;
           }
         }
       } catch (err: any) {

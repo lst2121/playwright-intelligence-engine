@@ -96,6 +96,11 @@ export interface RegressionCheckRecord {
   durationMs: number;
 }
 
+/** Wall-clock ceiling per scenario. A scenario exceeding this is almost
+ *  certainly environment-disturbed (host sleep, dead sockets), never a real
+ *  latency sample. */
+const SCENARIO_BUDGET_MS = 180_000;
+
 export class MasterBenchmarkRunner {
   private app = new ControlledAppServer();
   private records: BenchmarkScenarioRecord[] = [];
@@ -631,7 +636,7 @@ export class MasterBenchmarkRunner {
                     notes = `Repaired via ${expr}. Live verified in browser (count=${selectedLiveVerification.count}). Zero regressions confirmed.`;
                   } else {
                     actualOutcome = 'FAIL';
-                    notes = `Repair passed target test but failed regression check or authorization: ${verifiedAuth.summary}`;
+                    notes = `targetTestExitCode=${realExecutionResult.exitCode} targetTestPassed=${executionPassed} regressionPassed=${regressionPass} authorized=${verifiedAuth.isAuthorized} summary=${verifiedAuth.summary}`;
                   }
                 } else {
                   actualOutcome = 'FAIL';
@@ -656,7 +661,12 @@ export class MasterBenchmarkRunner {
         await page.close();
       }
 
-      const durationMs = parseFloat((performance.now() - t0).toFixed(2));
+      let durationMs = parseFloat((performance.now() - t0).toFixed(2));
+      if (durationMs > SCENARIO_BUDGET_MS) {
+        durationMs = SCENARIO_BUDGET_MS;
+        actualOutcome = 'FAIL';
+        notes = `SCENARIO_TIMEOUT: exceeded ${SCENARIO_BUDGET_MS}ms wall-clock budget (environment-disturbed). ${notes}`.trim();
+      }
       this.records.push({
         id: m.id,
         tier: 'TIER_2_MUTATION',

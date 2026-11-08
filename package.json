@@ -23,6 +23,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json --noEmit && tsc -p tsconfig.benchmarks.json --noEmit",
     "benchmark": "tsx benchmarks/runner/master-benchmark-runner.ts",
+    "verify:all": "node scripts/verify/index.mjs",
+    "verify:full": "node scripts/verify/index.mjs --full",
     "verify:baseline": "node scripts/verify-baseline.mjs"
   },
   "keywords": [

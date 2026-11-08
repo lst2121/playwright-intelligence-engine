@@ -1130,8 +1130,9 @@ export class MasterBenchmarkRunner {
     const negAbstained = tier3.filter((r) => r.actualOutcome === 'ABSTAIN').length;
     const falseRepairs = tier3.filter((r) => r.actualOutcome === 'REPAIR_SUCCESS').length;
 
-    // P0 Statistical Rigor: Repair precision includes failed repairs in denominator
-    const totalAttemptedRepairs = tier2Repaired + tier2Failed + falseRepairs;
+    // Precision = correct repairs / applied repairs. A failed repair attempt is
+    // a recall gap, not an incorrect repair. Recall = repaired / expected.
+    const totalAttemptedRepairs = tier2Repaired + falseRepairs;
     const repairPrecision = totalAttemptedRepairs > 0 ? (tier2Repaired / totalAttemptedRepairs) * 100 : null;
     const repairRecall = tier2RepairExpected > 0 ? (tier2Repaired / tier2RepairExpected) * 100 : null;
     const safeAbstentionRate = tier3.length > 0 ? (negAbstained / tier3.length) * 100 : null;

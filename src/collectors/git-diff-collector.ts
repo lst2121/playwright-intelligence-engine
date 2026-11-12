@@ -75,10 +75,12 @@ export class GitDiffCollector implements EvidenceCollector<GitDiffInput> {
 
       // Extract modified selectors or identifiers in diff
       const modifiedAttributes: string[] = [];
-      const attrMatches = cleanDiff.matchAll(/[+-]\s*.*?(id|data-testid|class|name|role|aria-label)=["']([^"']+)["']/g);
+      const attrMatches = cleanDiff.matchAll(/[+-]\s*.*?(id|data-testid|class|name|role|aria-label|placeholder)=["']([^"']+)["']/g);
       for (const m of attrMatches) {
         modifiedAttributes.push(`${m[1]}="${m[2]}"`);
       }
+
+      const diffHints = GitDiffCollector.extractDiffHints(cleanDiff, changedFiles);
 
       return [
         {
@@ -92,6 +94,7 @@ export class GitDiffCollector implements EvidenceCollector<GitDiffInput> {
             recentCommits,
             changedFiles,
             modifiedAttributes: Array.from(new Set(modifiedAttributes)),
+            diffHints,
             diffSnippet: cleanDiff.slice(0, 10000),
           },
           reliability: 'HIGH',
@@ -128,6 +131,60 @@ export class GitDiffCollector implements EvidenceCollector<GitDiffInput> {
         },
       ];
     }
+  }
+
+  public static extractDiffHints(cleanDiff: string, changedFiles: string[]): {
+    changedRoutes: string[];
+    changedSymbols: string[];
+    apiEndpoints: string[];
+    validationHints: string[];
+    existingTestsChanged: string[];
+  } {
+    const addedOrChangedLines = cleanDiff
+      .split(/\r?\n/)
+      .filter((line) => (line.startsWith('+') || line.startsWith('-')) && !line.startsWith('+++') && !line.startsWith('---'))
+      .join('\n');
+
+    const changedRoutes = new Set<string>();
+    for (const file of changedFiles) {
+      const appMatch = file.match(/(?:^|\/)(?:src\/)?app\/(.+?)\/page\.[tj]sx?$/i);
+      if (appMatch?.[1]) changedRoutes.add(`/${appMatch[1]}`);
+      const pagesMatch = file.match(/(?:^|\/)(?:src\/)?pages\/(.+?)\.[tj]sx?$/i);
+      if (pagesMatch?.[1] && !pagesMatch[1].startsWith('api/')) {
+        changedRoutes.add(pagesMatch[1] === 'index' ? '/' : `/${pagesMatch[1].replace(/\/index$/, '')}`);
+      }
+    }
+    for (const m of addedOrChangedLines.matchAll(/path\s*[:=]\s*['"](\/[^'"]*)['"]/g)) {
+      if (m[1]) changedRoutes.add(m[1]);
+    }
+
+    const changedSymbols = new Set<string>();
+    for (const m of addedOrChangedLines.matchAll(/(?:function|class|const|export\s+(?:async\s+)?function)\s+([A-Za-z_][A-Za-z0-9_]*)/g)) {
+      if (m[1]) changedSymbols.add(m[1]);
+    }
+
+    const apiEndpoints = new Set<string>();
+    for (const m of addedOrChangedLines.matchAll(/['"`](\/api\/[A-Za-z0-9_/?=&{}:-]+)['"`]/g)) {
+      if (m[1]) apiEndpoints.add(m[1]);
+    }
+
+    const validationHints = new Set<string>();
+    for (const m of addedOrChangedLines.matchAll(/\.(min|max|email|regex|required)\s*\(([^)]*)\)/g)) {
+      validationHints.add(`${m[1]}(${(m[2] ?? '').trim()})`);
+    }
+    for (const m of addedOrChangedLines.matchAll(/required(?:\s*=\s*\{?true\}?|\b)/g)) {
+      validationHints.add(m[0].trim());
+    }
+
+    const existingTestsChanged = changedFiles.filter((f) => /\.(?:spec|test)\.[tj]sx?$/i.test(f));
+
+    return {
+      changedRoutes: [...changedRoutes],
+      changedSymbols: [...changedSymbols].slice(0, 30),
+      apiEndpoints: [...apiEndpoints].slice(0, 20),
+      validationHints: [...validationHints].slice(0, 20),
+      existingTestsChanged,
+    };
   }
 }
 

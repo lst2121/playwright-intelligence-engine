@@ -42,6 +42,9 @@ export * from './repair/workspace-promoter.js';
 export * from './repair/repair-operations.js';
 export * from './repair/verification-gates.js';
 export * from './repair/safe-operation-compiler.js';
+export * from './collectors/git-diff-collector.js';
+export * from './collectors/network-collector.js';
+export * from './collectors/static-ast-collector.js';
 export * from './repair/browser-operation-executor.js';
 export * from './repair/source-mapper.js';
 
@@ -80,6 +83,7 @@ export * from './intelligence/failure-clustering.js';
 export * from './intelligence/suite-intelligence.js';
 export * from './intelligence/business-intent.js';
 export * from './intelligence/test-intelligence.js';
+export * from './intelligence/workflow-planner.js';
 export * from './integrations/ci-summary.js';
 export * from './integrations/quality-gate.js';
 export * from './integrations/playwright-report-adapter.js';

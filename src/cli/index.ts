@@ -33,6 +33,9 @@ import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput } from '../intelligence/test-intelligence.js';
 import { runGenerationAgent } from '../intelligence/generation-agent.js';
+import { runEvidenceDrivenGeneration } from '../intelligence/generation-verifier.js';
+import { GitDiffCollector } from '../collectors/git-diff-collector.js';
+import type { AuthorKind } from '../authoring/index.js';
 
 export async function runCli(argv: string[]): Promise<void> {
   const command = argv[2];
@@ -757,6 +760,96 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === 'qa') {
+    const featureName = argv[3] && !argv[3].startsWith('--') ? argv[3] : undefined;
+    const readFlag = (flag: string): string | undefined => {
+      const idx = argv.indexOf(flag);
+      return idx >= 0 && argv[idx + 1] && !argv[idx + 1]!.startsWith('--') ? argv[idx + 1] : undefined;
+    };
+    const workspaceRoot = path.resolve(readFlag('--workspace') ?? process.cwd());
+    const baseUrl = readFlag('--url') ?? readFlag('--base-url');
+    const requirementsPath = readFlag('--requirements');
+    const markdownPath = readFlag('--markdown');
+    const gherkinPath = readFlag('--gherkin');
+    const promptFlag = readFlag('--prompt');
+    const outArtifactDir = readFlag('--out-dir');
+    const storageStatePath = readFlag('--storage-state');
+    const authorFlag = readFlag('--author') as AuthorKind | undefined;
+    const author: AuthorKind | undefined = authorFlag === 'template' || authorFlag === 'hybrid' || authorFlag === 'llm' ? authorFlag : undefined;
+    const useDiff = argv.includes('--diff');
+    const write = !argv.includes('--no-write');
+    const verify = !argv.includes('--no-verify');
+    const runMutations = !argv.includes('--no-mutate');
+    const allowMutatingActions = argv.includes('--allow-mutating');
+
+    try {
+      let markdown = markdownPath ? await fs.promises.readFile(path.resolve(markdownPath), 'utf8') : undefined;
+      let jsonRequirements: unknown;
+      let prompt = promptFlag;
+      let featureText = gherkinPath ? await fs.promises.readFile(path.resolve(gherkinPath), 'utf8') : undefined;
+
+      if (requirementsPath) {
+        const resolvedReqPath = path.resolve(requirementsPath);
+        const rawReq = await fs.promises.readFile(resolvedReqPath, 'utf8');
+        if (resolvedReqPath.toLowerCase().endsWith('.json')) {
+          jsonRequirements = JSON.parse(rawReq);
+        } else if (resolvedReqPath.toLowerCase().endsWith('.feature')) {
+          featureText = featureText ?? rawReq;
+        } else {
+          markdown = markdown ?? rawReq;
+        }
+      }
+
+      if (!featureName && !markdown && !jsonRequirements && !featureText && !prompt && !useDiff) {
+        console.error(
+          'Usage: pw-intel qa <featureName> [--workspace <dir>] [--url <baseUrl>] [--requirements <path>] [--markdown <path>] [--gherkin <path>] [--prompt <text>] [--diff] [--author template|hybrid|llm] [--out-dir <dir>] [--storage-state <path>] [--allow-mutating] [--no-write] [--no-verify] [--no-mutate]',
+        );
+        process.exit(1);
+      }
+
+      let gitDiff: { changedFiles?: string[]; changedRoutes?: string[]; changedSymbols?: string[]; apiEndpoints?: string[]; validationHints?: string[] } | undefined;
+      if (useDiff) {
+        const collected = await new GitDiffCollector().collect({ workspaceRoot });
+        const payload = collected[0]?.payload as { changedFiles?: string[]; diffHints?: { changedRoutes?: string[]; changedSymbols?: string[]; apiEndpoints?: string[]; validationHints?: string[] } } | undefined;
+        if (payload?.changedFiles?.length) {
+          gitDiff = {
+            changedFiles: payload.changedFiles,
+            ...(payload.diffHints ?? {}),
+          };
+        }
+      }
+
+      const result = await runEvidenceDrivenGeneration({
+        workspaceRoot,
+        featureName,
+        baseUrl,
+        prompt,
+        markdown,
+        jsonRequirements,
+        featureText,
+        gitDiff,
+        author,
+        outArtifactDir,
+        storageStatePath,
+        allowMutatingActions,
+        write,
+        verify,
+        runMutations,
+      });
+
+      const outFlag = readFlag('--out');
+      if (outFlag) {
+        await fs.promises.mkdir(path.dirname(path.resolve(outFlag)), { recursive: true });
+        await fs.promises.writeFile(path.resolve(outFlag), `${JSON.stringify(result.qaReport, null, 2)}\n`, 'utf8');
+      }
+      console.log(JSON.stringify(result.qaReport, null, 2));
+    } catch (err: any) {
+      console.error(`QA pipeline failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+    return;
+  }
+
   if (command === 'ci-report') {
     const reportPath = argv[3];
     if (!reportPath) {
@@ -985,6 +1078,8 @@ Usage:
   pw-intel team-dashboard <json> Aggregates repository CI evidence into a team dashboard
   pw-intel impact <json>         Selects impacted tests from changed files and repository imports
   pw-intel architect <featureName> Plans greenfield/brownfield Playwright architecture; add --write to create missing files
+  pw-intel qa <featureName>         Runs 4-phase evidence-driven QA workflow (plan, explore, generate, verify & falsify)
+                                   --workspace <dir> --url <baseUrl> --requirements <path> --gherkin <path> --diff --author template|hybrid|llm --out-dir <dir>
   pw-intel ci-report <playwright-report.json> Ingests Playwright JSON and emits clusters, stability, gate, and CI annotations
                                    --sarif-out <file> writes GitHub/code-scanning SARIF output
   pw-intel doctor                   Inspects host environment, Node, Git, Playwright & workspace readiness

@@ -45,4 +45,24 @@ test('should complete Task Creation', async ({ taskPage, page }) => {
     expect(report.isVacuousEcho).toBe(false);
     expect(report.violations).toHaveLength(0);
   });
+
+  it('rejects constant assertions, arbitrary waitForTimeout sleeps, and skipped/empty tests', () => {
+    const spec = `
+test.skip('should work', async ({ page }) => {});
+test('constant', async ({ page }) => {
+  await page.waitForTimeout(500);
+  expect(true).toBe(true);
+  await expect(page).toHaveURL(/home/);
 });
+`;
+    const report = AssertionQualityGate.evaluate(spec, 'Home');
+    expect(report.passed).toBe(false);
+    expect(report.constantAssertionCount).toBe(1);
+    expect(report.arbitrarySleepCount).toBe(1);
+    expect(report.emptyOrSkippedCount).toBe(1);
+    expect(report.violations.some((v) => v.includes('CONSTANT_ASSERTION'))).toBe(true);
+    expect(report.violations.some((v) => v.includes('ARBITRARY_SLEEP'))).toBe(true);
+    expect(report.violations.some((v) => v.includes('EMPTY_OR_SKIPPED_TEST'))).toBe(true);
+  });
+});
+

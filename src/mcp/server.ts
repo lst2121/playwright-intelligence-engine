@@ -30,6 +30,8 @@ import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { runTraceProposalWorkflow } from '../intelligence/trace-proposal-workflow.js';
 import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
+import { runEvidenceDrivenGeneration } from '../intelligence/generation-verifier.js';
+import type { AuthorKind } from '../authoring/index.js';
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -273,6 +275,29 @@ export class McpServer {
                     write: { type: 'boolean' },
                   },
                   required: ['featureName', 'mode'],
+                },
+              },
+              {
+                name: 'run_qa_pipeline',
+                description: 'Runs the 4-phase evidence-driven QA generation, live exploration, assertion-preserving verification, and mutation falsification pipeline.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    featureName: { type: 'string' },
+                    workspaceRoot: { type: 'string' },
+                    baseUrl: { type: 'string' },
+                    prompt: { type: 'string' },
+                    markdown: { type: 'string' },
+                    jsonRequirements: {},
+                    featureText: { type: 'string' },
+                    editedFeatureText: { type: 'string' },
+                    author: { type: 'string', enum: ['template', 'hybrid', 'llm'] },
+                    outArtifactDir: { type: 'string' },
+                    allowMutatingActions: { type: 'boolean' },
+                    write: { type: 'boolean' },
+                    verify: { type: 'boolean' },
+                    runMutations: { type: 'boolean' },
+                  },
                 },
               },
               {
@@ -822,6 +847,55 @@ export class McpServer {
         const writeResult = write === true ? await writeArchitecturePlan(this.workspaceRoot, plan) : undefined;
         await recordArchitectureWorkflow(this.workspaceRoot, plan, writeResult);
         return { jsonrpc: '2.0', id, result: { plan, writeResult } };
+      }
+
+      if (toolName === 'run_qa_pipeline') {
+        const {
+          featureName,
+          workspaceRoot,
+          baseUrl,
+          prompt,
+          markdown,
+          jsonRequirements,
+          featureText,
+          editedFeatureText,
+          author,
+          outArtifactDir,
+          allowMutatingActions,
+          write,
+          verify,
+          runMutations,
+        } = args ?? {};
+        const targetWorkspace = typeof workspaceRoot === 'string' && workspaceRoot.trim()
+          ? path.resolve(workspaceRoot)
+          : this.workspaceRoot;
+        const resolvedAuthor: AuthorKind | undefined =
+          author === 'template' || author === 'hybrid' || author === 'llm' ? author : undefined;
+        const result = await runEvidenceDrivenGeneration({
+          workspaceRoot: targetWorkspace,
+          featureName: typeof featureName === 'string' ? featureName : undefined,
+          baseUrl: typeof baseUrl === 'string' ? baseUrl : undefined,
+          prompt: typeof prompt === 'string' ? prompt : undefined,
+          markdown: typeof markdown === 'string' ? markdown : undefined,
+          jsonRequirements,
+          featureText: typeof featureText === 'string' ? featureText : undefined,
+          editedFeatureText: typeof editedFeatureText === 'string' ? editedFeatureText : undefined,
+          author: resolvedAuthor,
+          outArtifactDir: typeof outArtifactDir === 'string' ? outArtifactDir : undefined,
+          allowMutatingActions: allowMutatingActions === true,
+          write: write !== false,
+          verify: verify !== false,
+          runMutations: runMutations !== false,
+        });
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            qaReport: result.qaReport,
+            workflowPlan: result.workflowPlan,
+            featureText: result.featureText,
+          },
+        };
       }
 
       if (toolName === 'get_product_status') {

@@ -373,6 +373,81 @@ export class InteractiveWorkflowRunner {
       const allowMutating = options.allowMutatingActions ?? isLocalhostUrl(options.baseUrl);
       let lastCreatedValue: string | undefined;
 
+      // Multi-route discovery sweep: inspect same-origin links & static routes once before scenarios
+      try {
+        await page.goto(options.baseUrl, { waitUntil: 'networkidle', timeout: Math.min(timeoutMs, 6_000) }).catch(() =>
+          page.goto(options.baseUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs }),
+        );
+        const origin = new URL(options.baseUrl).origin;
+        const linkHrefs: string[] = await page.$$eval('a[href]', (anchors: any[]) =>
+          anchors.map((a) => String(a.getAttribute('href') || '')).filter(Boolean),
+        ).catch(() => []);
+        const candidateRoutes = new Set<string>([options.baseUrl]);
+        for (const href of linkHrefs) {
+          if (href.startsWith('#') || /^(?:mailto:|tel:|javascript:)/i.test(href)) continue;
+          if (/logout|signout|delete|destroy|remove/i.test(href)) continue;
+          try {
+            const resolved = new URL(href, options.baseUrl);
+            if (resolved.origin === origin) candidateRoutes.add(resolved.href);
+          } catch {}
+        }
+        for (const hintRoute of repoGraph?.sourceHints.routes ?? []) {
+          if (!hintRoute.startsWith('/') || hintRoute.includes(':') || /logout|signout|delete/i.test(hintRoute)) continue;
+          try {
+            candidateRoutes.add(new URL(hintRoute, origin).href);
+          } catch {}
+        }
+        const routesToSweep = [...candidateRoutes].slice(0, 5);
+        for (const routeUrl of routesToSweep) {
+          await page.goto(routeUrl, { waitUntil: 'networkidle', timeout: Math.min(timeoutMs, 4_000) }).catch(() =>
+            page.goto(routeUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs }),
+          );
+          const sweepPathname = (() => {
+            try {
+              return new URL(page.url()).pathname || '/';
+            } catch {
+              return '/';
+            }
+          })();
+          const sweepTitle = typeof page.title === 'function' ? await page.title().catch(() => undefined) : undefined;
+          if (!routesMap.has(sweepPathname)) {
+            routesMap.set(sweepPathname, {
+              route: sweepPathname,
+              ...(sweepTitle ? { title: sweepTitle } : {}),
+              discoveredAt: new Date().toISOString(),
+              locatorIds: [],
+            });
+          }
+          const sweepControls = await collectInteractiveControls(page);
+          for (const ctrl of sweepControls) {
+            const built = buildLocatorPlanFromDom(ctrl);
+            if (seenLocatorExpr.has(`${sweepPathname}::${built.expression}`)) continue;
+            const ver = await LiveLocatorVerifier.verify(page, built.plan);
+            const locId = `loc-${verifiedLocators.length + 1}`;
+            seenLocatorExpr.add(`${sweepPathname}::${built.expression}`);
+            verifiedLocators.push({
+              id: locId,
+              route: sweepPathname,
+              strategy: built.strategy,
+              expression: built.expression,
+              ...(ctrl.role ? { role: ctrl.role } : {}),
+              ...(ctrl.accessibleName ? { accessibleName: ctrl.accessibleName } : {}),
+              ...(ctrl.label ? { label: ctrl.label } : {}),
+              ...(ctrl.placeholder ? { placeholder: ctrl.placeholder } : {}),
+              ...(ctrl.testId ? { testId: ctrl.testId } : {}),
+              matchCount: ver.count,
+              visible: ver.isVisible,
+              enabled: ver.isEnabled,
+              confidence: ver.isUnique ? 0.95 : 0.5,
+              timestamp: new Date().toISOString(),
+            });
+            routesMap.get(sweepPathname)!.locatorIds.push(locId);
+          }
+        }
+      } catch {
+        // Ignore non-fatal route sweep errors; scenario loop continues directly on baseUrl
+      }
+
       for (let scIdx = 0; scIdx < options.workflowPlan.scenarios.length; scIdx += 1) {
         const scenario = options.workflowPlan.scenarios[scIdx]!;
         currentScenarioId = scenario.id;

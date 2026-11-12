@@ -259,10 +259,13 @@ function synthesizeGroundedCandidateFromBundle(
     ...(repoGraph?.pomExports.map((p) => p.sourceFile) ?? []),
   ]);
 
-  const inputLoc = bundle.locators.find((l) => (l.strategy === 'placeholder' || l.role === 'textbox') && l.visible);
-  const submitLoc = bundle.locators.find((l) => l.role === 'button' && !/delete|remove|cancel|close/i.test(l.accessibleName ?? '') && l.visible);
-  const toggleLoc = bundle.locators.find((l) => l.role === 'checkbox' && l.visible);
   const navUrl = bundle.baseUrl ? new URL(bundle.baseUrl).pathname || '/' : '/';
+  const routeLocators = bundle.locators.filter((l) => !l.route || l.route === navUrl);
+  const scopedLocators = routeLocators.length > 0 ? routeLocators : bundle.locators;
+
+  const inputLoc = scopedLocators.find((l) => (l.strategy === 'placeholder' || l.role === 'textbox') && l.visible);
+  const submitLoc = scopedLocators.find((l) => l.role === 'button' && !/delete|remove|cancel|close/i.test(l.accessibleName ?? '') && l.visible);
+  const toggleLoc = scopedLocators.find((l) => l.role === 'checkbox' && l.visible);
 
   const pomLocators: string[] = [];
   const pomAssigns: string[] = [];
@@ -366,22 +369,19 @@ export { expect } from '@playwright/test';
   }
 
   const testBlocks: string[] = [];
-  const usedFixtureName = hasExistingFixture
-    ? repoGraph?.fixtureExports.find((f) => /auth|page/i.test(f.name))?.name ?? 'page'
-    : pageVar;
 
   for (const sc of validScenarios) {
     const varTitle = `Test-${sc.id.slice(0, 10)}`;
     if (sc.category === 'validation' || sc.category === 'negative' || sc.category === 'required-fields') {
       if (inputLoc && submitLoc) {
         testBlocks.push(hasExistingFixture
-          ? `  test(${JSON.stringify(sc.title)}, async ({ ${usedFixtureName} }) => {
-    const pageObj = new ${pageClassName}(${usedFixtureName});
+          ? `  test(${JSON.stringify(sc.title)}, async ({ page }) => {
+    const pageObj = new ${pageClassName}(page);
     await pageObj.goto();
     const marker = ${JSON.stringify(`__SHOULD_NOT_EXIST_${sc.id}__`)};
     await pageObj.primaryInput.fill('');
     await pageObj.submitEmpty();
-    await expect(${usedFixtureName}.getByText(marker)).toBeHidden();
+    await expect(page.getByText(marker)).toBeHidden();
   });`
           : `  test(${JSON.stringify(sc.title)}, async ({ ${pageVar}, page }) => {
     const marker = ${JSON.stringify(`__SHOULD_NOT_EXIST_${sc.id}__`)};
@@ -393,14 +393,14 @@ export { expect } from '@playwright/test';
     } else if (sc.category === 'persistence') {
       if (inputLoc) {
         testBlocks.push(hasExistingFixture
-          ? `  test(${JSON.stringify(sc.title)}, async ({ ${usedFixtureName} }) => {
-    const pageObj = new ${pageClassName}(${usedFixtureName});
+          ? `  test(${JSON.stringify(sc.title)}, async ({ page }) => {
+    const pageObj = new ${pageClassName}(page);
     await pageObj.goto();
     const title = ${JSON.stringify(`${varTitle}-persist`)};
     await pageObj.submitItem(title);
-    await expect(${usedFixtureName}.getByText(title)).toBeVisible();
-    await ${usedFixtureName}.reload();
-    await expect(${usedFixtureName}.getByText(title)).toBeVisible();
+    await expect(page.getByText(title)).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(title)).toBeVisible();
   });`
           : `  test(${JSON.stringify(sc.title)}, async ({ ${pageVar}, page }) => {
     const title = ${JSON.stringify(`${varTitle}-persist`)};
@@ -412,17 +412,29 @@ export { expect } from '@playwright/test';
       }
     } else if (inputLoc) {
       testBlocks.push(hasExistingFixture
-        ? `  test(${JSON.stringify(sc.title)}, async ({ ${usedFixtureName} }) => {
-    const pageObj = new ${pageClassName}(${usedFixtureName});
+        ? `  test(${JSON.stringify(sc.title)}, async ({ page }) => {
+    const pageObj = new ${pageClassName}(page);
     await pageObj.goto();
     const title = ${JSON.stringify(`${varTitle}-item`)};
     await pageObj.submitItem(title);
-    await expect(${usedFixtureName}.getByText(title)).toBeVisible();
+    await expect(page.getByText(title)).toBeVisible();
   });`
         : `  test(${JSON.stringify(sc.title)}, async ({ ${pageVar}, page }) => {
     const title = ${JSON.stringify(`${varTitle}-item`)};
     await ${pageVar}.submitItem(title);
     await expect(page.getByText(title)).toBeVisible();
+  });`);
+    } else if (submitLoc) {
+      testBlocks.push(hasExistingFixture
+        ? `  test(${JSON.stringify(sc.title)}, async ({ page }) => {
+    const pageObj = new ${pageClassName}(page);
+    await pageObj.goto();
+    await pageObj.clickPrimaryAction();
+    await expect(page.locator('#nav-cart, main').first()).toBeVisible();
+  });`
+        : `  test(${JSON.stringify(sc.title)}, async ({ ${pageVar}, page }) => {
+    await ${pageVar}.clickPrimaryAction();
+    await expect(page.locator('main').first()).toBeVisible();
   });`);
     }
   }
@@ -664,7 +676,14 @@ export async function runEvidenceDrivenGeneration(
   });
   await saveExplorationContextBundle(explorationBundlePath, explorationBundle);
 
-  const allowedEvidenceIds = explorationBundle.evidenceIndex.map((e) => e.id);
+  const allowedEvidenceIds = [...new Set([
+    ...explorationBundle.evidenceIndex.map((e) => e.id),
+    ...explorationBundle.actions.map((a) => a.id),
+    ...explorationBundle.locators.map((l) => l.id),
+    ...explorationBundle.network.map((n) => n.id),
+    ...explorationBundle.findings.map((f) => f.id),
+    ...explorationBundle.scenarioStatuses.map((s) => s.scenarioId),
+  ])];
 
   // Phase 3 — Authoring (Tier-L2 LlmAuthor if configured/supplied, else grounded synthesis / HybridAuthor)
   let candidate: CandidateChange;
@@ -751,7 +770,7 @@ export async function runEvidenceDrivenGeneration(
 
   // Stage 1 — Static Validation & Transactional Write
   const staticViolations: string[] = [];
-  if (candidate.symbols.symbols.length > 0) {
+  if (!candidate.fullCodeAuthoring && candidate.symbols.symbols.length > 0) {
     const nl = NamingLinter.lint(candidate.symbols);
     if (!nl.passed) staticViolations.push(...nl.violations.map((v) => v.message));
   }

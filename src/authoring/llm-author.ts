@@ -114,15 +114,20 @@ function extractNamePlanFromGeneratedFiles(featureName: string, proposal: FullGe
       if (clsName) {
         pageClassName = clsName.endsWith('Page') ? clsName : `${clsName}Page`;
       }
-      const props = pageClass.getProperties().map((p) => p.getName());
+      const props = pageClass
+        .getProperties()
+        .map((p) => p.getName())
+        .filter((p) => p !== 'page');
       const methods = pageClass.getMethods().filter((m) => m.getName() !== 'goto');
+      const usedPropNames = new Set<string>();
 
       for (let i = 0; i < methods.length; i += 1) {
         const methodDecl = methods[i]!;
         const method = methodDecl.getName();
         const bodyText = methodDecl.getBodyText() ?? '';
-        const matchedProp = props.find((p) => new RegExp(`\\bthis\\.${p}\\b`).test(bodyText));
+        const matchedProp = props.find((p) => !usedPropNames.has(p) && new RegExp(`\\bthis\\.${p}\\b`).test(bodyText));
         const property = matchedProp ?? `${method}Locator`;
+        usedPropNames.add(property);
         const verbMatch = method.match(/^([a-z]+)/);
         symbols.push({
           ref: `ast-${i + 1}`,

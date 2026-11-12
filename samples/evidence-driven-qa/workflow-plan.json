@@ -1,0 +1,408 @@
+{
+  "planVersion": "1.0",
+  "featureName": "Todo Task Management",
+  "slug": "todo-task-management",
+  "background": [
+    "the application is accessible at http://127.0.0.1:5173/todo-app/"
+  ],
+  "inputs": [
+    {
+      "kind": "markdown",
+      "reference": "markdown-requirements"
+    },
+    {
+      "kind": "source",
+      "reference": "source:1-routes"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "title": "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to ad...",
+      "description": "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to add it to the task list.",
+      "acceptanceCriteria": [
+        "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to add it to the task list."
+      ],
+      "provenance": "explicit-requirement",
+      "risk": "medium",
+      "ambiguous": false,
+      "clarificationsNeeded": [],
+      "sourceRef": "markdown"
+    },
+    {
+      "id": "REQ-2",
+      "title": "Submitting an empty task title is ignored without adding blank tasks.",
+      "description": "Submitting an empty task title is ignored without adding blank tasks.",
+      "acceptanceCriteria": [
+        "Submitting an empty task title is ignored without adding blank tasks."
+      ],
+      "provenance": "explicit-requirement",
+      "risk": "medium",
+      "ambiguous": false,
+      "clarificationsNeeded": [],
+      "sourceRef": "markdown"
+    },
+    {
+      "id": "REQ-3",
+      "title": "Users can mark tasks completed, delete tasks, and existing tasks persist in l...",
+      "description": "Users can mark tasks completed, delete tasks, and existing tasks persist in localStorage across page reload.",
+      "acceptanceCriteria": [
+        "Users can mark tasks completed, delete tasks, and existing tasks persist in localStorage across page reload."
+      ],
+      "provenance": "explicit-requirement",
+      "risk": "critical",
+      "ambiguous": false,
+      "clarificationsNeeded": [],
+      "sourceRef": "markdown"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "sc-req-1-happy-path",
+      "requirementRefs": [
+        "REQ-1"
+      ],
+      "title": "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to ad... (happy-path)",
+      "category": "happy-path",
+      "priority": "P1",
+      "tags": [
+        "@id:sc-req-1-happy-path",
+        "@req:REQ-1",
+        "@happy-path",
+        "@explicit-requirement"
+      ],
+      "provenance": "explicit-requirement",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the application is accessible at http://127.0.0.1:5173/todo-app/"
+        },
+        {
+          "keyword": "When",
+          "text": "the user executes the primary flow for \"Users can enter a new task title in \"Add a New Task\" and click \"Create\" to ad...\"",
+          "actionHint": "happy-path"
+        },
+        {
+          "keyword": "Then",
+          "text": "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to add it to the task list."
+        }
+      ],
+      "expectedOutcomes": [
+        "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to add it to the task list."
+      ],
+      "evidenceRequirements": [
+        "live-ui:happy-path"
+      ],
+      "confidence": 0.9,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-1-persistence",
+      "requirementRefs": [
+        "REQ-1"
+      ],
+      "title": "Users can enter a new task title in \"Add a New Task\" and click \"Create\" to ad... (persistence)",
+      "category": "persistence",
+      "priority": "P2",
+      "tags": [
+        "@id:sc-req-1-persistence",
+        "@req:REQ-1",
+        "@persistence",
+        "@source-derived"
+      ],
+      "provenance": "source-derived",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the user has completed \"Users can enter a new task title in \"Add a New Task\" and click \"Create\" to ad...\""
+        },
+        {
+          "keyword": "When",
+          "text": "the browser page is reloaded",
+          "actionHint": "reload"
+        },
+        {
+          "keyword": "Then",
+          "text": "the updated state remains visible after reload"
+        }
+      ],
+      "expectedOutcomes": [
+        "State survives client reload and matches backend/storage state"
+      ],
+      "evidenceRequirements": [
+        "live-ui:persistence"
+      ],
+      "confidence": 0.75,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-2-happy-path",
+      "requirementRefs": [
+        "REQ-2"
+      ],
+      "title": "Submitting an empty task title is ignored without adding blank tasks. (happy-path)",
+      "category": "happy-path",
+      "priority": "P1",
+      "tags": [
+        "@id:sc-req-2-happy-path",
+        "@req:REQ-2",
+        "@happy-path",
+        "@explicit-requirement"
+      ],
+      "provenance": "explicit-requirement",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the application is accessible at http://127.0.0.1:5173/todo-app/"
+        },
+        {
+          "keyword": "When",
+          "text": "the user executes the primary flow for \"Submitting an empty task title is ignored without adding blank tasks.\"",
+          "actionHint": "happy-path"
+        },
+        {
+          "keyword": "Then",
+          "text": "Submitting an empty task title is ignored without adding blank tasks."
+        }
+      ],
+      "expectedOutcomes": [
+        "Submitting an empty task title is ignored without adding blank tasks."
+      ],
+      "evidenceRequirements": [
+        "live-ui:happy-path"
+      ],
+      "confidence": 0.9,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-2-validation",
+      "requirementRefs": [
+        "REQ-2"
+      ],
+      "title": "Submitting an empty task title is ignored without adding blank tasks. (validation)",
+      "category": "validation",
+      "priority": "P1",
+      "tags": [
+        "@id:sc-req-2-validation",
+        "@req:REQ-2",
+        "@validation",
+        "@explicit-requirement"
+      ],
+      "provenance": "explicit-requirement",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the application is accessible at http://127.0.0.1:5173/todo-app/"
+        },
+        {
+          "keyword": "When",
+          "text": "the user submits invalid or empty input for \"Submitting an empty task title is ignored without adding blank tasks.\"",
+          "actionHint": "submit-invalid"
+        },
+        {
+          "keyword": "Then",
+          "text": "the application rejects invalid submission and preserves valid state"
+        }
+      ],
+      "expectedOutcomes": [
+        "Validation feedback shown or invalid submission blocked without corrupting state"
+      ],
+      "evidenceRequirements": [
+        "live-ui:validation"
+      ],
+      "confidence": 0.9,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-2-persistence",
+      "requirementRefs": [
+        "REQ-2"
+      ],
+      "title": "Submitting an empty task title is ignored without adding blank tasks. (persistence)",
+      "category": "persistence",
+      "priority": "P2",
+      "tags": [
+        "@id:sc-req-2-persistence",
+        "@req:REQ-2",
+        "@persistence",
+        "@source-derived"
+      ],
+      "provenance": "source-derived",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the user has completed \"Submitting an empty task title is ignored without adding blank tasks.\""
+        },
+        {
+          "keyword": "When",
+          "text": "the browser page is reloaded",
+          "actionHint": "reload"
+        },
+        {
+          "keyword": "Then",
+          "text": "the updated state remains visible after reload"
+        }
+      ],
+      "expectedOutcomes": [
+        "State survives client reload and matches backend/storage state"
+      ],
+      "evidenceRequirements": [
+        "live-ui:persistence"
+      ],
+      "confidence": 0.75,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-3-happy-path",
+      "requirementRefs": [
+        "REQ-3"
+      ],
+      "title": "Users can mark tasks completed, delete tasks, and existing tasks persist in l... (happy-path)",
+      "category": "happy-path",
+      "priority": "P0",
+      "tags": [
+        "@id:sc-req-3-happy-path",
+        "@req:REQ-3",
+        "@happy-path",
+        "@explicit-requirement"
+      ],
+      "provenance": "explicit-requirement",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the application is accessible at http://127.0.0.1:5173/todo-app/"
+        },
+        {
+          "keyword": "When",
+          "text": "the user executes the primary flow for \"Users can mark tasks completed, delete tasks, and existing tasks persist in l...\"",
+          "actionHint": "happy-path"
+        },
+        {
+          "keyword": "Then",
+          "text": "Users can mark tasks completed, delete tasks, and existing tasks persist in localStorage across page reload."
+        }
+      ],
+      "expectedOutcomes": [
+        "Users can mark tasks completed, delete tasks, and existing tasks persist in localStorage across page reload."
+      ],
+      "evidenceRequirements": [
+        "live-ui:happy-path"
+      ],
+      "confidence": 0.9,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-3-persistence",
+      "requirementRefs": [
+        "REQ-3"
+      ],
+      "title": "Users can mark tasks completed, delete tasks, and existing tasks persist in l... (persistence)",
+      "category": "persistence",
+      "priority": "P1",
+      "tags": [
+        "@id:sc-req-3-persistence",
+        "@req:REQ-3",
+        "@persistence",
+        "@explicit-requirement"
+      ],
+      "provenance": "explicit-requirement",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "the user has completed \"Users can mark tasks completed, delete tasks, and existing tasks persist in l...\""
+        },
+        {
+          "keyword": "When",
+          "text": "the browser page is reloaded",
+          "actionHint": "reload"
+        },
+        {
+          "keyword": "Then",
+          "text": "the updated state remains visible after reload"
+        }
+      ],
+      "expectedOutcomes": [
+        "State survives client reload and matches backend/storage state"
+      ],
+      "evidenceRequirements": [
+        "live-ui:persistence"
+      ],
+      "confidence": 0.9,
+      "assumptions": []
+    },
+    {
+      "id": "sc-req-3-state-transition",
+      "requirementRefs": [
+        "REQ-3"
+      ],
+      "title": "Users can mark tasks completed, delete tasks, and existing tasks persist in l... (state-transition)",
+      "category": "state-transition",
+      "priority": "P1",
+      "tags": [
+        "@id:sc-req-3-state-transition",
+        "@req:REQ-3",
+        "@state-transition",
+        "@explicit-requirement"
+      ],
+      "provenance": "explicit-requirement",
+      "applicability": "applicable",
+      "preconditions": [
+        "the application is accessible at http://127.0.0.1:5173/todo-app/"
+      ],
+      "steps": [
+        {
+          "keyword": "Given",
+          "text": "initial state for \"Users can mark tasks completed, delete tasks, and existing tasks persist in l...\" is established"
+        },
+        {
+          "keyword": "When",
+          "text": "the user performs the state transition in \"Users can mark tasks completed, delete tasks, and existing tasks persist in l...\"",
+          "actionHint": "transition"
+        },
+        {
+          "keyword": "Then",
+          "text": "the UI indicators and counters reflect the new state cleanly"
+        }
+      ],
+      "expectedOutcomes": [
+        "UI state transition reflected accurately"
+      ],
+      "evidenceRequirements": [
+        "live-ui:state-transition"
+      ],
+      "confidence": 0.9,
+      "assumptions": []
+    }
+  ],
+  "unresolvedQuestions": [],
+  "createdAt": "2026-11-12T16:53:20.426Z",
+  "planHash": "6256a5f3cf8f"
+}

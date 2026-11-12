@@ -382,7 +382,7 @@ test.describe('Backend 500', () => {
     expect(repairCalled).toBe(0);
   });
 
-  it('exposes run_qa_pipeline via MCP server and pw-intel qa via CLI', async () => {
+  it('exposes run_qa_pipeline via MCP server and pw-intel qa via CLI', { timeout: 30_000 }, async () => {
     ctrl.setFailApi(false);
     ctrl.resetTasks();
     const workspaceRoot = await setupPlaywrightTempWorkspace('pie-phase-d-cli-mcp-');

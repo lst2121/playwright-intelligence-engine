@@ -52,6 +52,7 @@ export * from './repair/source-mapper.js';
 export * from './selector/live-locator-verifier.js';
 export * from './reproduce/direct-browser-investigator.js';
 export * from './reproduce/diagnostic-rerunner.js';
+export * from './reproduce/interactive-workflow-runner.js';
 
 // Sandbox & Worktree Management
 export * from './sandbox/dependency-strategy.js';

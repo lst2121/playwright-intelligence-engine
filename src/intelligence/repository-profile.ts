@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { Project } from 'ts-morph';
+import { Project, SyntaxKind } from 'ts-morph';
 import { inspectRepository, RepositoryManifest } from '../evaluation/repository-inspector.js';
 
 export const REPOSITORY_PROFILE_VERSION = 1;
@@ -490,4 +490,307 @@ export async function writeRepositoryProfile(
   await fs.writeFile(conventionsPath, `${JSON.stringify(conventionsData, null, 2)}\n`, 'utf8');
 
   return { profile: resolvedProfile, profilePath, conventionsPath };
+}
+
+export interface FixtureExportInfo {
+  name: string;
+  sourceFile: string;
+  reExportedFrom?: string | undefined;
+  scope: 'test' | 'worker';
+  dependencies: string[];
+}
+
+export interface PomExportInfo {
+  className: string;
+  sourceFile: string;
+  extendsClass?: string | undefined;
+  methods: string[];
+}
+
+export interface HelperExportInfo {
+  name: string;
+  kind: 'function' | 'class' | 'const';
+  sourceFile: string;
+  category: 'api-client' | 'test-data-factory' | 'helper' | 'matcher';
+}
+
+export interface PlaywrightProjectInfo {
+  name: string;
+  dependencies: string[];
+  storageState?: string | undefined;
+}
+
+export interface BrownfieldRepositoryGraph {
+  topology: 'monorepo' | 'standalone';
+  testImport: string;
+  fixtureExports: FixtureExportInfo[];
+  pomExports: PomExportInfo[];
+  helperExports: HelperExportInfo[];
+  authProjects: PlaywrightProjectInfo[];
+  storageStatePaths: string[];
+  configPaths: string[];
+  tsconfigPaths: string[];
+  pathAliases: Record<string, string[]>;
+  packageScripts: Record<string, string>;
+  sourceHints: {
+    routes: string[];
+    validationRules: string[];
+    apiEndpoints: string[];
+    authRequired: boolean;
+    persistenceDetected: boolean;
+  };
+  ambiguities: string[];
+}
+
+function toRel(root: string, filePath: string): string {
+  return path.relative(root, filePath).replace(/\\/g, '/');
+}
+
+export async function buildBrownfieldRepositoryGraph(root: string): Promise<BrownfieldRepositoryGraph> {
+  const projectRoot = path.resolve(root);
+  const manifest = await inspectRepository(projectRoot);
+  const sourceFiles = await listSourceFiles(projectRoot);
+  const ambiguities: string[] = [];
+
+  const fileContents = new Map<string, string>();
+  await Promise.all(
+    sourceFiles.map(async (file) => {
+      try {
+        fileContents.set(file, await fs.readFile(file, 'utf8'));
+      } catch {
+        fileContents.set(file, '');
+      }
+    }),
+  );
+
+  // 1. Inspect tsconfig aliases
+  const tsconfigPaths: string[] = [];
+  const pathAliases: Record<string, string[]> = {};
+  for (const candidate of ['tsconfig.json', 'tsconfig.tests.json', 'e2e/tsconfig.json']) {
+    const full = path.join(projectRoot, candidate);
+    try {
+      const raw = await fs.readFile(full, 'utf8');
+      tsconfigPaths.push(candidate);
+      const cleaned = raw.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+      const parsed = JSON.parse(cleaned) as { compilerOptions?: { paths?: Record<string, string[]> } };
+      if (parsed?.compilerOptions?.paths) {
+        Object.assign(pathAliases, parsed.compilerOptions.paths);
+      }
+    } catch {
+      // Ignore invalid/non-existent tsconfig
+    }
+  }
+
+  // 2. Inspect Playwright configs for projects & storageState
+  const authProjects: PlaywrightProjectInfo[] = [];
+  const storageStateSet = new Set<string>();
+  for (const cfgRel of manifest.playwrightConfigs) {
+    const content = fileContents.get(path.join(projectRoot, cfgRel)) ?? await fs.readFile(path.join(projectRoot, cfgRel), 'utf8').catch(() => '');
+    for (const m of content.matchAll(/storageState\s*:\s*['"`]([^'"`]+)['"`]/g)) {
+      if (m[1]) storageStateSet.add(m[1]);
+    }
+    for (const projMatch of content.matchAll(/\{\s*name\s*:\s*['"`]([^'"`]+)['"`]([\s\S]{0,300}?)\}/g)) {
+      const name = projMatch[1]!;
+      const body = projMatch[2] ?? '';
+      const depsMatch = body.match(/dependencies\s*:\s*\[([^\]]*)\]/);
+      const deps = depsMatch?.[1]
+        ? [...depsMatch[1].matchAll(/['"`]([^'"`]+)['"`]/g)].map((m) => m[1]!)
+        : [];
+      const ssMatch = body.match(/storageState\s*:\s*['"`]([^'"`]+)['"`]/);
+      if (ssMatch?.[1]) storageStateSet.add(ssMatch[1]);
+      if (deps.length > 0 || ssMatch || /auth|setup/i.test(name)) {
+        authProjects.push({ name, dependencies: deps, ...(ssMatch?.[1] ? { storageState: ssMatch[1] } : {}) });
+      }
+    }
+  }
+
+  // 3. Parse fixtures, barrel re-exports, POMs, helpers via ts-morph
+  const tsProject = new Project({ useInMemoryFileSystem: true });
+  const fixtureExports: FixtureExportInfo[] = [];
+  const pomExports: PomExportInfo[] = [];
+  const helperExports: HelperExportInfo[] = [];
+  const reExportMap = new Map<string, string[]>(); // sourceRel -> barrelRel[]
+  const testEntryCandidates: string[] = [];
+
+  for (const [fullPath, content] of fileContents.entries()) {
+    const rel = toRel(projectRoot, fullPath);
+    if (!/\.(?:ts|tsx|js|jsx|mjs)$/i.test(rel)) continue;
+    const isTestRelated = /fixture|page|pom|helper|util|factory|setup|spec|test|matcher|client/i.test(rel)
+      || content.includes('base.extend')
+      || content.includes('@playwright/test');
+    if (!isTestRelated) continue;
+
+    let sf;
+    try {
+      sf = tsProject.createSourceFile(rel, content, { overwrite: true });
+    } catch {
+      continue;
+    }
+
+    // Check barrel re-exports
+    for (const expDecl of sf.getExportDeclarations()) {
+      const modSpec = expDecl.getModuleSpecifierValue();
+      if (!modSpec || !modSpec.startsWith('.')) continue;
+      const targetRel = path.posix.normalize(path.posix.join(path.posix.dirname(rel), modSpec)).replace(/\.(?:js|ts)$/, '');
+      const list = reExportMap.get(targetRel) ?? [];
+      list.push(rel);
+      reExportMap.set(targetRel, list);
+      if (/fixture|test/i.test(rel) && expDecl.getNamedExports().some((n) => n.getName() === 'test')) {
+        testEntryCandidates.push(rel);
+      }
+    }
+
+    // Check base.extend({ ... }) or test.extend({ ... })
+    if (/(?:base|test)\.extend\b/.test(content)) {
+      testEntryCandidates.push(rel);
+      for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+        const exprText = call.getExpression().getText();
+        if (!/(?:base|test)\.extend\s*$/.test(exprText) && !exprText.endsWith('.extend')) continue;
+        const firstArg = call.getArguments()[0];
+        if (!firstArg) continue;
+        const argText = firstArg.getText();
+        const scope: 'test' | 'worker' = /scope\s*:\s*['"]worker['"]/.test(argText) ? 'worker' : 'test';
+        for (const prop of firstArg.getDescendantsOfKind(SyntaxKind.PropertyAssignment)) {
+          if (prop.getParent() !== firstArg) continue;
+          const fixtureName = prop.getName();
+          const fnText = prop.getInitializer()?.getText() ?? '';
+          const depMatch = fnText.match(/async\s*\(\s*\{\s*([^}]+)\}/);
+          const deps = depMatch?.[1]
+            ? depMatch[1].split(',').map((d) => d.trim().split(':')[0]!.trim()).filter(Boolean)
+            : [];
+          fixtureExports.push({
+            name: fixtureName,
+            sourceFile: rel,
+            scope,
+            dependencies: deps,
+          });
+        }
+      }
+    }
+
+    // Check POM classes
+    for (const cls of sf.getClasses()) {
+      const clsName = cls.getName();
+      if (!clsName) continue;
+      if (clsName.endsWith('Page') || /pages?[\\/]/i.test(rel) || content.includes('Locator')) {
+        const ext = cls.getExtends()?.getText();
+        const methods = cls.getMethods().map((m) => m.getName());
+        pomExports.push({
+          className: clsName,
+          sourceFile: rel,
+          ...(ext ? { extendsClass: ext } : {}),
+          methods,
+        });
+      }
+    }
+
+    // Check helpers / factories / API clients / custom matchers
+    if (/helper|util|factory|factories|api-client|matcher|support/i.test(rel) && !/\.(?:spec|test)\./i.test(rel)) {
+      const category: HelperExportInfo['category'] = /matcher/i.test(rel)
+        ? 'matcher'
+        : /factory|factories|seed|data/i.test(rel)
+          ? 'test-data-factory'
+          : /api|client/i.test(rel)
+            ? 'api-client'
+            : 'helper';
+      for (const fn of sf.getFunctions()) {
+        if (fn.isExported() && fn.getName()) {
+          helperExports.push({ name: fn.getName()!, kind: 'function', sourceFile: rel, category });
+        }
+      }
+      for (const cls of sf.getClasses()) {
+        if (cls.isExported() && cls.getName()) {
+          helperExports.push({ name: cls.getName()!, kind: 'class', sourceFile: rel, category });
+        }
+      }
+    }
+  }
+
+  // Resolve barrel re-exports onto fixtureExports
+  for (const fx of fixtureExports) {
+    const noExt = fx.sourceFile.replace(/\.(?:ts|tsx|js|jsx|mjs)$/, '');
+    const noIndex = noExt.replace(/\/index$/, '');
+    const barrels = reExportMap.get(noExt) ?? reExportMap.get(noIndex);
+    if (barrels && barrels.length > 0) {
+      fx.reExportedFrom = barrels[0];
+    }
+  }
+
+  // Pick authoritative testImport
+  const barrelFixture = testEntryCandidates.find((c) => /index\.ts$/i.test(c) || /fixtures?\.ts$/i.test(c));
+  const testImport = barrelFixture ?? testEntryCandidates[0] ?? '@playwright/test';
+  if (testEntryCandidates.length > 1 && !barrelFixture) {
+    ambiguities.push(`Multiple fixture entry points detected: ${testEntryCandidates.join(', ')}`);
+  }
+
+  // 4. Monorepo vs Standalone detection & Source Hints
+  const routes = new Set<string>();
+  const validationRules = new Set<string>();
+  const apiEndpoints = new Set<string>();
+  let authRequired = false;
+  let persistenceDetected = false;
+  let appSourceCount = 0;
+
+  for (const [fullPath, content] of fileContents.entries()) {
+    const rel = toRel(projectRoot, fullPath);
+    if (/\.(?:spec|test)\./i.test(rel) || /tests?[\\/]|e2e[\\/]|playwright/i.test(rel)) continue;
+
+    const appRoute = rel.match(/^(?:src\/)?app\/(.+?)\/page\.[tj]sx?$/i);
+    if (appRoute?.[1]) {
+      routes.add(`/${appRoute[1]}`);
+      appSourceCount += 1;
+    } else if (/^(?:src\/)?app\/page\.[tj]sx?$/i.test(rel)) {
+      routes.add('/');
+      appSourceCount += 1;
+    }
+    const pagesRoute = rel.match(/^(?:src\/)?pages\/(.+?)\.[tj]sx?$/i);
+    if (pagesRoute?.[1] && !pagesRoute[1].startsWith('api/')) {
+      routes.add(pagesRoute[1] === 'index' ? '/' : `/${pagesRoute[1].replace(/\/index$/, '')}`);
+      appSourceCount += 1;
+    }
+    if (/^(?:src\/)?(?:components|routes|views|features)[\\/]/i.test(rel) || /^(?:src\/)?App\.[tj]sx?$/i.test(rel)) {
+      appSourceCount += 1;
+      if (routes.size === 0) routes.add('/');
+    }
+
+    for (const m of content.matchAll(/path\s*:\s*['"](\/[^'"]*)['"]/g)) {
+      if (m[1]) routes.add(m[1]);
+    }
+    for (const m of content.matchAll(/['"`](\/api\/[A-Za-z0-9_/?=&{}:-]+)['"`]/g)) {
+      if (m[1]) apiEndpoints.add(m[1]);
+    }
+    for (const m of content.matchAll(/\.(min|max|email|regex)\s*\(([^)]*)\)/g)) {
+      validationRules.add(`${m[1]}(${(m[2] ?? '').trim()})`);
+    }
+    if (/\b(?:getSession|requireAuth|authMiddleware|isAuthenticated|useAuth|NextAuth)\b/.test(content)) {
+      authRequired = true;
+    }
+    if (/\b(?:localStorage\.setItem|prisma\.|pool\.query|drizzle|mongoose\.model)\b/.test(content)) {
+      persistenceDetected = true;
+    }
+  }
+
+  const topology: 'monorepo' | 'standalone' = appSourceCount > 0 || routes.size > 0 ? 'monorepo' : 'standalone';
+
+  return {
+    topology,
+    testImport,
+    fixtureExports,
+    pomExports,
+    helperExports,
+    authProjects,
+    storageStatePaths: [...storageStateSet],
+    configPaths: manifest.playwrightConfigs,
+    tsconfigPaths,
+    pathAliases,
+    packageScripts: manifest.scripts,
+    sourceHints: {
+      routes: [...routes],
+      validationRules: [...validationRules].slice(0, 30),
+      apiEndpoints: [...apiEndpoints].slice(0, 30),
+      authRequired,
+      persistenceDetected,
+    },
+    ambiguities,
+  };
 }

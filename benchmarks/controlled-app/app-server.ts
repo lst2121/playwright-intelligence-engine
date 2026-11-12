@@ -43,6 +43,8 @@ export class ControlledAppServer {
     classVolatility: false,
   };
 
+  public latencyMs = 0;
+
   // In-memory reproducible state
   public users = [
     { id: 'usr-1', email: 'admin@example.com', name: 'System Admin', role: 'admin' },
@@ -81,6 +83,7 @@ export class ControlledAppServer {
       dynamicId: false,
       classVolatility: false,
     };
+    this.latencyMs = 0;
     this.resetUsers();
     this.cart = [{ productId: 'prod-1', quantity: 1 }];
     this.orders = [
@@ -293,6 +296,15 @@ export class ControlledAppServer {
           res.end(JSON.stringify({ error: 'Malformed request' }));
         }
       });
+      return;
+    }
+
+    if (pathname === '/api/delayed-action') {
+      const delay = this.latencyMs > 0 ? this.latencyMs : 250;
+      setTimeout(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, timestamp: Date.now(), delayMs: delay }));
+      }, delay);
       return;
     }
 
@@ -557,6 +569,57 @@ export class ControlledAppServer {
             </tr>`).join('')}
           </tbody>
         </table>
+      `;
+    }
+
+    if (pathname === '/timing-demo') {
+      return `
+        <h2>Timing & Asynchronous Synchronization Demo</h2>
+        <div style="margin-bottom: 1.5rem;">
+          <p>This page simulates dynamic content loading, hydration delay, and asynchronous response synchronization.</p>
+        </div>
+        <div style="margin-bottom: 1.5rem;">
+          <button id="btn-delayed-search" role="button" aria-label="Trigger Search" onclick="triggerSearch()">Trigger Search</button>
+          <div id="delayed-search-result" style="margin-top: 0.5rem; color: #1e293b; font-weight: 500;"></div>
+        </div>
+        <div style="margin-bottom: 1.5rem;">
+          <label for="sync-input">Recipient Name</label>
+          <input type="text" id="sync-input" placeholder="Enter recipient" value="Alice Smith" />
+          <button id="btn-sync-action" role="button" aria-label="Submit Async Request" onclick="triggerSync()">Submit Async Request</button>
+          <div id="sync-status" style="margin-top: 0.5rem;"></div>
+        </div>
+        <div style="margin-bottom: 1.5rem;">
+          <button id="btn-hydrating" role="button" aria-label="Hydrating Action" disabled>Hydrating...</button>
+          <div id="hydration-status" style="margin-top: 0.5rem;"></div>
+        </div>
+        <script>
+          async function triggerSearch() {
+            const res = await fetch('/api/delayed-action');
+            const data = await res.json();
+            document.getElementById('delayed-search-result').innerText = 'Found 42 matching items (delay: ' + data.delayMs + 'ms)';
+          }
+          async function triggerSync() {
+            const btn = document.getElementById('btn-sync-action');
+            btn.disabled = true;
+            document.getElementById('sync-status').innerText = 'Processing...';
+            const res = await fetch('/api/delayed-action');
+            const data = await res.json();
+            document.getElementById('sync-status').innerHTML = '<span style="color: green;">Request Synced: ' + data.timestamp + '</span>';
+            btn.disabled = false;
+          }
+          // Simulate hydration delay of 350ms
+          setTimeout(() => {
+            const btn = document.getElementById('btn-hydrating');
+            if (btn) {
+              btn.disabled = false;
+              btn.innerText = 'Interactive Action';
+              btn.setAttribute('aria-label', 'Interactive Action');
+              btn.onclick = () => {
+                document.getElementById('hydration-status').innerText = 'Hydrated click handled successfully!';
+              };
+            }
+          }, 350);
+        </script>
       `;
     }
 

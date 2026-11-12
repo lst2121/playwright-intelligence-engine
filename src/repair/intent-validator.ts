@@ -128,7 +128,7 @@ export class IntentValidator {
       negative: ['cancel', 'close', 'reset', 'abort', 'back', 'dismiss', 'exit'],
     },
     {
-      positive: ['create', 'add', 'insert', 'new'],
+      positive: ['create', 'add', 'insert', 'new', 'edit', 'update', 'modify'],
       negative: ['delete', 'remove', 'destroy', 'clear', 'purge'],
     },
   ];
@@ -174,6 +174,16 @@ export class IntentValidator {
           reason: `Identity violation: Target '${originalSelector}' appears to be a cancellation action, but replacement candidate '${candidate.accessibleName ?? candidate.tag}' has contradictory submission semantics.`,
         };
       }
+    }
+
+    // Destructive Action Invariant: A deletion/removal action must never be substituted by a non-destructive element
+    const isDestructiveOriginal = ['delete', 'remove', 'destroy', 'purge'].some((t) => origTokens.includes(t));
+    const isDestructiveCandidate = ['delete', 'remove', 'destroy', 'purge'].some((t) => candidateTokens.includes(t));
+    if (isDestructiveOriginal && !isDestructiveCandidate) {
+      return {
+        isPreserved: false,
+        reason: `Identity violation: Target '${originalSelector}' is a destructive action, but candidate '${candidate.accessibleName ?? candidate.tag}' lacks deletion/removal semantics.`,
+      };
     }
 
     return { isPreserved: true };

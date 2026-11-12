@@ -144,6 +144,11 @@ export class SelectorScorer {
           ['accept', 'decline'],
           ['enable', 'disable'],
           ['open', 'close'],
+          ['edit', 'delete'],
+          ['create', 'delete'],
+          ['add', 'delete'],
+          ['remove', 'edit'],
+          ['modify', 'delete'],
         ];
 
         let hasDistinguishingConflict = false;
@@ -193,6 +198,18 @@ export class SelectorScorer {
               identityMatch = 0.8;
             }
           }
+        }
+
+        // Semantic Role Alignment: If original explicitly specifies button vs link
+        const origWantsButton = /\bbutton\b/i.test(originalSelector) || /getByRole\(\s*['"]button['"]/i.test(originalSelector) || /#btn-/i.test(originalSelector);
+        const origWantsLink = /\b(link|a)\b/i.test(originalSelector) || /getByRole\(\s*['"]link['"]/i.test(originalSelector);
+
+        if (origWantsButton && (candidate.role === 'link' || candidate.tag === 'a') && candidate.role !== 'button') {
+          identityMatch = Math.max(0, identityMatch - 0.25);
+          explanation.push('Role Mismatch Penalty: -0.25 (Original selector requires button, candidate is link/anchor)');
+        } else if (origWantsLink && candidate.role === 'button' && candidate.tag !== 'a') {
+          identityMatch = Math.max(0, identityMatch - 0.25);
+          explanation.push('Role Mismatch Penalty: -0.25 (Original selector requires link, candidate is button)');
         }
       }
     }
@@ -275,6 +292,27 @@ export class SelectorScorer {
       conventionBonus;
 
     const finalScore = Math.max(0, Math.min(1.0, parseFloat(rawScore.toFixed(3))));
+
+    // Intent Gate: If candidate has no token overlap or conflicting identity,
+    // cap the transformed score to strictly prevent false repairs on missing/unrelated actions.
+    if (identityMatch <= 0.1) {
+      explanation.push('Intent Gated: Zero/conflicting identity match caps transformed confidence to 0.05');
+      return {
+        score: Math.min(0.15, finalScore),
+        transformedScore: 0.05,
+        calibratedProbability: 0.05,
+        uniqueness,
+        matchCount: matchingCount,
+        identityMatch,
+        semanticMatch,
+        actionability,
+        historicalReliability,
+        historicalExecutionReliability: historicalReliability,
+        volatilePenalty,
+        conventionAlignment,
+        explanation,
+      };
+    }
 
     // Transformed confidence score via logistic sigmoid scaling
     const transformedScore = parseFloat((1 / (1 + Math.exp(-6 * (finalScore - 0.65)))).toFixed(3));

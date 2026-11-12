@@ -11,8 +11,9 @@ export class HybridAuthor implements Author {
     const steps = input.steps ?? [{ action: 'navigate' }, { action: 'assert-visible', role: 'heading', name: input.featureName }];
 
     let namePlan: NamePlan;
-    // Attempt LLM symbol proposal if API key is present
-    const apiKey = process.env.PIE_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+    // Attempt LLM symbol proposal if API key is present (opt-in under Vitest)
+    const liveAllowed = !process.env.VITEST || process.env.PIE_LIVE_LLM_TESTS === '1';
+    const apiKey = liveAllowed ? (process.env.PIE_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY) : undefined;
     const endpoint = process.env.PIE_LLM_ENDPOINT ?? (apiKey ? 'https://api.deepseek.com/chat/completions' : undefined);
     const model = process.env.PIE_LLM_MODEL ?? (apiKey ? 'deepseek-chat' : undefined);
 

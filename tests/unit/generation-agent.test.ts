@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { parseGenerationPlan, runGenerationAgent, GenerationPlanProvider } from '../../src/intelligence/generation-agent.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  OpenAiCompatibleGenerationProvider,
+  parseGenerationPlan,
+  runGenerationAgent,
+  GenerationPlanProvider,
+} from '../../src/intelligence/generation-agent.js';
 
 const plan = {
   planVersion: '1' as const,
@@ -22,6 +27,22 @@ const plan = {
 };
 
 describe('generation agent', () => {
+  const envBackup: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of ['PIE_LLM_API_KEY', 'DEEPSEEK_API_KEY', 'PIE_LLM_ENDPOINT', 'PIE_LLM_MODEL', 'PIE_LIVE_LLM_TESTS']) {
+      envBackup[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(envBackup)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
   it('accepts only the strict structured generation protocol', () => {
     expect(parseGenerationPlan(JSON.stringify(plan))).toMatchObject({ isValid: true, plan });
     expect(parseGenerationPlan(JSON.stringify({ ...plan, unsupported: true })).isValid).toBe(false);
@@ -203,5 +224,33 @@ describe('generation agent', () => {
       author: 'llm',
     });
     expect(llmResult.authorKind).toBe('llm');
+  });
+
+  it('does not trigger live network calls when PIE_LLM_API_KEY is set under Vitest without opt-in', async () => {
+    process.env.PIE_LLM_API_KEY = 'sk-test-should-not-hit-network';
+    const result = await runGenerationAgent({
+      requirements: [{ id: 'login', title: 'Login flow' }],
+      mode: 'greenfield',
+    });
+    expect(result.status).toBe('PLANNED');
+    expect(result.provider).toBe('deterministic-fallback');
+  });
+
+  it('supports mocked fetchImpl in OpenAiCompatibleGenerationProvider deterministically', async () => {
+    const provider = new OpenAiCompatibleGenerationProvider({
+      endpoint: 'https://mock.local/v1/chat/completions',
+      model: 'mock-model',
+      apiKey: 'mock-key',
+      fetchImpl: async () => new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(plan) } }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    });
+    const result = await runGenerationAgent({
+      requirements: [{ id: 'checkout', title: 'Checkout', description: 'A customer can place an order.' }],
+      mode: 'greenfield',
+      provider,
+    });
+    expect(result.status).toBe('PLANNED');
+    expect(result.provider).toBe('llm');
   });
 });

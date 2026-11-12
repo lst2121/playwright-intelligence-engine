@@ -39,6 +39,9 @@ const RESERVED_WORDS = new Set([
 const ALLOWED_VERBS = new Set([
   'fill', 'enter', 'click', 'submit', 'signIn', 'signUp', 'open', 'goTo', 'select', 'check',
   'uncheck', 'expectVisible', 'expectText', 'expectHidden', 'perform', 'press', 'hover', 'clear',
+  'add', 'create', 'update', 'edit', 'delete', 'remove', 'toggle', 'filter', 'search', 'navigate',
+  'login', 'logout', 'register', 'verify', 'assert', 'wait', 'proceed', 'confirm', 'cancel',
+  'complete', 'reset', 'sort', 'apply', 'upload', 'download', 'type', 'focus', 'get', 'is', 'has',
 ]);
 
 /** Generic role-derived identifiers with no accessible name (actionButton, buttonButton). */

@@ -28,7 +28,7 @@ export class QualityGate {
 
     // 1. Naming Conformance
     let namingReport: NamingLintReport | undefined;
-    if (input.symbols) {
+    if (input.symbols && input.symbols.symbols.length > 0) {
       namingReport = NamingLinter.lint(input.symbols);
       if (!namingReport.passed) {
         for (const v of namingReport.violations) {

@@ -1,10 +1,27 @@
 import { z } from 'zod';
-import { ArchitectureGenerationInput, ArchitecturePlan, planArchitecture, writeArchitecturePlan, ArchitectureWriteResult } from '../generator/architecture-generator.js';
+import {
+  ArchitecturePlan,
+  ArchitectureWriteResult,
+  planArchitecture,
+  toSlug,
+  writeArchitecturePlan,
+} from '../generator/architecture-generator.js';
+import { AssertionQualityGate } from '../generator/assertion-quality-gate.js';
+import { CandidateWriter, CandidateWriteResult } from '../generator/candidate-writer.js';
 import { GeneratedStep } from '../generator/test-generator.js';
 import { buildRepositoryProfile, RepositoryConventionProfile } from './repository-profile.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput, TestIntelligencePlan } from './test-intelligence.js';
 import { ExecutionRunner, ExecutionResult } from '../sandbox/execution-runner.js';
-import { Author, AuthorKind, CandidateChange, TemplateAuthor, HybridAuthor, LlmAuthor } from '../authoring/index.js';
+import {
+  Author,
+  AuthorKind,
+  CandidateChange,
+  FullCodeGenerationProvider,
+  HybridAuthor,
+  LlmAuthor,
+  NamingLinter,
+  TemplateAuthor,
+} from '../authoring/index.js';
 import { QualityGate, QualityGateResult } from '../gate/index.js';
 
 const GeneratedStepSchema = z.object({
@@ -63,20 +80,28 @@ export interface GenerationPlanParseResult {
 export interface GenerationAgentInput extends GenerationPlanInput {
   workspaceRoot?: string | undefined;
   provider?: GenerationPlanProvider | undefined;
+  fullCodeProvider?: FullCodeGenerationProvider | undefined;
   authorImpl?: Author | undefined;
   write?: boolean | undefined;
+  allowModify?: boolean | undefined;
   existingFiles?: string[] | undefined;
   includeCi?: boolean | undefined;
   verify?: boolean | undefined;
   author?: AuthorKind | undefined;
   maxSteps?: number | undefined;
   maxDurationMs?: number | undefined;
+  contextPacket?: unknown;
+  workflowPlan?: unknown;
+  explorationBundle?: unknown;
+  allowedEvidenceIds?: string[] | undefined;
 }
 
 export interface GeneratedScenarioResult {
   scenario: GenerationPlan['scenarios'][number];
   architecture: ArchitecturePlan;
+  candidate?: CandidateChange | undefined;
   writeResult?: ArchitectureWriteResult | undefined;
+  candidateWriteResult?: CandidateWriteResult | undefined;
   verification?: ExecutionResult | undefined;
   loopState?: 'SUCCESS' | 'AGENT_NO_PROGRESS' | 'AGENT_TIME_BUDGET' | 'MAX_STEPS_EXCEEDED' | undefined;
   stepsCount?: number | undefined;
@@ -244,10 +269,23 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
     return { status: 'ABSTAINED', provider: provider ? 'llm' : 'deterministic-fallback', intelligence, scenarios: [], errors: ['Generation verification requires --write so the generated spec exists in the target workspace'] };
   }
 
+  const authorKind: AuthorKind = input.author ?? 'hybrid';
+  const author: Author = input.authorImpl ?? (
+    authorKind === 'template'
+      ? new TemplateAuthor()
+      : authorKind === 'llm'
+        ? new LlmAuthor({ provider: input.fullCodeProvider })
+        : new HybridAuthor()
+  );
+
+  // If Tier-L2 fullCodeProvider is supplied with author='llm' and no custom step provider,
+  // allow direct full-code generation without forcing the 5-verb step planner first.
+  const effectiveProvider = (authorKind === 'llm' && input.fullCodeProvider && !input.provider) ? undefined : provider;
+
   let generatedPlan: GenerationPlan;
   let providerMode: 'llm' | 'deterministic-fallback' = 'llm';
-  if (provider) {
-    const response = await provider.propose({
+  if (effectiveProvider) {
+    const response = await effectiveProvider.propose({
       requirements: input.requirements,
       existingTests: input.existingTests,
       mode: input.mode,
@@ -260,11 +298,13 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
     if (response.plan.status === 'NEEDS_INPUT') return { status: 'NEEDS_INPUT', provider: 'llm', intelligence, plan: response.plan, scenarios: [], errors: response.plan.requiredClarifications };
     generatedPlan = response.plan;
   } else {
-    providerMode = 'deterministic-fallback';
+    providerMode = authorKind === 'llm' && input.fullCodeProvider ? 'llm' : 'deterministic-fallback';
     generatedPlan = {
       planVersion: '1',
       status: 'GENERATE',
-      reasoningSummary: 'No LLM provider is configured; generated a conservative deterministic scaffold from the supplied requirements.',
+      reasoningSummary: authorKind === 'llm' && input.fullCodeProvider
+        ? 'Tier-L2 full-code provider configured; synthesizing scenarios directly via LlmAuthor.'
+        : 'No LLM provider is configured; generated a conservative deterministic scaffold from the supplied requirements.',
       scenarios: input.requirements.map((requirement) => ({
         id: `scenario-${requirement.id}`,
         title: requirement.title,
@@ -290,15 +330,6 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
   if (scenarioValidationErrors.length > 0) {
     return { status: 'ABSTAINED', provider: providerMode, intelligence, plan: generatedPlan, scenarios: [], errors: scenarioValidationErrors };
   }
-
-  const authorKind: AuthorKind = input.author ?? 'hybrid';
-  const author: Author = input.authorImpl ?? (
-    authorKind === 'template'
-      ? new TemplateAuthor()
-      : authorKind === 'llm'
-        ? new LlmAuthor()
-        : new HybridAuthor()
-  );
 
   const scenarios: GeneratedScenarioResult[] = [];
   for (const scenario of generatedPlan.scenarios) {
@@ -329,13 +360,53 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
         profile,
         existingFiles: input.existingFiles,
         exemplars: profile?.exemplars,
+        contextPacket: input.contextPacket,
+        workflowPlan: input.workflowPlan,
+        explorationBundle: input.explorationBundle,
+        scenarios: generatedPlan.scenarios,
+        allowedEvidenceIds: input.allowedEvidenceIds,
+        fullCodeProvider: input.fullCodeProvider,
       });
 
-      gateResult = QualityGate.evaluate({
-        symbols: candidate.symbols,
-        files: candidate.files,
-        locatorPolicy: profile?.identifierConventions?.recommendedLocatorPolicy,
-      });
+      if (candidate.status === 'NEEDS_INPUT') {
+        return {
+          status: 'NEEDS_INPUT',
+          provider: providerMode,
+          authorKind,
+          intelligence,
+          plan: generatedPlan,
+          scenarios,
+          errors: candidate.requiredClarifications?.length ? candidate.requiredClarifications : [candidate.rationale],
+        };
+      }
+
+      if (candidate.status === 'ABSTAIN' && candidate.fullCodeAuthoring) {
+        gateResult = {
+          passed: false,
+          duplicateSelectors: [],
+          locatorPolicyViolations: [],
+          assertionStrengthPassed: false,
+          changedLines: 0,
+          violations: candidate.validationErrors?.length ? candidate.validationErrors : [candidate.rationale],
+        };
+      } else {
+        gateResult = QualityGate.evaluate({
+          symbols: candidate.symbols,
+          files: candidate.files,
+          locatorPolicy: profile?.identifierConventions?.recommendedLocatorPolicy,
+        });
+
+        if (candidate.fullCodeAuthoring) {
+          for (const spec of candidate.files.filter((f) => /\.(?:spec|test)\.(?:ts|tsx|js|jsx|mjs)$/i.test(f.relativePath))) {
+            const aqg = AssertionQualityGate.evaluate(spec.content, scenario.title);
+            if (!aqg.passed) {
+              gateResult.passed = false;
+              gateResult.assertionStrengthPassed = false;
+              gateResult.violations.push(...aqg.violations);
+            }
+          }
+        }
+      }
 
       const signature = `${candidate.symbols.pageClassName}:${candidate.symbols.symbols.map((s) => `${s.property}:${s.method}`).join(',')}:${gateResult.violations.join(';')}`;
 
@@ -355,27 +426,83 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
       }
     }
 
-    const architectureInput: ArchitectureGenerationInput = {
-      featureName: scenario.title,
-      mode: input.mode,
-      baseUrl: input.baseUrl,
-      requirements: input.requirements.find((requirement) => requirement.id === scenario.requirementId)?.description
-        ?? input.requirements.find((requirement) => requirement.id === scenario.requirementId)?.title,
-      steps: scenario.steps as GeneratedStep[],
-      profile,
-      existingFiles: input.existingFiles,
-      includeCi: input.includeCi,
-      namePlan: candidate?.symbols,
-    };
-    const architecture = planArchitecture(architectureInput);
+    const preserveCandidateFiles = Boolean(
+      candidate &&
+      candidate.files.length > 0 &&
+      (candidate.fullCodeAuthoring === true || candidate.authorKind === 'llm'),
+    );
 
-    const writeResult = (input.write === true && loopState === 'SUCCESS')
-      ? await writeArchitecturePlan(input.workspaceRoot ?? process.cwd(), architecture)
-      : undefined;
+    const architecture: ArchitecturePlan = preserveCandidateFiles && candidate
+      ? {
+          mode: input.mode,
+          status: candidate.status === 'ABSTAIN' ? 'ABSTAIN' : 'READY',
+          featureName: scenario.title,
+          slug: toSlug(scenario.title),
+          conventions: {
+            testDirectory: profile?.paths?.testDirectory ?? 'tests',
+            pageObjectDirectory: profile?.paths?.pageObjectDirectory ?? 'tests/pages',
+            fixtureDirectory: profile?.paths?.fixtureDirectory ?? 'tests/fixtures',
+            preferredLocator: profile?.locatorConventions.preferred ?? 'getByRole',
+            usesCustomFixtures: profile?.structure.usesCustomFixtures ?? false,
+            usesStorageState: profile?.structure.usesStorageState ?? false,
+          },
+          assumptions: candidate.assumptions ?? [],
+          warnings: candidate.validationErrors ?? [],
+          files: candidate.files.map((file) => ({
+            relativePath: file.relativePath,
+            content: file.content,
+            purpose: file.purpose ?? file.rationale ?? 'Author-generated file',
+            action: file.action ?? 'CREATE',
+          })),
+          namePlan: candidate.symbols,
+          namingLintReport: NamingLinter.lint(candidate.symbols),
+        }
+      : planArchitecture({
+          featureName: scenario.title,
+          mode: input.mode,
+          baseUrl: input.baseUrl,
+          requirements: input.requirements.find((requirement) => requirement.id === scenario.requirementId)?.description
+            ?? input.requirements.find((requirement) => requirement.id === scenario.requirementId)?.title,
+          steps: scenario.steps as GeneratedStep[],
+          profile,
+          existingFiles: input.existingFiles,
+          includeCi: input.includeCi,
+          namePlan: candidate?.symbols,
+        });
+
+    let writeResult: ArchitectureWriteResult | undefined;
+    let candidateWriteResult: CandidateWriteResult | undefined;
+    if (input.write === true && loopState === 'SUCCESS') {
+      const workspaceRoot = input.workspaceRoot ?? process.cwd();
+      if (preserveCandidateFiles && candidate) {
+        candidateWriteResult = await CandidateWriter.apply(workspaceRoot, candidate, {
+          allowModify: input.allowModify ?? true,
+          validateLocalImports: false,
+        });
+        if (!candidateWriteResult.success) {
+          return {
+            status: 'ABSTAINED',
+            provider: providerMode,
+            authorKind,
+            intelligence,
+            plan: generatedPlan,
+            scenarios,
+            errors: candidateWriteResult.errors,
+          };
+        }
+        writeResult = {
+          written: candidateWriteResult.written,
+          skipped: candidateWriteResult.skipped,
+          modified: candidateWriteResult.modified,
+        };
+      } else {
+        writeResult = await writeArchitecturePlan(workspaceRoot, architecture);
+      }
+    }
 
     let verification: ExecutionResult | undefined;
     if (input.verify === true && loopState === 'SUCCESS') {
-      const spec = architecture.files.find((file) => file.relativePath.endsWith('.spec.ts'));
+      const spec = architecture.files.find((file) => /\.(?:spec|test)\.(?:ts|tsx|js|jsx|mjs)$/i.test(file.relativePath));
       if (!spec) throw new Error(`Generated scenario '${scenario.id}' did not produce a spec file`);
       verification = await ExecutionRunner.run('npx', {
         cwd: input.workspaceRoot ?? process.cwd(),
@@ -387,7 +514,9 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
     scenarios.push({
       scenario,
       architecture,
+      ...(candidate ? { candidate } : {}),
       ...(writeResult ? { writeResult } : {}),
+      ...(candidateWriteResult ? { candidateWriteResult } : {}),
       ...(verification ? { verification } : {}),
       loopState,
       stepsCount: stepCount,

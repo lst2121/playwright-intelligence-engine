@@ -59,6 +59,8 @@ export * from './sandbox/execution-runner.js';
 export * from './memory/stability-ledger.js';
 export * from './generator/test-generator.js';
 export * from './generator/architecture-generator.js';
+export * from './generator/assertion-quality-gate.js';
+export * from './generator/candidate-writer.js';
 export * from './authoring/index.js';
 export * from './gate/index.js';
 export * from './perception/index.js';

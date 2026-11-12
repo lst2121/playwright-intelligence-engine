@@ -26,7 +26,7 @@ export interface ArchitectureFile {
   relativePath: string;
   content: string;
   purpose: string;
-  action: 'CREATE' | 'SKIP_EXISTING';
+  action: 'CREATE' | 'MODIFY' | 'SKIP_EXISTING';
 }
 
 export interface ArchitecturePlan {
@@ -52,6 +52,7 @@ export interface ArchitecturePlan {
 export interface ArchitectureWriteResult {
   written: string[];
   skipped: string[];
+  modified?: string[] | undefined;
 }
 
 function quote(value: string): string {

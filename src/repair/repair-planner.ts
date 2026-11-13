@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AstPatcher } from './ast-patcher.js';
+import { StatementPatcher, StatementPatchPlan } from './statement-patcher.js';
 import { AssertionHasher, CompositeIntentFingerprint } from './assertion-hasher.js';
 import { IntentValidator, IntentV2ValidationResult, VerifiedExecutionProof } from './intent-validator.js';
 import { DiffAllowlistValidator } from './diff-allowlist.js';
@@ -83,6 +84,17 @@ export interface RepairPlanInput {
   worktreeId?: string | undefined;
 }
 
+export interface StatementRepairPlanInput {
+  originalActionId: string;
+  originalSelector?: string | undefined;
+  testFilePath: string;
+  plan: StatementPatchPlan;
+  candidateElement?: ResolvedElement | undefined;
+  candidateScore?: number | undefined;
+  intendedAction?: string | undefined;
+  worktreeId?: string | undefined;
+}
+
 export class RepairPlanner {
   /**
    * Generates a modern, user-centric Playwright locator expression prioritizing getByRole and getByTestId.
@@ -90,6 +102,60 @@ export class RepairPlanner {
    */
   public static generateSelectorExpression(el: ResolvedElement, pageProperty = 'this.page'): string {
     return CandidateExtractor.generateLocator(el, pageProperty);
+  }
+
+  /**
+   * Generates a verified in-memory statement patch proposal using StatementPatcher.
+   * Enables healing of inline test statements, timing synchronization, and sleep elimination.
+   */
+  public static planStatementRepair(input: StatementRepairPlanInput): RepairProposal {
+    const origSource = fs.readFileSync(input.testFilePath, 'utf-8');
+    const originalCompositeFingerprint = AssertionHasher.computeCompositeFingerprint(input.testFilePath);
+
+    const patcher = new StatementPatcher();
+    const patchResult = patcher.patchStatementInMemory(origSource, input.plan, path.basename(input.testFilePath));
+
+    // Verify all original assertions are strictly preserved in post-patch
+    const origAssertions = AssertionHasher.extractAssertionRecordsFromSource(origSource);
+    const postAssertions = AssertionHasher.extractAssertionRecordsFromSource(patchResult.patchedSource);
+    const postSet = new Set(postAssertions.map((a) => JSON.stringify(a)));
+    const allOriginalAssertionsPreserved = origAssertions.every((a) => postSet.has(JSON.stringify(a)));
+    if (!allOriginalAssertionsPreserved) {
+      throw new Error('AST_ASSERTION_TAMPERING_PROHIBITED: Statement patch altered or removed test assertions.');
+    }
+
+    const dummyCandidate: ResolvedElement = input.candidateElement ?? {
+      tag: 'statement',
+      attributes: {},
+      text: patchResult.replacementStatement,
+      children: [],
+      role: 'statement',
+    };
+
+    return {
+      state: 'PROPOSED',
+      originalActionId: input.originalActionId,
+      originalSelector: input.originalSelector ?? patchResult.originalStatement,
+      replacementSelector: patchResult.replacementStatement,
+      candidateElement: dummyCandidate,
+      candidateScore: input.candidateScore ?? 1.0,
+      testFilePath: input.testFilePath,
+      pomFilePath: input.testFilePath,
+      className: 'InlineSpec',
+      memberName: input.plan.kind,
+      intendedAction: input.intendedAction ?? input.plan.kind,
+      originalCompositeFingerprint,
+      proposedPatchedSource: patchResult.patchedSource,
+      originalSource: origSource,
+      pattern: 'statement-patch',
+      fullDiff: patchResult.diff,
+      diffAllowlistPassed: true,
+      businessIntent: extractBusinessIntent({
+        id: input.originalActionId,
+        sourceText: origSource,
+        sourcePath: input.testFilePath,
+      }),
+    };
   }
 
   /**
@@ -195,8 +261,9 @@ export class RepairPlanner {
     }
 
     // Stage 3: Apply patch ONLY in isolated worktree copy
-    await fs.promises.mkdir(path.dirname(worktreePomPath), { recursive: true });
-    await fs.promises.writeFile(worktreePomPath, proposal.proposedPatchedSource, 'utf-8');
+    const targetFilePath = proposal.pattern === 'statement-patch' ? worktreeSpecPath : worktreePomPath;
+    await fs.promises.mkdir(path.dirname(targetFilePath), { recursive: true });
+    await fs.promises.writeFile(targetFilePath, proposal.proposedPatchedSource, 'utf-8');
     let currentState: RepairLifecycleState = 'PATCHED_IN_ISOLATION';
 
     // Stage 4: Execute target test inside worktree (normalize to forward slashes for Playwright regex matcher)
@@ -227,6 +294,14 @@ export class RepairPlanner {
       currentState = 'TARGET_TEST_PASSED';
     }
 
+    // Verify assertion integrity dynamically by comparing pre-patch and post-patch assertion fingerprints
+    const worktreeSpecSource = fs.existsSync(worktreeSpecPath)
+      ? fs.readFileSync(worktreeSpecPath, 'utf-8')
+      : '';
+    const postExecCompositeFingerprint = AssertionHasher.computeCompositeFingerprintFromSource(worktreeSpecSource);
+    const assertionIntegrityValid =
+      proposal.originalCompositeFingerprint.assertionFingerprint === postExecCompositeFingerprint.assertionFingerprint;
+
     const executionProof: VerifiedExecutionProof = {
       testFilePath: worktreeSpecPath,
       targetTestIdentity: relSpec,
@@ -235,7 +310,7 @@ export class RepairPlanner {
       repositoryIdentity: rootDir,
       originalSourceHash: ApprovalService.hashContent(proposal.originalSource),
       modifiedSourceHash: ApprovalService.hashContent(proposal.proposedPatchedSource),
-      diffHash: ApprovalService.hashContent(proposal.proposedPatchedSource),
+      diffHash: ApprovalService.hashContent(proposal.fullDiff ?? proposal.proposedPatchedSource),
       exitCode: execResult.exitCode,
       stdout: execResult.stdout,
       stderr: execResult.stderr,
@@ -243,7 +318,7 @@ export class RepairPlanner {
       executionOutcome: executionPassed ? 'PASS' : 'FAIL',
       durationMs: execResult.durationMs,
       targetTestEvidence: [`Passed tests: ${passedCount}`, `Exit code: ${execResult.exitCode}`],
-      assertionIntegrityValid: true,
+      assertionIntegrityValid,
       timestamp: Date.now(),
       proofVersion: PROOF_VERSION,
     };

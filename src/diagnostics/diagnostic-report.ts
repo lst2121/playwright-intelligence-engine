@@ -18,7 +18,14 @@ export class DiagnosticReportGenerator {
     try {
       const candidates = CandidateExtractor.extractCandidates(domRoot, context.failedAction);
       if (candidates.length === 0) return undefined;
-      const ranked = RepairCandidateRanker.rank(candidates, context.failedAction.selector, context.failedAction.action, intelligence);
+      const ranked = RepairCandidateRanker.rank(
+        candidates,
+        context.failedAction.selector,
+        context.failedAction.action,
+        intelligence,
+        domRoot,
+        context.failedAction.selector
+      );
       const decision = AbstentionPolicy.evaluate(ranked);
       if (!decision.shouldAbstain && decision.selectedCandidate) {
         return decision.selectedCandidate as RankedRepairCandidate;

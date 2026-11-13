@@ -344,14 +344,14 @@ describe('CLI and MCP Server Integration Suite (20 Tests)', () => {
   it('CLI-01: --version should output version number without error', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await runCli(['node', 'pw-intel', '--version']);
-    expect(logSpy).toHaveBeenCalledWith('1.0.0');
+    expect(logSpy).toHaveBeenCalledWith('2.0.0');
     logSpy.mockRestore();
   });
 
   it('CLI-02: -v should output version number', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     await runCli(['node', 'pw-intel', '-v']);
-    expect(logSpy).toHaveBeenCalledWith('1.0.0');
+    expect(logSpy).toHaveBeenCalledWith('2.0.0');
     logSpy.mockRestore();
   });
 

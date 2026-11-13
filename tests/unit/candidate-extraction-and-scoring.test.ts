@@ -188,16 +188,22 @@ describe('Candidate Extraction and Multi-Factor Scoring Suite (35 Tests)', () =>
     expect(score.identityMatch).toBe(1.0);
   });
 
-  it('SCORE-ID-03: should award 0.8 baseline for element with accessible name when selector has no affinity', () => {
+  it('SCORE-ID-03: should assign 0.0 identity score when selector has zero token overlap and no semantic affinity', () => {
     const candidate = createCandidate({ accessibleName: 'Place Order' });
     const score = SelectorScorer.score(candidate, [candidate], '#random-div-123');
-    expect(score.identityMatch).toBe(0.8);
+    expect(score.identityMatch).toBe(0.0);
   });
 
-  it('SCORE-ID-04: should fallback to 0.5 when neither selector nor element accessible name match', () => {
+  it('SCORE-ID-03B: should strictly assign 0.0 identity score for unrelated candidate (e.g. .primary-action vs Delete Account)', () => {
+    const candidate = createCandidate({ accessibleName: 'Delete Account', role: 'button' });
+    const score = SelectorScorer.score(candidate, [candidate], "page.locator('.primary-action')");
+    expect(score.identityMatch).toBe(0.0);
+  });
+
+  it('SCORE-ID-04: should fallback to 0.3 when neither selector nor element accessible name match', () => {
     const candidate = createCandidate({ accessibleName: undefined });
     const score = SelectorScorer.score(candidate, [candidate], undefined);
-    expect(score.identityMatch).toBe(0.5);
+    expect(score.identityMatch).toBe(0.3);
   });
 
   it('SCORE-ID-05: should recognize login and sign-in as equivalent intent', () => {

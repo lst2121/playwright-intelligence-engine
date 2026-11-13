@@ -118,7 +118,7 @@ flowchart TD
 | **PIE-INTENT**| Input data fingerprinting, step sequence preservation, destructive guard | 8 scenarios | 0 tampered tests | **100.0% Safe Abstention on Tampering** | **VERIFIED** |
 | **PIE-GEN** | Greenfield Tier-L1/Tier-L2 compilation (`tsc`) and discovery (`--list`) | 16 specs | 100% compilation | **100.0% Pass, 0 Compilation Errors** | **VERIFIED** |
 | **PIE-DIAG** | Testbed mutation trace root-cause classification (MUT-01 .. MUT-14) | 14 families | Accuracy $\ge 0.95$| **1.0 Accuracy (14/14 families)** | **VERIFIED** |
-| **PIE-REG** | Full regression test suite across all units and integrations | 63 files / 605 tests | 100% pass | **100.0% Pass (0 failures)** | **VERIFIED** |
+| **PIE-REG** | Full regression test suite across all units and integrations | 64 files / 623 tests | 100% pass | **100.0% Pass (0 failures)** | **VERIFIED** |
 
 ---
 

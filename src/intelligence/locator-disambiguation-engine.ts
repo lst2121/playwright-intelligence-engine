@@ -189,16 +189,14 @@ export class LocatorDisambiguationEngine {
               return this.getCleanText(otherContainer).includes(containerText);
             });
 
-            // If this container text uniquely identifies this candidate's container:
-            const intentMentionsContainer =
-              (context.originalSelector && context.originalSelector.includes(containerText)) ||
-              (context.testIntentText && context.testIntentText.includes(containerText));
-
-            if (!otherContainersHaveText || intentMentionsContainer) {
+            // Distinguishing text must NOT appear in other candidates' containers
+            if (!otherContainersHaveText) {
               const candidate = candidates[cIdx]!;
               const innerPlan = CandidateExtractor.generateLocatorPlan(candidate);
               const innerExpr = CandidateExtractor.planToExpression(innerPlan, '').replace(/^\./, '');
-              const containerTag = container.tag === 'tr' ? 'tr' : container.tag === 'li' ? 'li' : `[data-testid="${container.attributes['data-testid'] ?? container.tag}"]`;
+              const containerTag = container.attributes['data-testid']
+                ? `[data-testid="${container.attributes['data-testid']}"]`
+                : container.tag;
               const escapedText = CandidateExtractor.escapeLocatorString(containerText);
               const resolvedExpression = `${pageProperty}.locator('${containerTag}').filter({ hasText: '${escapedText}' }).${innerExpr}`;
 
@@ -234,24 +232,28 @@ export class LocatorDisambiguationEngine {
 
     for (const landmark of landmarks) {
       if (textToCheck.includes(landmark)) {
-        // Find which candidate is inside this landmark
-        for (const candidate of candidates) {
-          const path = this.findPathToElement(context.rootDom, candidate);
-          if (path && path.some((el) => el.tag === landmark || el.role === landmark)) {
-            const innerPlan = CandidateExtractor.generateLocatorPlan(candidate);
-            const innerExpr = CandidateExtractor.planToExpression(innerPlan, '').replace(/^\./, '');
-            const resolvedExpression = `${pageProperty}.locator('${landmark}').${innerExpr}`;
+        // Collect all candidates residing inside this landmark
+        const candidatesInLandmark = candidates.filter((candidate) => {
+          const path = this.findPathToElement(context.rootDom!, candidate);
+          return Boolean(path && path.some((el) => el.tag === landmark || el.role === landmark));
+        });
 
-            return {
-              strategy: 'LANDMARK_SECTION',
-              resolvedCandidate: candidate,
-              resolvedExpression,
-              matchCount: candidates.length,
-              explanation: `Disambiguated via landmark scoping: target scoped to <${landmark}> based on original selector/intent context.`,
-              confidence: 0.88,
-              isUnique: true,
-            };
-          }
+        // ONLY when exactly one candidate is inside this landmark is it unique
+        if (candidatesInLandmark.length === 1) {
+          const candidate = candidatesInLandmark[0]!;
+          const innerPlan = CandidateExtractor.generateLocatorPlan(candidate);
+          const innerExpr = CandidateExtractor.planToExpression(innerPlan, '').replace(/^\./, '');
+          const resolvedExpression = `${pageProperty}.locator('${landmark}').${innerExpr}`;
+
+          return {
+            strategy: 'LANDMARK_SECTION',
+            resolvedCandidate: candidate,
+            resolvedExpression,
+            matchCount: candidates.length,
+            explanation: `Disambiguated via landmark scoping: exactly one target candidate scoped to <${landmark}> based on context.`,
+            confidence: 0.88,
+            isUnique: true,
+          };
         }
       }
     }

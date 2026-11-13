@@ -144,6 +144,26 @@ describe('PIE-AMB: Multi-Match Disambiguation & Positional Invariant Suite (AMB-
     expect(result.resolvedExpression).toContain(`locator('dialog').getByRole('button', { name: 'Confirm' })`);
   });
 
+  it('AMB-06B: Multiple candidates inside same landmark should NOT claim uniqueness via landmark scoping', () => {
+    const headerBtn1 = createBtn('Search');
+    const headerBtn2 = createBtn('Search');
+
+    const header = createContainer('header', [headerBtn1, headerBtn2]);
+    const root = createContainer('div', [header]);
+
+    const result = LocatorDisambiguationEngine.disambiguate(
+      [headerBtn1, headerBtn2],
+      {
+        rootDom: root,
+        originalSelector: `page.locator('header').getByRole('button', { name: 'Search' })`,
+      }
+    );
+
+    // Because both buttons are in the header, landmark scoping cannot resolve uniquely; it must safely abstain
+    expect(result.strategy).toBe('ABSTAIN_AMBIGUOUS');
+    expect(result.isUnique).toBe(false);
+  });
+
   it('AMB-07: Explicit Positional Intent preserves .first() when declared in originalSelector', () => {
     const btn1 = createBtn('Select');
     const btn2 = createBtn('Select');

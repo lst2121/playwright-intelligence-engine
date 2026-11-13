@@ -95,9 +95,8 @@ export class SelectorScorer {
     explanation.push(`Uniqueness U: ${uniqueness} (${matchingCount} matching element(s) in scope)`);
 
     // 2. Identity Match I: Entity identity and affirmative token overlap
-    let identityMatch = 0.5;
+    let identityMatch = candidate.accessibleName ? (originalSelector ? 0.3 : 0.8) : 0.3;
     if (candidate.accessibleName) {
-      identityMatch = 0.8;
       if (originalSelector) {
         const origNorm = originalSelector.toLowerCase().replace(/[-_]/g, ' ');
         const nameNorm = candidate.accessibleName.toLowerCase().replace(/[-_]/g, ' ');
@@ -195,8 +194,12 @@ export class SelectorScorer {
             } else if (overlap > 0) {
               identityMatch = 0.85;
             } else {
-              identityMatch = 0.8;
+              identityMatch = 0.0;
+              explanation.push(`Identity Match I: 0.0 (Zero token overlap or semantic correspondence with original selector)`);
             }
+          } else {
+            identityMatch = 0.2;
+            explanation.push(`Identity Match I: 0.2 (Insufficient token information to prove identity)`);
           }
         }
 

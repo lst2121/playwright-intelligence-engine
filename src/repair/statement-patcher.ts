@@ -235,6 +235,13 @@ export class StatementPatcher {
       );
     }
 
+    if (!plan.targetLine && candidateStatements.length > 1) {
+      throw new AbstentionError(
+        `Ambiguous statement match: found ${candidateStatements.length} waitForTimeout statements. Provide targetLine to specify which statement to transform.`,
+        'AST_AMBIGUOUS_STATEMENT_TARGET'
+      );
+    }
+
     const targetStatement = candidateStatements[0]!;
     this.assertNotAssertion(targetStatement);
 
@@ -275,6 +282,13 @@ export class StatementPatcher {
           ? `No action statement found at line ${plan.targetLine}`
           : `No action statement matching '${plan.targetActionSubstring ?? 'click/fill'}' found`,
         'AST_STATEMENT_NOT_FOUND'
+      );
+    }
+
+    if (!plan.targetLine && candidateStatements.length > 1) {
+      throw new AbstentionError(
+        `Ambiguous statement match: found ${candidateStatements.length} candidate action statements matching '${plan.targetActionSubstring ?? 'action'}'. Provide targetLine to specify which statement to transform.`,
+        'AST_AMBIGUOUS_STATEMENT_TARGET'
       );
     }
 
@@ -333,6 +347,13 @@ export class StatementPatcher {
       );
     }
 
+    if (!plan.targetLine && candidateStatements.length > 1) {
+      throw new AbstentionError(
+        `Ambiguous statement match: found ${candidateStatements.length} candidate statements matching '${plan.targetActionSubstring ?? 'action'}'. Provide targetLine to specify which statement to transform.`,
+        'AST_AMBIGUOUS_STATEMENT_TARGET'
+      );
+    }
+
     const targetStatement = candidateStatements[0]!;
     this.assertNotAssertion(targetStatement);
 
@@ -369,6 +390,13 @@ export class StatementPatcher {
       throw new AbstentionError(
         `Old locator '${plan.oldLocatorText}' not found in source AST`,
         'AST_LOCATOR_NOT_FOUND'
+      );
+    }
+
+    if (!plan.targetLine && candidateStatements.length > 1) {
+      throw new AbstentionError(
+        `Ambiguous statement match: found ${candidateStatements.length} statements matching '${plan.oldLocatorText}'. Provide targetLine to specify which statement to transform.`,
+        'AST_AMBIGUOUS_STATEMENT_TARGET'
       );
     }
 
@@ -490,6 +518,18 @@ export class StatementPatcher {
         'Modifying or removing test assertions via StatementPatcher is strictly prohibited',
         'AST_ASSERTION_TAMPERING_PROHIBITED'
       );
+    }
+
+    // Recursive descendant check: detect any nested expect() calls
+    const callExpressions = stmt.getDescendantsOfKind(SyntaxKind.CallExpression);
+    for (const call of callExpressions) {
+      const exprText = call.getExpression().getText().trim();
+      if (exprText === 'expect' || exprText.endsWith('.expect')) {
+        throw new AbstentionError(
+          'Modifying or removing test assertions via StatementPatcher is strictly prohibited (nested assertion detected)',
+          'AST_ASSERTION_TAMPERING_PROHIBITED'
+        );
+      }
     }
   }
 

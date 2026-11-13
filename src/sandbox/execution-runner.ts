@@ -149,12 +149,16 @@ export class ExecutionRunner {
       if (isWindows && (command === 'npx' || command === 'npm')) {
         const cliName = command === 'npx' ? 'npx-cli.js' : 'npm-cli.js';
         const bundledCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', cliName);
+        const cmdScript = path.join(path.dirname(process.execPath), `${command}.cmd`);
         if (fs.existsSync(bundledCli)) {
           executable = process.execPath;
           finalArgs = [bundledCli, ...args];
+        } else if (fs.existsSync(cmdScript)) {
+          executable = cmdScript;
+          finalArgs = args;
         } else {
-          executable = 'cmd.exe';
-          finalArgs = ['/d', '/s', '/c', command, ...args];
+          executable = `${command}.cmd`;
+          finalArgs = args;
         }
       }
 

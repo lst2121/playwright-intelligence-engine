@@ -4,8 +4,8 @@ import { execFileSync } from 'node:child_process';
  * Product identity is kept in one place so the CLI, MCP server, and execution
  * proofs cannot silently advertise different versions.
  */
-export const PACKAGE_VERSION = '1.0.0';
-export const ENGINE_MILESTONE = '1.0.0';
+export const PACKAGE_VERSION = '2.0.0';
+export const ENGINE_MILESTONE = '2.0.0';
 export const PROOF_VERSION = ENGINE_MILESTONE;
 
 export interface RuntimeProvenance {

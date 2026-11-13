@@ -141,6 +141,43 @@ test('admin multi-page dispatch', async ({ page, context }) => {
     }
   });
 
+  it('ADVERSARIAL: should reject tampering with nested expect calls inside wrapper statements', () => {
+    const patcher = new StatementPatcher();
+    const specWithNestedExpect = `
+      import { test } from '@playwright/test';
+      test('nested', async ({ page }) => {
+        await Promise.all([ expect(page.locator('#banner')).toBeVisible() ]);
+      });
+    `;
+
+    expect(() => {
+      patcher.patchStatementInMemory(specWithNestedExpect, {
+        kind: 'replace-statement',
+        targetSubstring: 'Promise.all',
+        newStatement: '// removed nested assertion',
+      });
+    }).toThrowError(AbstentionError);
+  });
+
+  it('ADVERSARIAL: should abstain when multiple statements match and targetLine is omitted', () => {
+    const patcher = new StatementPatcher();
+    const specWithMultipleSleeps = `
+      import { test } from '@playwright/test';
+      test('multi-sleep', async ({ page }) => {
+        await page.waitForTimeout(500);
+        await page.locator('#btn').click();
+        await page.waitForTimeout(1000);
+      });
+    `;
+
+    expect(() => {
+      patcher.patchStatementInMemory(specWithMultipleSleeps, {
+        kind: 'replace-timeout-with-wait',
+        replacementWaitStatement: 'await expect(page.locator("#btn")).toBeVisible();',
+      });
+    }).toThrowError(AbstentionError);
+  });
+
   it('INVARIANT: should reject statement patches that introduce syntax errors', () => {
     const patcher = new StatementPatcher();
 

@@ -139,5 +139,33 @@ test('checkout order', async ({ page }) => {
     expect(proposal.replacementSelector).toContain('frameLocator');
     expect(proposal.proposedPatchedSource).toContain('frameLocator');
   });
+
+  it('should plan a statement-level repair using StatementPatcher with verified evidence provenance', async () => {
+    const specContent = `
+import { test, expect } from '@playwright/test';
+test('delayed search flow', async ({ page }) => {
+  await page.waitForTimeout(1000);
+  await expect(page.locator('#results')).toBeVisible();
+});
+`;
+    const specPath = path.join(tmpDir, 'search.spec.ts');
+    await fs.writeFile(specPath, specContent, 'utf8');
+
+    const proposal = RepairPlanner.planStatementRepair({
+      originalActionId: 'call@sleep',
+      originalSelector: 'await page.waitForTimeout(1000);',
+      testFilePath: specPath,
+      plan: {
+        kind: 'replace-timeout-with-wait',
+        replacementWaitStatement: "await expect(page.locator('#search-indicator')).toBeVisible({ timeout: 5000 });",
+      },
+    });
+
+    expect(proposal.pattern).toBe('statement-patch');
+    expect(proposal.proposedPatchedSource).toContain("await expect(page.locator('#search-indicator')).toBeVisible({ timeout: 5000 });");
+    expect(proposal.proposedPatchedSource).not.toContain('waitForTimeout');
+    expect(proposal.fullDiff).toBeDefined();
+    expect(proposal.diffAllowlistPassed).toBe(true);
+  });
 });
 

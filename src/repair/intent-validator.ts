@@ -365,7 +365,20 @@ export class IntentValidator {
     const origInputs = extractInputs(originalSource);
     const patchedInputs = extractInputs(patchedSource);
 
-    for (let i = 0; i < Math.min(origInputs.length, patchedInputs.length); i++) {
+    if (origInputs.length !== patchedInputs.length) {
+      return {
+        isValid: false,
+        reason: `Input data invariant violated: Input action count changed from ${origInputs.length} to ${patchedInputs.length}. Test inputs cannot be added or removed.`,
+      };
+    }
+
+    for (let i = 0; i < origInputs.length; i++) {
+      if (origInputs[i]!.action !== patchedInputs[i]!.action) {
+        return {
+          isValid: false,
+          reason: `Input data invariant violated: Input action type changed at index ${i} from '${origInputs[i]!.action}' to '${patchedInputs[i]!.action}'.`,
+        };
+      }
       if (origInputs[i]!.arg !== patchedInputs[i]!.arg) {
         return {
           isValid: false,
@@ -379,7 +392,7 @@ export class IntentValidator {
 
   /**
    * INVARIANT: Workflow Step Integrity.
-   * Repairs must not delete or skip intermediate workflow steps (e.g. skipping a checkout step).
+   * Repairs must not delete, add, or reorder intermediate workflow steps (e.g. swapping or skipping checkout steps).
    */
   public static validateWorkflowStepIntegrity(
     originalSource: string,
@@ -398,11 +411,20 @@ export class IntentValidator {
     const origActions = extractActionSequence(originalSource);
     const patchedActions = extractActionSequence(patchedSource);
 
-    if (patchedActions.length < origActions.length) {
+    if (origActions.length !== patchedActions.length) {
       return {
         isValid: false,
-        reason: `Workflow sequence invariant violated: Test step count decreased from ${origActions.length} to ${patchedActions.length}. Repair cannot delete or bypass intermediate test steps.`,
+        reason: `Workflow sequence invariant violated: Test step count changed from ${origActions.length} to ${patchedActions.length}. Repair cannot delete, add, or bypass intermediate test steps.`,
       };
+    }
+
+    for (let i = 0; i < origActions.length; i++) {
+      if (origActions[i] !== patchedActions[i]) {
+        return {
+          isValid: false,
+          reason: `Workflow sequence invariant violated: Action sequence altered at step ${i + 1} (expected '${origActions[i]}', found '${patchedActions[i]}'). Test action order must be preserved.`,
+        };
+      }
     }
 
     return { isValid: true };

@@ -181,6 +181,120 @@ export class AssertionHasher {
   }
 
   /**
+   * Extracts canonical assertion records from in-memory source.
+   */
+  public static extractAssertionRecordsFromSource(sourceText: string, fileName = 'in-memory.spec.ts'): any[] {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile(fileName, sourceText, { overwrite: true });
+    const records: any[] = [];
+    sourceFile.forEachDescendant((node) => {
+      if (Node.isCallExpression(node) && AssertionHasher.isAssertionCall(node)) {
+        records.push(AssertionHasher.canonicalizeAssertion(node));
+      }
+    });
+    return records;
+  }
+
+  /**
+   * Computes composite intent fingerprint directly from in-memory source code.
+   */
+  public static computeCompositeFingerprintFromSource(
+    sourceText: string,
+    fileName = 'in-memory.spec.ts'
+  ): CompositeIntentFingerprint {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const sourceFile = project.createSourceFile(fileName, sourceText, { overwrite: true });
+
+    // Assertions
+    const assertionRecords: any[] = [];
+    sourceFile.forEachDescendant((node) => {
+      if (Node.isCallExpression(node) && AssertionHasher.isAssertionCall(node)) {
+        assertionRecords.push(AssertionHasher.canonicalizeAssertion(node));
+      }
+    });
+    const assertionFingerprint = crypto.createHash('sha256').update(JSON.stringify(assertionRecords)).digest('hex');
+
+    // Test body
+    const structuralTokens: any[] = [];
+    sourceFile.forEachDescendant((node) => {
+      if (
+        Node.isIfStatement(node) ||
+        Node.isForStatement(node) ||
+        Node.isForOfStatement(node) ||
+        Node.isForInStatement(node) ||
+        Node.isWhileStatement(node) ||
+        Node.isDoStatement(node) ||
+        Node.isTryStatement(node) ||
+        Node.isSwitchStatement(node) ||
+        Node.isReturnStatement(node)
+      ) {
+        const conditionText = Node.isIfStatement(node) || Node.isWhileStatement(node)
+          ? node.getExpression().getText().trim()
+          : '';
+        structuralTokens.push({
+          kind: node.getKindName(),
+          childCount: node.getChildCount(),
+          condition: conditionText,
+        });
+      } else if (Node.isBinaryExpression(node)) {
+        structuralTokens.push({
+          kind: 'BinaryExpression',
+          operator: node.getOperatorToken().getText(),
+          left: node.getLeft().getText().trim(),
+          right: node.getRight().getText().trim(),
+        });
+      } else if (Node.isPrefixUnaryExpression(node)) {
+        structuralTokens.push({
+          kind: 'PrefixUnaryExpression',
+          operator: node.getOperatorToken(),
+          operand: node.getOperand().getText().trim(),
+        });
+      } else if (Node.isCallExpression(node)) {
+        if (!AssertionHasher.isAssertionCall(node)) {
+          structuralTokens.push({
+            kind: 'CallExpression',
+            expr: node.getExpression().getText().trim(),
+            argCount: node.getArguments().length,
+          });
+        }
+      }
+    });
+    const testBodyFingerprint = crypto.createHash('sha256').update(JSON.stringify(structuralTokens)).digest('hex');
+
+    // Fixtures
+    const fixtureTokens: string[] = [];
+    sourceFile.forEachDescendant((node) => {
+      if (Node.isPropertyAssignment(node)) {
+        const key = node.getName();
+        const initializer = node.getInitializer();
+        const value = initializer ? initializer.getText() : '';
+        fixtureTokens.push(`Prop:${key}=${value}`);
+      } else if (
+        (Node.isStringLiteral(node) ||
+          Node.isNumericLiteral(node) ||
+          Node.isTrueLiteral(node) ||
+          Node.isFalseLiteral(node)) &&
+        !Node.isPropertyAssignment(node.getParent())
+      ) {
+        fixtureTokens.push(`Literal:${node.getKindName()}:${node.getText()}`);
+      }
+    });
+    const fixtureFingerprint = crypto.createHash('sha256').update(fixtureTokens.join(';;')).digest('hex');
+
+    const compositeHash = crypto
+      .createHash('sha256')
+      .update(`${assertionFingerprint}:${testBodyFingerprint}:${fixtureFingerprint}`)
+      .digest('hex');
+
+    return {
+      assertionFingerprint,
+      testBodyFingerprint,
+      fixtureFingerprint,
+      compositeHash,
+    };
+  }
+
+  /**
    * Canonicalizes an assertion node while strictly preserving string literals exactly.
    */
   private static canonicalizeAssertion(callExpr: CallExpression): any {

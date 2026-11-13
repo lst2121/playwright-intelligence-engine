@@ -37,7 +37,10 @@ pie title Benchmark Scenario Distribution (125 Total)
 | **Defect Masking Rate** | **0.0%** (0/10) | $0.0\%$ | **[0.00%, 27.75%]** | **PERFECT** |
 | **False Repair Rate** | **0.0%** (0/60) | $\le 1.0\%$ | **[0.00%, 6.02%]** | **PERFECT** |
 | **Regression Rate** | **0.0%** (0/58) | $0.0\%$ | **[0.00%, 6.21%]** | **PERFECT** |
-| **Overall Benchmark Score** | **96.0%** (120/125) | $\ge 90.0\%$ | **[94.35%, 99.56%]** | **EXCEEDS** |
+| **Overall Successful Outcomes** | **98.4%** (123/125) | $\ge 90.0\%$ | **[94.35%, 99.56%]** | **EXCEEDS** |
+
+> [!NOTE]
+> **Reconciliation of Outcomes:** 5 clean baseline passes + 58 autonomous repairs + 60 safe abstentions on negative controls = 123 successful outcomes out of 125 scenarios (98.4%). The 2 failed repairs were `POS-MOD-30` (container restructuring) and `POS-MOD-36` (tag substitution). The Two-Sided Wilson 95% Confidence Interval for 123/125 is **[94.35%, 99.56%]**.
 
 ---
 

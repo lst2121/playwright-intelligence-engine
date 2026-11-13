@@ -257,7 +257,14 @@ export async function runTraceProposalWorkflow(input: TraceProposalWorkflowInput
           if (!domRoot) return { status: 'NO_DOM_EVIDENCE', candidates: [], proposedLocator: null };
           try {
             const candidates = CandidateExtractor.extractCandidates(domRoot as Parameters<typeof CandidateExtractor.extractCandidates>[0], correlated.context.failedAction);
-            const ranked = RepairCandidateRanker.rank(candidates, correlated.context.failedAction.selector, correlated.context.failedAction.action, intelligence);
+            const ranked = RepairCandidateRanker.rank(
+              candidates,
+              correlated.context.failedAction.selector,
+              correlated.context.failedAction.action,
+              intelligence,
+              domRoot as Parameters<typeof CandidateExtractor.extractCandidates>[0],
+              correlated.context.failedAction.selector
+            );
             const decision = AbstentionPolicy.evaluate(ranked);
             return {
               status: decision.shouldAbstain ? 'CANDIDATES_REQUIRE_REVIEW' : 'CANDIDATE_AVAILABLE',

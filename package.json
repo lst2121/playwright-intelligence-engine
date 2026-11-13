@@ -36,6 +36,14 @@
   ],
   "author": "Playwright Intelligence Team",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lst2121/playwright-intelligence-engine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lst2121/playwright-intelligence-engine/issues"
+  },
+  "homepage": "https://github.com/lst2121/playwright-intelligence-engine#readme",
   "engines": {
     "node": ">=20.0.0"
   },

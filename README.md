@@ -218,6 +218,12 @@ Add to `claude_desktop_config.json`:
 
 ---
 
+## Community & Contributing
+
+Contributions, feedback, and bug reports are warmly welcome! If Playwright Intelligence Engine saves you debugging time or helps stabilize your test suite, please consider giving it a ⭐ on [GitHub](https://github.com/lst2121/playwright-intelligence-engine).
+
+---
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) for details.

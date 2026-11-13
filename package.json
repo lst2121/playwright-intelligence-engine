@@ -6,7 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "pw-intel": "bin/pw-intel.js"
+    "pw-intel": "bin/pw-intel.js",
+    "playwright-intelligence-engine": "bin/pw-intel.js"
   },
   "files": [
     "dist",

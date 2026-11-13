@@ -3,10 +3,9 @@
 > Fast, verification-first failure diagnosis, autonomous self-healing, and test generation for Microsoft Playwright suites.
 
 [![npm version](https://img.shields.io/npm/v/playwright-intelligence-engine.svg?style=flat-square)](https://www.npmjs.com/package/playwright-intelligence-engine)
-[![Playwright](https://img.shields.io/badge/Playwright-1.30+-green.svg?style=flat-square)](https://playwright.dev/)
-[![Node](https://img.shields.io/badge/Node->=20.0.0-blue.svg?style=flat-square)](https://nodejs.org/)
-[![Tests](https://img.shields.io/badge/Tests-661%20Passed-brightgreen.svg?style=flat-square)]()
-[![License](https://img.shields.io/badge/License-Apache--2.0-purple.svg?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
+[![Node](https://img.shields.io/badge/Node->=20.0.0-green.svg?style=flat-square)](https://nodejs.org/)
+[![Playwright](https://img.shields.io/badge/Playwright->=1.30-orange.svg?style=flat-square)](https://playwright.dev/)
 
 ---
 

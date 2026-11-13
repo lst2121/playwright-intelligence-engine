@@ -221,9 +221,9 @@ export class OpenAiCompatibleGenerationProvider implements GenerationPlanProvide
 
 function configuredGenerationProvider(): GenerationPlanProvider | undefined {
   const liveAllowed = !process.env.VITEST || process.env.PIE_LIVE_LLM_TESTS === '1';
-  const apiKey = liveAllowed ? (process.env.PIE_LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY) : undefined;
-  const endpoint = process.env.PIE_LLM_ENDPOINT ?? (apiKey ? 'https://api.deepseek.com/chat/completions' : undefined);
-  const model = process.env.PIE_LLM_MODEL ?? (apiKey ? 'deepseek-chat' : undefined);
+  const apiKey = liveAllowed ? (process.env.PIE_LLM_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY) : undefined;
+  const endpoint = process.env.PIE_LLM_ENDPOINT ?? (process.env.OPENAI_API_KEY ? 'https://api.openai.com/v1/chat/completions' : (apiKey ? 'https://api.deepseek.com/chat/completions' : undefined));
+  const model = process.env.PIE_LLM_MODEL ?? (process.env.OPENAI_API_KEY ? 'gpt-4o' : (apiKey ? 'deepseek-chat' : undefined));
   if (!endpoint || !model) return undefined;
   return new OpenAiCompatibleGenerationProvider({
     endpoint,

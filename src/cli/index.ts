@@ -376,14 +376,58 @@ export async function runCli(argv: string[]): Promise<void> {
   if (command === 'init') {
     const workspaceRoot = argv[3] && !argv[3].startsWith('--') ? argv[3] : process.cwd();
     try {
+      const option = (name: string): string | undefined => {
+        const index = argv.indexOf(name);
+        return index >= 0 ? argv[index + 1] : undefined;
+      };
+      const apiKeyArg = option('--api-key');
+      const modelArg = option('--model') ?? (apiKeyArg?.startsWith('sk-') ? 'gpt-4o' : 'deepseek-chat');
+      const endpointArg = option('--endpoint');
+
       const result = await initProjectConfig(workspaceRoot, { force: argv.includes('--force') });
+
+      // Handle optional LLM configuration
+      if (apiKeyArg) {
+        const envPath = path.join(workspaceRoot, '.env');
+        const envLines = [
+          '# Playwright Intelligence Engine (PIE) Configuration',
+          `PIE_LLM_API_KEY=${apiKeyArg}`,
+          `PIE_LLM_MODEL=${modelArg}`,
+        ];
+        if (endpointArg) {
+          envLines.push(`PIE_LLM_ENDPOINT=${endpointArg}`);
+        } else if (apiKeyArg.startsWith('sk-proj-') || apiKeyArg.startsWith('sk-')) {
+          envLines.push('PIE_LLM_ENDPOINT=https://api.openai.com/v1/chat/completions');
+        }
+        await fs.promises.writeFile(envPath, `${envLines.join('\n')}\n`, 'utf8');
+
+        // Ensure .env is in .gitignore
+        const gitignorePath = path.join(workspaceRoot, '.gitignore');
+        try {
+          const gitignoreContent = await fs.promises.readFile(gitignorePath, 'utf8').catch(() => '');
+          if (!gitignoreContent.includes('.env')) {
+            await fs.promises.appendFile(gitignorePath, '\n.env\n', 'utf8');
+          }
+        } catch {}
+      }
+
+      const activeApiKey = apiKeyArg ?? process.env.PIE_LLM_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+
       if (argv.includes('--json')) {
-        console.log(JSON.stringify(result, null, 2));
+        console.log(JSON.stringify({ ...result, llmConfigured: Boolean(activeApiKey) }, null, 2));
       } else {
         console.log(`${result.created ? 'Created' : 'Found'} PIE project configuration: ${result.configPath}`);
         console.log(`  Package manager : ${result.config.test.packageManager}`);
         console.log(`  Test command    : ${result.config.test.command ?? 'not detected'}`);
         console.log(`  Fail-closed     : ${result.config.diagnostics.failClosed ? 'enabled' : 'disabled'}`);
+        console.log(`  LLM Provider    : ${activeApiKey ? `configured (${apiKeyArg ? 'written to .env' : 'detected in environment'})` : 'not configured (100% offline deterministic mode)'}`);
+        if (!activeApiKey) {
+          console.log(`  Note            : Core diagnosis and repair are 100% offline. To enable AI test generation, run: pw-intel init --api-key <key>`);
+        }
+        console.log('\nQuickstart Commands:');
+        console.log('  Diagnose a trace   : pw-intel diagnose ./test-results/trace.zip');
+        console.log('  Repair a failure   : pw-intel autonomous-repair ./test-results/trace.zip --execute');
+        console.log('  Generate tests     : pw-intel generate-agent ./requirements.json --mode brownfield --write');
       }
     } catch (err: any) {
       console.error(`PIE initialization failed: ${err?.message ?? String(err)}`);
@@ -1055,6 +1099,14 @@ async function runDoctor(): Promise<void> {
   // 5. Host platform info
   console.log(`  ✓ Host Platform       : ${process.platform} (${process.arch})`);
 
+  // 6. Optional LLM status
+  const apiKey = process.env.PIE_LLM_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+  if (apiKey) {
+    console.log(`  ✓ LLM Provider        : Configured (AI test generation enabled)`);
+  } else {
+    console.log(`  ℹ LLM Provider        : None configured (100% offline deterministic mode active; run 'pw-intel init --api-key <key>' to enable AI generation)`);
+  }
+
   console.log('\nHealthcheck Verdict: ' + (healthy ? 'HEALTHY (Ready for diagnostic and repair workflows)' : 'DEGRADED (Check failed items above)'));
   if (!healthy) {
     process.exit(1);
@@ -1066,7 +1118,7 @@ function printHelp(): void {
 Playwright Intelligence Engine CLI (pw-intel)
 
 Usage:
-  pw-intel init [directory]      Creates or loads the project-local .pie/config.json
+  pw-intel init [dir] [--api-key <k>] [--model <m>] Initializes PIE config & optional LLM credentials
   pw-intel profile [directory]   Builds the project repository convention profile
   pw-intel cluster-failures <json> Groups failure observations by deterministic fingerprints
   pw-intel evaluation-scorecard <json> Reconciles expected/predicted categories, repairs, abstentions, and latency

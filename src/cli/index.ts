@@ -335,7 +335,13 @@ export async function runCli(argv: string[]): Promise<void> {
     const localBenchmarkScript = path.resolve(process.cwd(), 'benchmarks', 'runner', 'master-benchmark-runner.ts');
     const benchmarkScript = fs.existsSync(packageBenchmarkScript)
       ? packageBenchmarkScript
-      : localBenchmarkScript;
+      : (fs.existsSync(localBenchmarkScript) ? localBenchmarkScript : undefined);
+
+    if (!benchmarkScript) {
+      console.log('Empirical benchmark harness is maintained in the research testbed repository.');
+      console.log('See docs/BENCHMARK.md for methodology, metrics, and empirical validation results.');
+      return;
+    }
 
     // Locate tsx CLI entry point
     const tsxCandidatePaths = [

@@ -10,7 +10,6 @@ const requiredPaths = [
   'src/index.ts',
   'bin/pw-intel.js',
   'tests',
-  'benchmarks/runner/master-benchmark-runner.ts',
 ];
 
 for (const relativePath of requiredPaths) {

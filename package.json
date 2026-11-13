@@ -13,7 +13,6 @@
     "dist",
     "bin",
     "src",
-    "benchmarks",
     "skills",
     "README.md",
     "LICENSE"
@@ -22,8 +21,7 @@
     "build": "tsup src/index.ts --format esm --clean && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
     "test": "vitest run --maxWorkers=4",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit && tsc -p tests/tsconfig.json --noEmit && tsc -p benchmarks/tsconfig.json --noEmit",
-    "benchmark": "tsx benchmarks/runner/master-benchmark-runner.ts",
+    "typecheck": "tsc --noEmit && tsc -p tests/tsconfig.json --noEmit",
     "verify:all": "node scripts/verify/index.mjs",
     "verify:full": "node scripts/verify/index.mjs --full",
     "verify:baseline": "node scripts/verify-baseline.mjs"

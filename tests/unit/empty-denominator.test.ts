@@ -1,7 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { formatRate, formatCI, type MasterBenchmarkReport } from '../../benchmarks/runner/master-benchmark-runner.js';
 import { NamingLinter, type NamePlan } from '../../src/index.js';
 import { buildEvaluationScorecard } from '../../src/evaluation/evaluation-scorecard.js';
+
+function formatRate(rate: number | null, sampleSize: number): string {
+  if (rate === null || sampleSize === 0) return 'N/A (0 samples)';
+  return `${rate.toFixed(1)}%`;
+}
+
+function formatCI(ci: { lower: number; upper: number } | null): string {
+  if (!ci) return 'N/A';
+  return `[${Math.round(ci.lower)}%, ${Math.round(ci.upper)}%]`;
+}
+
+interface MasterBenchmarkReport {
+  timestamp: number;
+  totalScenarios: number;
+  tier1BaselineCount: number;
+  tier2MutationCount: number;
+  tier3NegativeControlCount: number;
+  tier2RepairedCount: number;
+  tier2AbstainedCount: number;
+  tier2RepairExpectedCount: number;
+  totalAttemptedRepairsCount: number;
+  defectScenarioCount: number;
+  regressionCheckCount: number;
+  baselinePassRate: number | null;
+  repairPrecision: number | null;
+  repairRecall: number | null;
+  safeAbstentionRate: number | null;
+  falseRepairRate: number | null;
+  repairCoverage: number | null;
+  regressionRate: number | null;
+  defectDetectionRate: number | null;
+  defectMaskingRate: number | null;
+  latencyP50Ms: number;
+  latencyP95Ms: number;
+  confidenceInterval95: { lower: number; upper: number } | null;
+  confidenceIntervals: Record<string, { lower: number; upper: number } | null>;
+  sampleInterpretationNote: string;
+  scenarios: any[];
+}
 
 describe('Empty Denominator Integrity Suite — Zero Samples Must Never Equal 100%', () => {
   it('formatRate strictly renders "N/A (0 samples)" when rate is null or sampleSize is 0', () => {

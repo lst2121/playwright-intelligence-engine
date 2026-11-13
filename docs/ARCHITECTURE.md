@@ -143,3 +143,25 @@ $$V = A \land T \land F \land I \land D \land E$$
 - $E$: Target test spec executed and passed cleanly inside the isolated worktree with $\ge 1$ passing test.
 
 Applying patches outside the worktree requires a single-use token issued by `ApprovalService` after affirmative cryptographic verification.
+
+### Subsystem E: Dual Repair Architecture (POM Properties & Inline Statements)
+PIE supports both structured Page Object architectures and inline test statement repairs:
+
+```mermaid
+flowchart TD
+    Failure["Failing Action Identified in Trace / Live Run"] --> Target{"Is Locator in Page Object\nor Inline Test Statement?"}
+    
+    Target -->|Page Object Class| AstPatcher["AstPatcher (ts-morph)\n• Property Initializers\n• Constructor Assignments\n• Getter Methods"]
+    Target -->|Inline Test Statement| StatementPatcher["StatementPatcher (ts-morph)\n• Disambiguates by targetLine & substring\n• Replaces arbitrary waitForTimeout with toBeVisible\n• Wraps async actions with waitForResponse\n• Patches inline locator statements"]
+    
+    AstPatcher --> AllowlistPOM["DiffAllowlistValidator (POM Rules)\nOnly target property mutated"]
+    StatementPatcher --> AllowlistInline["DiffAllowlistValidator (Inline Rules)\nTarget test statement mutated; assertions preserved"]
+    
+    AllowlistPOM --> WorktreeVerify["Worktree Execution Verification\n(Headless Chromium Re-run)"]
+    AllowlistInline --> WorktreeVerify
+    
+    WorktreeVerify --> GateV2["IntentValidator (V = A ∧ T ∧ F ∧ I ∧ D ∧ E)"]
+    GateV2 --> Approved["Staged with Cryptographic SHA-256 Token"]
+```
+
+For empirical verification data, benchmark methodology, and defect resistance matrices, see [docs/BENCHMARK.md](BENCHMARK.md).

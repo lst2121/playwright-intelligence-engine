@@ -212,6 +212,7 @@ Add to `claude_desktop_config.json`:
 
 - [CLI Reference Guide](docs/CLI_REFERENCE.md)
 - [System Architecture](docs/ARCHITECTURE.md)
+- [Benchmark Methodology & Results](docs/BENCHMARK.md)
 - [Intent Invariants & Verification Guarantees](docs/INTENT_INVARIANTS.md)
 - [MCP Server Setup](docs/MCP_INTEGRATION.md)
 

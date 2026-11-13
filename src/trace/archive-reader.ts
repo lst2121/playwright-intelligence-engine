@@ -185,10 +185,29 @@ export class ArchiveReader {
       }
 
       // Check for Zip-Slip path traversal vulnerability
-      const targetFilePath = path.resolve(resolvedDest, entry.entryName);
-      // Ensure target path is strictly within destination directory
+      const entryName = entry.entryName;
+      // Cross-platform check: reject absolute paths, drive letters, UNC paths, and root-relative paths
+      if (
+        path.isAbsolute(entryName) ||
+        path.win32.isAbsolute(entryName) ||
+        path.posix.isAbsolute(entryName) ||
+        /^[a-zA-Z]:[/\\]/.test(entryName) ||
+        entryName.startsWith('/') ||
+        entryName.startsWith('\\')
+      ) {
+        throw new ZipSlipSecurityError(entry.entryName);
+      }
+
+      // Ensure target path is strictly within destination directory on both Windows and POSIX
+      const normalizedEntry = entryName.replace(/\\/g, '/');
+      const targetFilePath = path.resolve(resolvedDest, normalizedEntry);
       const relative = path.relative(resolvedDest, targetFilePath);
-      if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      if (
+        relative.startsWith('..') ||
+        path.isAbsolute(relative) ||
+        path.win32.isAbsolute(relative) ||
+        path.posix.isAbsolute(relative)
+      ) {
         throw new ZipSlipSecurityError(entry.entryName);
       }
 
@@ -197,7 +216,8 @@ export class ArchiveReader {
 
     // Phase 2: Safe extraction
     for (const entry of entries) {
-      const targetFilePath = path.resolve(resolvedDest, entry.entryName);
+      const normalizedEntry = entry.entryName.replace(/\\/g, '/');
+      const targetFilePath = path.resolve(resolvedDest, normalizedEntry);
       if (entry.isDirectory) {
         await fs.mkdir(targetFilePath, { recursive: true });
       } else {

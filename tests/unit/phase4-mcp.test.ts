@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { McpServer, JsonRpcRequest } from '../../src/mcp/server.js';
+import { PACKAGE_VERSION } from '../../src/core/version.js';
 import { buildCiEvidenceReport } from '../../src/integrations/playwright-report-adapter.js';
 
 describe('Phase 4 Model Context Protocol (MCP) Server Tests', () => {
@@ -77,7 +78,7 @@ describe('Phase 4 Model Context Protocol (MCP) Server Tests', () => {
       params: { name: 'get_product_status', arguments: {} },
     });
 
-    expect(res.result.packageVersion).toBe('2.0.0');
+    expect(res.result.packageVersion).toBe(PACKAGE_VERSION);
     expect(res.result.safetyMode).toBe('fail-closed');
     expect(res.result.capabilities.builtInLlmProvider).toBe(false);
   });

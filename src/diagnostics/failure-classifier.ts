@@ -35,6 +35,28 @@ export interface CausalEvidenceGraph {
   offendingNetworkEvent?: NetworkEvent | undefined;
 }
 
+export type RuntimeSymptom =
+  | 'TIMEOUT'
+  | 'ELEMENT_NOT_FOUND'
+  | 'ASSERTION_FAILED'
+  | 'ACTION_INTERCEPTED'
+  | 'TARGET_CLOSED'
+  | 'NETWORK_ERROR'
+  | 'PAGE_CRASH'
+  | 'UNKNOWN_SYMPTOM';
+
+export type CausalRootCause =
+  | 'LOCATOR_DRIFT'
+  | 'DYNAMIC_CONTENT_SLOW'
+  | 'NETWORK_SYNCHRONIZATION_FAILURE'
+  | 'OBSTRUCTED_ELEMENT'
+  | 'DISABLED_ELEMENT'
+  | 'BACKEND_500'
+  | 'AUTH_EXPIRED'
+  | 'BUSINESS_LOGIC_DEFECT'
+  | 'AMBIGUOUS_MATCH'
+  | 'UNKNOWN_ROOT_CAUSE';
+
 export interface ClassificationResult {
   category: FailureCategory;
   confidence: number;
@@ -43,6 +65,8 @@ export interface ClassificationResult {
   abstentionReason?: string | undefined;
   supportingEvidence: string[];
   causalGraph?: CausalEvidenceGraph | undefined;
+  runtimeSymptom?: RuntimeSymptom | undefined;
+  causalRootCause?: CausalRootCause | undefined;
 }
 
 export class FailureClassifier {
@@ -207,11 +231,87 @@ export class FailureClassifier {
     };
   }
 
+  public static extractRuntimeSymptom(context: DiagnosticContext): RuntimeSymptom {
+    const errorMsg = (context.failedAction.errorMessage ?? '').toLowerCase();
+    const action = (context.failedAction.action ?? '').toLowerCase();
+
+    if (errorMsg.includes('timeout') || errorMsg.includes('timed out') || errorMsg.includes('waiting for')) {
+      return 'TIMEOUT';
+    }
+    if (
+      errorMsg.includes('not found') ||
+      errorMsg.includes('could not find') ||
+      errorMsg.includes('no element found') ||
+      errorMsg.includes('failed to resolve')
+    ) {
+      return 'ELEMENT_NOT_FOUND';
+    }
+    if (
+      errorMsg.includes('expect(') ||
+      errorMsg.includes('expected') ||
+      errorMsg.includes('received') ||
+      action.startsWith('expect')
+    ) {
+      return 'ASSERTION_FAILED';
+    }
+    if (
+      errorMsg.includes('intercept') ||
+      errorMsg.includes('overlay') ||
+      errorMsg.includes('subtree intercepts')
+    ) {
+      return 'ACTION_INTERCEPTED';
+    }
+    if (
+      errorMsg.includes('target closed') ||
+      errorMsg.includes('page closed') ||
+      errorMsg.includes('crash')
+    ) {
+      return 'TARGET_CLOSED';
+    }
+    if (errorMsg.includes('network') || errorMsg.includes('err_')) {
+      return 'NETWORK_ERROR';
+    }
+    return 'UNKNOWN_SYMPTOM';
+  }
+
+  public static mapCategoryToRootCause(category: FailureCategory): CausalRootCause {
+    switch (category) {
+      case 'LOCATOR_DRIFT':
+        return 'LOCATOR_DRIFT';
+      case 'HYDRATION_OR_TIMING':
+        return 'DYNAMIC_CONTENT_SLOW';
+      case 'OBSTRUCTED_ELEMENT':
+        return 'OBSTRUCTED_ELEMENT';
+      case 'DISABLED_ELEMENT':
+        return 'DISABLED_ELEMENT';
+      case 'BACKEND_500':
+        return 'BACKEND_500';
+      case 'AUTH_EXPIRED':
+        return 'AUTH_EXPIRED';
+      case 'AMBIGUOUS_MATCH':
+        return 'AMBIGUOUS_MATCH';
+      case 'ASSERTION_FAILURE':
+        return 'BUSINESS_LOGIC_DEFECT';
+      default:
+        return 'UNKNOWN_ROOT_CAUSE';
+    }
+  }
+
   /**
    * Evaluates the DiagnosticContext using causal evidence correlation to categorize
    * the failure and strictly enforce negative control abstentions.
    */
   public static classify(
+    context: DiagnosticContext,
+    options?: { provenUniqueScopedReplacement?: boolean }
+  ): ClassificationResult {
+    const result = FailureClassifier.classifyInternal(context, options);
+    result.runtimeSymptom = FailureClassifier.extractRuntimeSymptom(context);
+    result.causalRootCause = FailureClassifier.mapCategoryToRootCause(result.category);
+    return result;
+  }
+
+  private static classifyInternal(
     context: DiagnosticContext,
     options?: { provenUniqueScopedReplacement?: boolean }
   ): ClassificationResult {
@@ -562,9 +662,9 @@ export class FailureClassifier {
         (context.snapshots?.action && context.snapshots.action.trim().length > 0) ||
         (context.snapshots?.before && context.snapshots.before.trim().length > 0) ||
         (context.snapshots?.after && context.snapshots.after.trim().length > 0) ||
-        context.evidenceCompleteness.domAvailable
+        context.evidenceCompleteness?.domAvailable
       );
-      if (context.evidenceCompleteness.domAvailable === false && !hasSnapshots) {
+      if (context.evidenceCompleteness?.domAvailable === false && !hasSnapshots) {
         return {
           category: 'INCOMPLETE_EVIDENCE',
           confidence: 0.95,

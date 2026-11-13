@@ -147,10 +147,26 @@ export class CandidateExtractor {
     }
 
     // Rule 3: Form label (getByLabel)
-    if (el.attributes['aria-label'] && el.attributes['aria-label'].trim().length > 0) {
+    const labelAttr =
+      el.attributes['aria-label'] ??
+      el.attributes['aria-labelledby'] ??
+      el.attributes['data-label'] ??
+      el.attributes['label'];
+    if (labelAttr && labelAttr.trim().length > 0) {
       return {
         kind: 'getByLabel',
-        label: el.attributes['aria-label'].trim(),
+        label: labelAttr.trim(),
+      };
+    }
+
+    if (
+      (el.tag === 'input' || el.tag === 'textarea' || el.role === 'textbox') &&
+      el.accessibleName &&
+      el.accessibleName.trim().length > 0
+    ) {
+      return {
+        kind: 'getByLabel',
+        label: el.accessibleName.trim(),
       };
     }
 
@@ -170,9 +186,16 @@ export class CandidateExtractor {
       };
     }
 
-    // Rule 6: Scoped non-hash ID selector locator(#id)
+    // Rule 6: Scoped non-hash, non-volatile ID selector locator(#id)
     const id = el.attributes['id'];
-    if (id && id.trim().length > 0 && !/^[0-9a-f]{8,}$/i.test(id)) {
+    const isVolatileId =
+      !id ||
+      /^[0-9a-f]{8,}$/i.test(id) ||
+      /^[a-z]+-[0-9a-f]{4,}$/i.test(id) ||
+      /^:r[0-9a-z]+:$/i.test(id) ||
+      /^(ember|chakra|radix)-\d+/i.test(id);
+
+    if (id && id.trim().length > 0 && !isVolatileId) {
       return {
         kind: 'locator',
         selector: `#${id.trim()}`,

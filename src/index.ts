@@ -29,9 +29,11 @@ export * from './selector/candidate-extractor.js';
 export * from './selector/selector-scorer.js';
 export * from './selector/abstention-policy.js';
 export * from './selector/repair-candidate-ranker.js';
+export * from './intelligence/locator-disambiguation-engine.js';
 
 // AST Repair & Verification
 export * from './repair/ast-patcher.js';
+export * from './repair/statement-patcher.js';
 export * from './repair/assertion-hasher.js';
 export * from './repair/diff-allowlist.js';
 export * from './repair/intent-validator.js';

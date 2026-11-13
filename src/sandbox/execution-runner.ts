@@ -293,4 +293,112 @@ export class ExecutionRunner {
     }
     return ExecutionRunner.run('npx', runnerOptions);
   }
+
+  /**
+   * Computes the two-sided Wilson score confidence interval for binomial success rates.
+   * Provides mathematically rigorous confidence bounds for flaky test verification.
+   */
+  public static computeWilsonScoreInterval(k: number, n: number, confidence = 0.95): WilsonScoreInterval {
+    if (n <= 0) {
+      return { lower: 0, upper: 0, center: 0, confidenceLevel: confidence };
+    }
+    const z = confidence === 0.99 ? 2.5758 : 1.95996;
+    const p = Math.max(0, Math.min(1, k / n));
+    const z2 = z * z;
+    const denominator = 1 + z2 / n;
+    const center = (p + z2 / (2 * n)) / denominator;
+    const margin = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denominator;
+
+    const lower = Math.max(0, parseFloat(((center - margin) * 100).toFixed(2)));
+    const upper = Math.min(100, parseFloat(((center + margin) * 100).toFixed(2)));
+
+    return {
+      lower,
+      upper,
+      center: parseFloat((center * 100).toFixed(2)),
+      confidenceLevel: confidence,
+    };
+  }
+
+  /**
+   * Executes repeated trials of a Playwright test specification to statistically
+   * evaluate flakiness and measure intent preservation with Wilson confidence intervals.
+   */
+  public static async runRepeatedPlaywrightTrials(options: {
+    cwd: string;
+    testFilePath: string;
+    trials: number;
+    configPath?: string | undefined;
+    grep?: string | undefined;
+    timeoutMs?: number | undefined;
+    env?: Record<string, string> | undefined;
+  }): Promise<RepeatedExecutionSummary> {
+    const trialsCount = Math.max(1, options.trials);
+    const results: ExecutionResult[] = [];
+    const durations: number[] = [];
+    let passed = 0;
+    let failed = 0;
+    let timedOut = 0;
+
+    for (let i = 0; i < trialsCount; i++) {
+      const res = await ExecutionRunner.runPlaywrightTest({
+        cwd: options.cwd,
+        testFilePath: options.testFilePath,
+        configPath: options.configPath,
+        grep: options.grep,
+        timeoutMs: options.timeoutMs,
+        env: options.env,
+      });
+
+      results.push(res);
+      durations.push(res.durationMs);
+
+      if (res.exitCode === 0) {
+        passed++;
+      } else {
+        failed++;
+        if (res.timedOut) {
+          timedOut++;
+        }
+      }
+    }
+
+    const passRatePct = parseFloat(((passed / trialsCount) * 100).toFixed(2));
+    const isFlaky = passed > 0 && failed > 0;
+    const wilsonInterval95 = ExecutionRunner.computeWilsonScoreInterval(passed, trialsCount, 0.95);
+    const averageDurationMs = durations.reduce((acc, d) => acc + d, 0) / durations.length;
+
+    return {
+      totalTrials: trialsCount,
+      passedCount: passed,
+      failedCount: failed,
+      timedOutCount: timedOut,
+      passRatePct,
+      isFlaky,
+      wilsonInterval95,
+      averageDurationMs: parseFloat(averageDurationMs.toFixed(2)),
+      trialDurationsMs: durations,
+      trials: results,
+    };
+  }
+}
+
+export interface WilsonScoreInterval {
+  lower: number;
+  upper: number;
+  center: number;
+  confidenceLevel: number;
+}
+
+export interface RepeatedExecutionSummary {
+  totalTrials: number;
+  passedCount: number;
+  failedCount: number;
+  timedOutCount: number;
+  passRatePct: number;
+  isFlaky: boolean;
+  wilsonInterval95: WilsonScoreInterval;
+  averageDurationMs: number;
+  trialDurationsMs: number[];
+  trials: ExecutionResult[];
 }

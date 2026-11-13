@@ -300,7 +300,13 @@ export class ControlledAppServer {
     }
 
     if (pathname === '/api/delayed-action') {
-      const delay = this.latencyMs > 0 ? this.latencyMs : 250;
+      const hasJitter = Boolean(parsed.query?.jitter) || req.headers['x-jitter'] === 'true';
+      const delay = hasJitter
+        ? Math.floor(Math.random() * 800) + 200
+        : this.latencyMs > 0
+          ? this.latencyMs
+          : 250;
+
       setTimeout(() => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, timestamp: Date.now(), delayMs: delay }));

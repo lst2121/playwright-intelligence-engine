@@ -344,6 +344,71 @@ export class IntentValidator {
   }
 
   /**
+   * INVARIANT: Input Data Integrity.
+   * Tests are executable business specifications. Repairing a broken locator or timing
+   * issue MUST NOT mutate business input parameters (quantities, credentials, search queries, prices).
+   */
+  public static validateInputDataIntegrity(
+    originalSource: string,
+    patchedSource: string
+  ): { isValid: boolean; reason?: string } {
+    const extractInputs = (source: string): Array<{ action: string; arg: string }> => {
+      const inputs: Array<{ action: string; arg: string }> = [];
+      const regex = /\.(fill|type|selectOption)\(\s*(['"`][^'"`]+['"`]|\d+)\s*\)/g;
+      let match;
+      while ((match = regex.exec(source)) !== null) {
+        inputs.push({ action: match[1]!, arg: match[2]!.replace(/['"`]/g, '').trim() });
+      }
+      return inputs;
+    };
+
+    const origInputs = extractInputs(originalSource);
+    const patchedInputs = extractInputs(patchedSource);
+
+    for (let i = 0; i < Math.min(origInputs.length, patchedInputs.length); i++) {
+      if (origInputs[i]!.arg !== patchedInputs[i]!.arg) {
+        return {
+          isValid: false,
+          reason: `Input data invariant violated: Action payload mutated from '${origInputs[i]!.arg}' to '${patchedInputs[i]!.arg}'. Test inputs cannot be altered to force a pass.`,
+        };
+      }
+    }
+
+    return { isValid: true };
+  }
+
+  /**
+   * INVARIANT: Workflow Step Integrity.
+   * Repairs must not delete or skip intermediate workflow steps (e.g. skipping a checkout step).
+   */
+  public static validateWorkflowStepIntegrity(
+    originalSource: string,
+    patchedSource: string
+  ): { isValid: boolean; reason?: string } {
+    const extractActionSequence = (source: string): string[] => {
+      const actions: string[] = [];
+      const regex = /\.(click|fill|type|selectOption|check|uncheck|press|goto)\s*\(/g;
+      let match;
+      while ((match = regex.exec(source)) !== null) {
+        actions.push(match[1]!);
+      }
+      return actions;
+    };
+
+    const origActions = extractActionSequence(originalSource);
+    const patchedActions = extractActionSequence(patchedSource);
+
+    if (patchedActions.length < origActions.length) {
+      return {
+        isValid: false,
+        reason: `Workflow sequence invariant violated: Test step count decreased from ${origActions.length} to ${patchedActions.length}. Repair cannot delete or bypass intermediate test steps.`,
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
    * Unified v2 entry point. Preserves backward compatibility while enforcing fail-closed
    * authorization when mode !== 'pre-flight'.
    */
@@ -385,6 +450,45 @@ export class IntentValidator {
         reason: preflight.reason,
         summary: preflight.summary,
       };
+    }
+
+    // Input data and workflow sequence checks
+    if (target.pageObjectOriginalSource && target.pageObjectPatchedSource) {
+      const inputCheck = IntentValidator.validateInputDataIntegrity(
+        target.pageObjectOriginalSource,
+        target.pageObjectPatchedSource
+      );
+      if (!inputCheck.isValid) {
+        return {
+          isValid: false,
+          assertionsPreserved: preflight.assertionsPreserved,
+          testBodyPreserved: false,
+          fixturesPreserved: false,
+          identityAndActionPreserved: preflight.identityAndActionPreserved,
+          diffAllowlistPassed: false,
+          executionVerified: false,
+          reason: inputCheck.reason,
+          summary: `Rejected: ${inputCheck.reason}`,
+        };
+      }
+
+      const workflowCheck = IntentValidator.validateWorkflowStepIntegrity(
+        target.pageObjectOriginalSource,
+        target.pageObjectPatchedSource
+      );
+      if (!workflowCheck.isValid) {
+        return {
+          isValid: false,
+          assertionsPreserved: preflight.assertionsPreserved,
+          testBodyPreserved: false,
+          fixturesPreserved: false,
+          identityAndActionPreserved: preflight.identityAndActionPreserved,
+          diffAllowlistPassed: false,
+          executionVerified: false,
+          reason: workflowCheck.reason,
+          summary: `Rejected: ${workflowCheck.reason}`,
+        };
+      }
     }
 
     // 5. D: Diff Allowlist

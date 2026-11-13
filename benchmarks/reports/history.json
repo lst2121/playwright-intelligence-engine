@@ -264,5 +264,47 @@
       "safeAbstentionRate": 100,
       "falseRepairRate": 0
     }
+  },
+  {
+    "runFile": "run-2026-11-12T16-04-42-517Z-b8e7ef2.json",
+    "timestamp": 1794499482517,
+    "utcTimestamp": "2026-11-12T16-04-42-517Z",
+    "gitSha": "b8e7ef2",
+    "totalScenarios": 125,
+    "summary": {
+      "baselinePassRate": 100,
+      "repairPrecision": 100,
+      "repairRecall": 96.66666666666667,
+      "safeAbstentionRate": 100,
+      "falseRepairRate": 0
+    }
+  },
+  {
+    "runFile": "run-2026-11-12T17-08-55-726Z-e7dc9a3.json",
+    "timestamp": 1794503335726,
+    "utcTimestamp": "2026-11-12T17-08-55-726Z",
+    "gitSha": "e7dc9a3",
+    "totalScenarios": 125,
+    "summary": {
+      "baselinePassRate": 100,
+      "repairPrecision": 100,
+      "repairRecall": 96.66666666666667,
+      "safeAbstentionRate": 100,
+      "falseRepairRate": 0
+    }
+  },
+  {
+    "runFile": "run-2026-11-13T04-08-55-697Z-90880fe.json",
+    "timestamp": 1794542935697,
+    "utcTimestamp": "2026-11-13T04-08-55-697Z",
+    "gitSha": "90880fe",
+    "totalScenarios": 125,
+    "summary": {
+      "baselinePassRate": 100,
+      "repairPrecision": 100,
+      "repairRecall": 96.66666666666667,
+      "safeAbstentionRate": 100,
+      "falseRepairRate": 0
+    }
   }
 ]

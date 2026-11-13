@@ -8,6 +8,8 @@ export interface ScoredCandidate {
   originalSelector?: string | undefined;
   intendedAction?: string | undefined; // e.g. "click", "fill"
   parentScopeVerified?: boolean | undefined;
+  disambiguationStrategy?: string | undefined;
+  disambiguationExplanation?: string | undefined;
 }
 
 export type DecisionStage =

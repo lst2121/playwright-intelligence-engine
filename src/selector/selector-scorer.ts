@@ -243,8 +243,13 @@ export class SelectorScorer {
     const id = candidate.attributes['id'] ?? '';
     const classAttr = candidate.attributes['class'] ?? '';
 
-    // Check for random hex/hash IDs e.g. "id-a1b2c3d4" or length > 16 hex
-    if (/^[0-9a-f]{8,}$/i.test(id) || /^[a-z]+-[0-9a-f]{6,}$/i.test(id)) {
+    // Check for random hex/hash IDs e.g. "id-a1b2c3d4", React useId ":r1:", or component IDs
+    if (
+      /^[0-9a-f]{8,}$/i.test(id) ||
+      /^[a-z]+-[0-9a-f]{4,}$/i.test(id) ||
+      /^:r[0-9a-z]+:$/i.test(id) ||
+      /^(ember|chakra|radix)-\d+/i.test(id)
+    ) {
       volatilePenalty += 0.5;
     }
 

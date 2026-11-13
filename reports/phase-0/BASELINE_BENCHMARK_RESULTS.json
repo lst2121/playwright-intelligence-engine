@@ -1,0 +1,42 @@
+{
+  "auditTimestamp": "2026-11-13T03:45:00Z",
+  "gitCommit": "90880fe",
+  "branch": "feature/evidence-driven-generation",
+  "masterBenchmarkSuite": {
+    "totalScenarios": 125,
+    "tier1Baseline": { "count": 5, "passRate": 100 },
+    "tier2Mutations": { "count": 60, "repaired": 58, "recall": 96.67, "precision": 100 },
+    "tier3NegativeControls": { "count": 60, "safeAbstentionRate": 100 },
+    "wilsonScoreCI95": { "lower": 94.35, "upper": 99.56 }
+  },
+  "testbedTraceDiagnosis": {
+    "totalFamilies": 14,
+    "correctFamilies": 14,
+    "accuracy": 1.0,
+    "driftFamilies": ["MUT-01", "MUT-02", "MUT-03", "MUT-04", "MUT-05"],
+    "safeAbstentionFamilies": ["MUT-06", "MUT-07", "MUT-08", "MUT-09", "MUT-10", "MUT-11", "MUT-12", "MUT-13", "MUT-14"]
+  },
+  "threeExperiments": {
+    "experimentA_SemanticResilience": {
+      "scenarios": 5,
+      "repaired": 4,
+      "safeAbstained": 1,
+      "repairPrecision": 100,
+      "finding": "Healing works across getByRole and getByPlaceholder, but getByLabel fell back to #username instead of resilient accessible label."
+    },
+    "experimentB_TimingAndFlakiness": {
+      "scenarios": 3,
+      "unpatchedFlakePct": 100,
+      "patchedFlakePct": 0,
+      "timingDiagnosticsAccuracyPct": 100,
+      "finding": "Event-driven synchronization completely eliminates flakiness, but existing AstPatcher cannot rewrite statements inside test() bodies."
+    },
+    "experimentC_IntentPreservation": {
+      "scenarios": 4,
+      "safeAbstentions": 4,
+      "assertionWeakening": 0,
+      "safeAbstentionRatePct": 100,
+      "finding": "IntentValidator successfully prevents destructive substitution and asserts failure on genuine business defects."
+    }
+  }
+}

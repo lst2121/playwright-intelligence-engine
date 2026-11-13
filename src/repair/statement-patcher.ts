@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AbstentionError } from '../core/errors/engine-errors.js';
 import { AstPatcher } from './ast-patcher.js';
+import { AssertionHasher } from './assertion-hasher.js';
 
 export type StatementPatchOperation =
   | 'replace-timeout-with-wait'
@@ -226,25 +227,7 @@ export class StatementPatcher {
       return text.includes('waitForTimeout');
     });
 
-    if (candidateStatements.length === 0) {
-      throw new AbstentionError(
-        plan.targetLine
-          ? `No waitForTimeout statement found at line ${plan.targetLine}`
-          : 'No waitForTimeout statement found in source file',
-        'AST_STATEMENT_NOT_FOUND'
-      );
-    }
-
-    if (!plan.targetLine && candidateStatements.length > 1) {
-      throw new AbstentionError(
-        `Ambiguous statement match: found ${candidateStatements.length} waitForTimeout statements. Provide targetLine to specify which statement to transform.`,
-        'AST_AMBIGUOUS_STATEMENT_TARGET'
-      );
-    }
-
-    const targetStatement = candidateStatements[0]!;
-    this.assertNotAssertion(targetStatement);
-
+    const targetStatement = this.selectSingleTargetStatement(candidateStatements, plan, 'waitForTimeout');
     const originalStatement = targetStatement.getText();
     const replacement = plan.replacementWaitStatement.trim().endsWith(';')
       ? plan.replacementWaitStatement.trim()
@@ -276,25 +259,11 @@ export class StatementPatcher {
       );
     });
 
-    if (candidateStatements.length === 0) {
-      throw new AbstentionError(
-        plan.targetLine
-          ? `No action statement found at line ${plan.targetLine}`
-          : `No action statement matching '${plan.targetActionSubstring ?? 'click/fill'}' found`,
-        'AST_STATEMENT_NOT_FOUND'
-      );
-    }
-
-    if (!plan.targetLine && candidateStatements.length > 1) {
-      throw new AbstentionError(
-        `Ambiguous statement match: found ${candidateStatements.length} candidate action statements matching '${plan.targetActionSubstring ?? 'action'}'. Provide targetLine to specify which statement to transform.`,
-        'AST_AMBIGUOUS_STATEMENT_TARGET'
-      );
-    }
-
-    const targetStatement = candidateStatements[0]!;
-    this.assertNotAssertion(targetStatement);
-
+    const targetStatement = this.selectSingleTargetStatement(
+      candidateStatements,
+      plan,
+      plan.targetActionSubstring ?? 'action'
+    );
     const originalStatement = targetStatement.getText();
 
     // Extract bare expression without leading await and trailing semicolon
@@ -338,25 +307,11 @@ export class StatementPatcher {
       return text.includes('.click(') || text.includes('.fill(');
     });
 
-    if (candidateStatements.length === 0) {
-      throw new AbstentionError(
-        plan.targetLine
-          ? `No statement found at line ${plan.targetLine}`
-          : `No statement matching '${plan.targetActionSubstring ?? 'click/fill'}' found`,
-        'AST_STATEMENT_NOT_FOUND'
-      );
-    }
-
-    if (!plan.targetLine && candidateStatements.length > 1) {
-      throw new AbstentionError(
-        `Ambiguous statement match: found ${candidateStatements.length} candidate statements matching '${plan.targetActionSubstring ?? 'action'}'. Provide targetLine to specify which statement to transform.`,
-        'AST_AMBIGUOUS_STATEMENT_TARGET'
-      );
-    }
-
-    const targetStatement = candidateStatements[0]!;
-    this.assertNotAssertion(targetStatement);
-
+    const targetStatement = this.selectSingleTargetStatement(
+      candidateStatements,
+      plan,
+      plan.targetActionSubstring ?? 'click/fill'
+    );
     const originalStatement = targetStatement.getText();
     const parent = targetStatement.getParent();
 
@@ -386,38 +341,47 @@ export class StatementPatcher {
       return stmt.getText().includes(plan.oldLocatorText);
     });
 
-    if (candidateStatements.length === 0) {
-      throw new AbstentionError(
-        `Old locator '${plan.oldLocatorText}' not found in source AST`,
-        'AST_LOCATOR_NOT_FOUND'
-      );
-    }
-
-    if (!plan.targetLine && candidateStatements.length > 1) {
-      throw new AbstentionError(
-        `Ambiguous statement match: found ${candidateStatements.length} statements matching '${plan.oldLocatorText}'. Provide targetLine to specify which statement to transform.`,
-        'AST_AMBIGUOUS_STATEMENT_TARGET'
-      );
-    }
-
-    const targetStatement = candidateStatements[0]!;
-    this.assertNotAssertion(targetStatement);
-
+    const targetStatement = this.selectSingleTargetStatement(
+      candidateStatements,
+      plan,
+      `'${plan.oldLocatorText}'`
+    );
     const originalStatement = targetStatement.getText();
-    const patchedStatementText = originalStatement.replace(plan.oldLocatorText, plan.newLocatorExpression);
 
-    if (patchedStatementText === originalStatement) {
-      throw new AbstentionError(
-        `Failed to replace '${plan.oldLocatorText}' with '${plan.newLocatorExpression}'`,
-        'AST_REPLACEMENT_FAILED'
-      );
+    // AST-level node replacement
+    let replacedInAst = false;
+    const calls = targetStatement.getDescendantsOfKind(SyntaxKind.CallExpression);
+    for (const call of calls) {
+      if (call.getText().trim() === plan.oldLocatorText.trim()) {
+        call.replaceWithText(plan.newLocatorExpression);
+        replacedInAst = true;
+        break;
+      }
     }
 
-    targetStatement.replaceWithText(patchedStatementText);
+    if (!replacedInAst) {
+      targetStatement.forEachDescendant((node) => {
+        if (!replacedInAst && node.getText().trim() === plan.oldLocatorText.trim()) {
+          node.replaceWithText(plan.newLocatorExpression);
+          replacedInAst = true;
+        }
+      });
+    }
+
+    if (!replacedInAst) {
+      const patchedStatementText = originalStatement.replace(plan.oldLocatorText, plan.newLocatorExpression);
+      if (patchedStatementText === originalStatement) {
+        throw new AbstentionError(
+          `Failed to replace '${plan.oldLocatorText}' with '${plan.newLocatorExpression}'`,
+          'AST_REPLACEMENT_FAILED'
+        );
+      }
+      targetStatement.replaceWithText(patchedStatementText);
+    }
 
     return {
       originalStatement,
-      replacementStatement: patchedStatementText,
+      replacementStatement: targetStatement.getText(),
     };
   }
 
@@ -432,18 +396,11 @@ export class StatementPatcher {
       return true;
     });
 
-    if (candidateStatements.length === 0) {
-      throw new AbstentionError(
-        plan.targetLine
-          ? `No statement found at line ${plan.targetLine}`
-          : `No statement matching '${plan.targetSubstring}' found`,
-        'AST_STATEMENT_NOT_FOUND'
-      );
-    }
-
-    const targetStatement = candidateStatements[0]!;
-    this.assertNotAssertion(targetStatement);
-
+    const targetStatement = this.selectSingleTargetStatement(
+      candidateStatements,
+      plan,
+      plan.targetSubstring ?? 'target'
+    );
     const originalStatement = targetStatement.getText();
     const replacement = plan.newStatement.trim().endsWith(';')
       ? plan.newStatement.trim()
@@ -455,6 +412,32 @@ export class StatementPatcher {
       originalStatement,
       replacementStatement: replacement,
     };
+  }
+
+  private selectSingleTargetStatement(
+    candidates: Statement[],
+    plan: BaseStatementPatchPlan,
+    label: string
+  ): Statement {
+    if (candidates.length === 0) {
+      throw new AbstentionError(
+        plan.targetLine
+          ? `No ${label} statement found at line ${plan.targetLine}`
+          : `No ${label} statement found in source file`,
+        'AST_STATEMENT_NOT_FOUND'
+      );
+    }
+    if (candidates.length > 1) {
+      throw new AbstentionError(
+        plan.targetLine
+          ? `Ambiguous statement match on line ${plan.targetLine}: found ${candidates.length} matching ${label} statements. Provide a more specific targetSubstring or unique locator to disambiguate.`
+          : `Ambiguous statement match: found ${candidates.length} ${label} statements. Provide targetLine to specify which statement to transform.`,
+        'AST_AMBIGUOUS_STATEMENT_TARGET'
+      );
+    }
+    const stmt = candidates[0]!;
+    this.assertNotAssertion(stmt);
+    return stmt;
   }
 
   // ---------------------------------------------------------------------------
@@ -511,22 +494,24 @@ export class StatementPatcher {
   }
 
   private assertNotAssertion(stmt: Statement): void {
-    const trimmed = stmt.getText().trim();
-    // Guard against removing or tampering with expect assertions
-    if (trimmed.startsWith('expect(') || trimmed.startsWith('await expect(')) {
-      throw new AbstentionError(
-        'Modifying or removing test assertions via StatementPatcher is strictly prohibited',
-        'AST_ASSERTION_TAMPERING_PROHIBITED'
-      );
-    }
+    const identifiers = AssertionHasher.discoverAssertionIdentifiers(stmt);
 
-    // Recursive descendant check: detect any nested expect() calls
+    // Guard against removing or tampering with assertions (standard or aliased)
     const callExpressions = stmt.getDescendantsOfKind(SyntaxKind.CallExpression);
     for (const call of callExpressions) {
-      const exprText = call.getExpression().getText().trim();
-      if (exprText === 'expect' || exprText.endsWith('.expect')) {
+      if (AssertionHasher.isAssertionCall(call, identifiers)) {
         throw new AbstentionError(
-          'Modifying or removing test assertions via StatementPatcher is strictly prohibited (nested assertion detected)',
+          'Modifying or removing test assertions via StatementPatcher is strictly prohibited',
+          'AST_ASSERTION_TAMPERING_PROHIBITED'
+        );
+      }
+    }
+
+    const trimmed = stmt.getText().trim();
+    for (const id of identifiers) {
+      if (trimmed.startsWith(`${id}(`) || trimmed.startsWith(`await ${id}(`)) {
+        throw new AbstentionError(
+          'Modifying or removing test assertions via StatementPatcher is strictly prohibited',
           'AST_ASSERTION_TAMPERING_PROHIBITED'
         );
       }

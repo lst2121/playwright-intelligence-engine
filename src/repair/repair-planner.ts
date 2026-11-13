@@ -294,13 +294,24 @@ export class RepairPlanner {
       currentState = 'TARGET_TEST_PASSED';
     }
 
-    // Verify assertion integrity dynamically by comparing pre-patch and post-patch assertion fingerprints
+    // Verify assertion integrity dynamically by comparing pre-patch and post-patch assertions
     const worktreeSpecSource = fs.existsSync(worktreeSpecPath)
       ? fs.readFileSync(worktreeSpecPath, 'utf-8')
       : '';
     const postExecCompositeFingerprint = AssertionHasher.computeCompositeFingerprintFromSource(worktreeSpecSource);
-    const assertionIntegrityValid =
-      proposal.originalCompositeFingerprint.assertionFingerprint === postExecCompositeFingerprint.assertionFingerprint;
+
+    let assertionIntegrityValid = false;
+    if (proposal.pattern === 'statement-patch') {
+      const origAssertions = AssertionHasher.extractAssertionRecordsFromSource(proposal.originalSource);
+      const postAssertions = AssertionHasher.extractAssertionRecordsFromSource(worktreeSpecSource);
+      const postSet = new Set(postAssertions.map((a) => JSON.stringify(a)));
+      assertionIntegrityValid = origAssertions.length > 0
+        ? origAssertions.every((a) => postSet.has(JSON.stringify(a)))
+        : true;
+    } else {
+      assertionIntegrityValid =
+        proposal.originalCompositeFingerprint.assertionFingerprint === postExecCompositeFingerprint.assertionFingerprint;
+    }
 
     const executionProof: VerifiedExecutionProof = {
       testFilePath: worktreeSpecPath,
@@ -363,6 +374,7 @@ export class RepairPlanner {
       executionPassed,
       executionProof,
       businessOracleStatus: effectiveBusinessOracleStatus,
+      pattern: proposal.pattern,
     });
 
     const isFullyVerified = executionPassed && intentValidation.isValid;

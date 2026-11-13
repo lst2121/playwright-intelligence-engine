@@ -19,18 +19,43 @@ export class AssertionHasher {
   }
 
   /**
+   * Discovers assertion identifiers imported from @playwright/test (e.g. `expect`, or aliased `expect as verify`).
+   */
+  public static discoverAssertionIdentifiers(sourceNode: Node): Set<string> {
+    const identifiers = new Set(['expect']);
+    const root = sourceNode.getSourceFile();
+    if (root) {
+      for (const imp of root.getImportDeclarations()) {
+        const spec = imp.getModuleSpecifierValue();
+        if (spec === '@playwright/test' || spec.endsWith('/test')) {
+          for (const named of imp.getNamedImports()) {
+            if (named.getName() === 'expect') {
+              const alias = named.getAliasNode()?.getText();
+              if (alias) {
+                identifiers.add(alias);
+              }
+            }
+          }
+        }
+      }
+    }
+    return identifiers;
+  }
+
+  /**
    * Computes SHA-256 of all assertion expressions in the file.
-   * Identifies assertions semantically (calls to expect(), expect.soft(), expect.poll()).
+   * Identifies assertions semantically (calls to expect(), expect.soft(), expect.poll(), or aliased verify()).
    * Preserves exact string literal contents and argument ordering.
    */
   public static computeAssertionFingerprint(testFilePath: string): string {
     const project = new Project({ skipAddingFilesFromTsConfig: true });
     const sourceFile = project.addSourceFileAtPath(testFilePath);
+    const identifiers = AssertionHasher.discoverAssertionIdentifiers(sourceFile);
 
     const assertionRecords: any[] = [];
     sourceFile.forEachDescendant((node) => {
       if (Node.isCallExpression(node)) {
-        if (AssertionHasher.isAssertionCall(node)) {
+        if (AssertionHasher.isOutermostAssertionCall(node, identifiers)) {
           assertionRecords.push(AssertionHasher.canonicalizeAssertion(node));
         }
       }
@@ -41,23 +66,57 @@ export class AssertionHasher {
   }
 
   /**
-   * Semantically identifies whether a CallExpression is an assertion API call.
+   * Semantically identifies whether a CallExpression is an assertion API call (or part of an assertion chain).
    */
-  public static isAssertionCall(callExpr: CallExpression): boolean {
-    const exprText = callExpr.getExpression().getText();
-    // Matches expect(...), expect.soft(...), expect.poll(...)
-    if (/^expect(\.soft|\.poll)?$/.test(exprText)) {
-      return true;
-    }
-    // Matches chained matchers like expect(...).toBe(...) or await expect(...).toHaveText(...)
-    if (Node.isPropertyAccessExpression(callExpr.getExpression())) {
-      const propAccess = callExpr.getExpression();
-      const rootText = propAccess.getText();
-      if (rootText.startsWith('expect(') || rootText.startsWith('expect.soft(') || rootText.startsWith('expect.poll(')) {
+  public static isAssertionCall(callExpr: CallExpression, knownIdentifiers?: Set<string>): boolean {
+    const identifiers = knownIdentifiers ?? AssertionHasher.discoverAssertionIdentifiers(callExpr);
+    const expr = callExpr.getExpression();
+    const exprText = expr.getText();
+
+    for (const id of identifiers) {
+      // Matches id(...), id.soft(...), id.poll(...)
+      const idPattern = new RegExp(`^${id}(\\.(soft|poll))?$`);
+      if (idPattern.test(exprText)) {
         return true;
       }
+      // Matches chained matchers like id(...).toBe(...) or await id.soft(...).toHaveText(...)
+      if (Node.isPropertyAccessExpression(expr)) {
+        const rootText = expr.getText();
+        if (
+          rootText.startsWith(`${id}(`) ||
+          rootText.startsWith(`${id}.soft(`) ||
+          rootText.startsWith(`${id}.poll(`)
+        ) {
+          return true;
+        }
+      }
     }
+
     return false;
+  }
+
+  /**
+   * Determines whether a CallExpression is the outermost assertion call in a chain.
+   * Prevents recording duplicate partial assertion calls (e.g. both `expect(x)` and `expect(x).toBe(y)`).
+   */
+  public static isOutermostAssertionCall(callExpr: CallExpression, knownIdentifiers?: Set<string>): boolean {
+    const identifiers = knownIdentifiers ?? AssertionHasher.discoverAssertionIdentifiers(callExpr);
+    if (!AssertionHasher.isAssertionCall(callExpr, identifiers)) {
+      return false;
+    }
+
+    // Check if the parent is a PropertyAccessExpression that is itself invoked by a parent CallExpression
+    const parent = callExpr.getParent();
+    if (parent && Node.isPropertyAccessExpression(parent)) {
+      const grandParent = parent.getParent();
+      if (grandParent && Node.isCallExpression(grandParent)) {
+        if (AssertionHasher.isAssertionCall(grandParent, identifiers)) {
+          return false; // This is an inner receiver in a chained assertion call
+        }
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -67,6 +126,7 @@ export class AssertionHasher {
   public static computeTestBodyFingerprint(testFilePath: string): string {
     const project = new Project({ skipAddingFilesFromTsConfig: true });
     const sourceFile = project.addSourceFileAtPath(testFilePath);
+    const identifiers = AssertionHasher.discoverAssertionIdentifiers(sourceFile);
 
     const structuralTokens: any[] = [];
 
@@ -109,7 +169,7 @@ export class AssertionHasher {
       }
       // 3. Call expressions (non-assertion calls)
       else if (Node.isCallExpression(node)) {
-        if (!AssertionHasher.isAssertionCall(node)) {
+        if (!AssertionHasher.isAssertionCall(node, identifiers)) {
           structuralTokens.push({
             kind: 'CallExpression',
             expr: node.getExpression().getText().trim(),
@@ -186,9 +246,10 @@ export class AssertionHasher {
   public static extractAssertionRecordsFromSource(sourceText: string, fileName = 'in-memory.spec.ts'): any[] {
     const project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(fileName, sourceText, { overwrite: true });
+    const identifiers = AssertionHasher.discoverAssertionIdentifiers(sourceFile);
     const records: any[] = [];
     sourceFile.forEachDescendant((node) => {
-      if (Node.isCallExpression(node) && AssertionHasher.isAssertionCall(node)) {
+      if (Node.isCallExpression(node) && AssertionHasher.isOutermostAssertionCall(node, identifiers)) {
         records.push(AssertionHasher.canonicalizeAssertion(node));
       }
     });
@@ -204,11 +265,12 @@ export class AssertionHasher {
   ): CompositeIntentFingerprint {
     const project = new Project({ useInMemoryFileSystem: true });
     const sourceFile = project.createSourceFile(fileName, sourceText, { overwrite: true });
+    const identifiers = AssertionHasher.discoverAssertionIdentifiers(sourceFile);
 
     // Assertions
     const assertionRecords: any[] = [];
     sourceFile.forEachDescendant((node) => {
-      if (Node.isCallExpression(node) && AssertionHasher.isAssertionCall(node)) {
+      if (Node.isCallExpression(node) && AssertionHasher.isOutermostAssertionCall(node, identifiers)) {
         assertionRecords.push(AssertionHasher.canonicalizeAssertion(node));
       }
     });
@@ -250,7 +312,7 @@ export class AssertionHasher {
           operand: node.getOperand().getText().trim(),
         });
       } else if (Node.isCallExpression(node)) {
-        if (!AssertionHasher.isAssertionCall(node)) {
+        if (!AssertionHasher.isAssertionCall(node, identifiers)) {
           structuralTokens.push({
             kind: 'CallExpression',
             expr: node.getExpression().getText().trim(),

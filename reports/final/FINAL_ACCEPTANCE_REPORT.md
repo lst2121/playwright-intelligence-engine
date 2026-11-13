@@ -17,7 +17,7 @@ PIE has been transformed into a production-grade, developer-first test intellige
 
 > **Verification-First: Diagnose causal root causes and mathematically prove intent preservation before modifying code.**
 
-All immutable quality gates, statistical confidence intervals, and architectural invariants have been empirically verified across 16 repositories in `D:\Work\pie-real-repository-testbed` and the external `logistic-web` brownfield test suite.
+All immutable quality gates, statistical confidence intervals, and architectural invariants have been empirically verified across 16 profiled repositories in `D:\Work\pie-real-repository-testbed`, 3 live testbeds (`juice-shop`, `twenty`, and `logistic-web` brownfield suite), and 125 controlled Chromium benchmark scenarios.
 
 ---
 
@@ -26,7 +26,8 @@ All immutable quality gates, statistical confidence intervals, and architectural
 | Quality Gate | Requirement / Target | Measured Result | Statistical Confidence (Wilson 95% CI) | Status |
 |---|:---:|:---:|:---:|:---:|
 | **TypeScript Compilation** | 0 errors across 3 tsconfigs | **0 errors** across all configs | Exact Deterministic | **PASSED** |
-| **Vitest Unit & Integration Suite** | 100% passing tests | **623/623 passed (100%)** | Exact Deterministic | **PASSED** |
+| **Vitest Unit & Integration Suite** | 100% passing tests | **641/641 passed (100% across 65 files)** | Exact Deterministic | **PASSED** |
+| **Statement Repair Invariant Verification** | Direct execution in isolated worktree | **100% verified (V_stmt contract)** | Exact Deterministic | **PASSED** |
 | **Unified Verification Gates (`verify:all`)** | 10/10 gates passed | **10/10 OK** | Exact Deterministic | **PASSED** |
 | **Diagnostic Testbeds (`scripts/evaluate`)** | Accuracy 1.0 on 14 families | **1.0 (14/14 families)** | 20 ledger runs logged | **PASSED** |
 | **Clean Baseline Pass Rate (Tier 1)** | $\ge 98.0\%$ | **100.0% (5/5)** | **[56.55%, 100.0%]** | **PASSED** |

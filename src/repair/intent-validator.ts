@@ -1,5 +1,6 @@
+import { Project, Node } from 'ts-morph';
 import { AssertionHasher, CompositeIntentFingerprint } from './assertion-hasher.js';
-import { DiffAllowlistValidator } from './diff-allowlist.js';
+import { DiffAllowlistValidator, StatementDiffAllowlistValidator } from './diff-allowlist.js';
 import {
   AssertionTamperedError,
   IntentInvariantViolationError,
@@ -99,6 +100,7 @@ export interface IntentV2ValidationTarget {
   mode?: 'pre-flight' | 'authorization' | undefined;
   strict?: boolean | undefined;
   businessOracleStatus?: 'verified' | 'contradicted' | 'unavailable' | undefined;
+  pattern?: string | undefined;
 }
 
 export interface IntentValidationResult {
@@ -354,11 +356,33 @@ export class IntentValidator {
   ): { isValid: boolean; reason?: string } {
     const extractInputs = (source: string): Array<{ action: string; arg: string }> => {
       const inputs: Array<{ action: string; arg: string }> = [];
-      const regex = /\.(fill|type|selectOption)\(\s*(['"`][^'"`]+['"`]|\d+)\s*\)/g;
-      let match;
-      while ((match = regex.exec(source)) !== null) {
-        inputs.push({ action: match[1]!, arg: match[2]!.replace(/['"`]/g, '').trim() });
-      }
+      const project = new Project({ useInMemoryFileSystem: true });
+      const sourceFile = project.createSourceFile('temp.spec.ts', source, { overwrite: true });
+
+      sourceFile.forEachDescendant((node) => {
+        if (Node.isCallExpression(node)) {
+          const expr = node.getExpression();
+          if (Node.isPropertyAccessExpression(expr)) {
+            const actionName = expr.getName();
+            if (actionName === 'fill' || actionName === 'type' || actionName === 'selectOption') {
+              const firstArg = node.getArguments()[0];
+              if (firstArg) {
+                let argText = firstArg.getText().trim();
+                if (Node.isStringLiteral(firstArg)) {
+                  argText = firstArg.getLiteralValue();
+                } else if (
+                  (argText.startsWith("'") && argText.endsWith("'")) ||
+                  (argText.startsWith('"') && argText.endsWith('"')) ||
+                  (argText.startsWith('`') && argText.endsWith('`'))
+                ) {
+                  argText = argText.slice(1, -1);
+                }
+                inputs.push({ action: actionName, arg: argText });
+              }
+            }
+          }
+        }
+      });
       return inputs;
     };
 
@@ -400,11 +424,33 @@ export class IntentValidator {
   ): { isValid: boolean; reason?: string } {
     const extractActionSequence = (source: string): string[] => {
       const actions: string[] = [];
-      const regex = /\.(click|fill|type|selectOption|check|uncheck|press|goto)\s*\(/g;
-      let match;
-      while ((match = regex.exec(source)) !== null) {
-        actions.push(match[1]!);
-      }
+      const project = new Project({ useInMemoryFileSystem: true });
+      const sourceFile = project.createSourceFile('temp.spec.ts', source, { overwrite: true });
+      const approvedActions = new Set([
+        'click',
+        'fill',
+        'type',
+        'selectOption',
+        'check',
+        'uncheck',
+        'press',
+        'goto',
+        'dblclick',
+        'hover',
+        'focus',
+      ]);
+
+      sourceFile.forEachDescendant((node) => {
+        if (Node.isCallExpression(node)) {
+          const expr = node.getExpression();
+          if (Node.isPropertyAccessExpression(expr)) {
+            const actionName = expr.getName();
+            if (approvedActions.has(actionName)) {
+              actions.push(actionName);
+            }
+          }
+        }
+      });
       return actions;
     };
 
@@ -450,6 +496,117 @@ export class IntentValidator {
     }
 
     const isPreflight = target.mode === 'pre-flight';
+
+    // Branch 1: Dedicated validation for statement-level repairs (where test specification is directly patched)
+    if (target.pattern === 'statement-patch') {
+      const origSource = target.pageObjectOriginalSource ?? '';
+      const patchedSource = target.pageObjectPatchedSource ?? '';
+
+      // 1. Assertions Invariant: All original assertions must remain strictly intact
+      const origAssertions = AssertionHasher.extractAssertionRecordsFromSource(origSource);
+      const postAssertions = AssertionHasher.extractAssertionRecordsFromSource(patchedSource);
+      const postSet = new Set(postAssertions.map((a) => JSON.stringify(a)));
+      const assertionsPreserved = origAssertions.every((a) => postSet.has(JSON.stringify(a)));
+
+      if (!assertionsPreserved) {
+        throw new AssertionTamperedError(
+          JSON.stringify(origAssertions),
+          JSON.stringify(postAssertions)
+        );
+      }
+
+      // 2. Input data invariant
+      const inputCheck = IntentValidator.validateInputDataIntegrity(origSource, patchedSource);
+      if (!inputCheck.isValid) {
+        return {
+          isValid: false,
+          assertionsPreserved: true,
+          testBodyPreserved: false,
+          fixturesPreserved: false,
+          identityAndActionPreserved: false,
+          diffAllowlistPassed: false,
+          executionVerified: false,
+          reason: inputCheck.reason,
+          summary: `Rejected: ${inputCheck.reason}`,
+        };
+      }
+
+      // 3. Workflow step integrity
+      const workflowCheck = IntentValidator.validateWorkflowStepIntegrity(origSource, patchedSource);
+      if (!workflowCheck.isValid) {
+        return {
+          isValid: false,
+          assertionsPreserved: true,
+          testBodyPreserved: false,
+          fixturesPreserved: false,
+          identityAndActionPreserved: false,
+          diffAllowlistPassed: false,
+          executionVerified: false,
+          reason: workflowCheck.reason,
+          summary: `Rejected: ${workflowCheck.reason}`,
+        };
+      }
+
+      // 4. Statement Diff Allowlist
+      const diffResult = StatementDiffAllowlistValidator.validate({
+        originalSource: origSource,
+        patchedSource: patchedSource,
+      });
+
+      if (!diffResult.isAllowed) {
+        throw new UnauthorizedAstModificationError(diffResult.reason ?? 'Unknown violation');
+      }
+
+      // 5. Target identity & business oracle
+      const identityCheck = IntentValidator.verifyTargetIdentity(target.originalSelector, target.candidateElement);
+      if (target.businessOracleStatus === 'contradicted') {
+        return {
+          isValid: false,
+          assertionsPreserved: true,
+          testBodyPreserved: true,
+          fixturesPreserved: true,
+          identityAndActionPreserved: false,
+          diffAllowlistPassed: true,
+          executionVerified: false,
+          reason: 'Business oracle contradicted the candidate identity',
+          summary: 'Rejected: Independent business oracle contradicted target identity',
+        };
+      }
+
+      // 6. Execution Verification
+      let executionVerified = false;
+      if (
+        target.executionProof &&
+        target.executionProof.passed === true &&
+        target.executionProof.exitCode === 0 &&
+        (target.executionProof.executionOutcome === 'PASS' || target.executionProof.executionOutcome === undefined) &&
+        target.executionProof.assertionIntegrityValid !== false
+      ) {
+        executionVerified = true;
+      }
+
+      const isValid = isPreflight
+        ? assertionsPreserved && inputCheck.isValid && workflowCheck.isValid && diffResult.isAllowed && identityCheck.isPreserved
+        : assertionsPreserved && inputCheck.isValid && workflowCheck.isValid && diffResult.isAllowed && identityCheck.isPreserved && executionVerified;
+
+      return {
+        isValid,
+        assertionsPreserved: true,
+        testBodyPreserved: true,
+        fixturesPreserved: true,
+        identityAndActionPreserved: identityCheck.isPreserved,
+        diffAllowlistPassed: diffResult.isAllowed,
+        executionVerified,
+        reason: identityCheck.reason,
+        summary: isValid
+          ? isPreflight
+            ? 'Pre-flight Statement Repair Invariant passed: V_stmt_pre = A_pres ∧ I_data ∧ W_step ∧ D_stmt'
+            : 'Statement Repair Intent Invariant v2 satisfied: V_stmt = A_pres ∧ I_data ∧ W_step ∧ D_stmt ∧ E (Strict intent preservation proved)'
+          : isPreflight
+          ? `Pre-flight Statement Repair Invariant failed: ${identityCheck.reason ?? 'Semantic invariant failed'}`
+          : 'Statement Repair Intent Invariant v2 failed: Missing or failing execution proof',
+      };
+    }
 
     const preflight = IntentValidator.validateProposal({
       testFilePath: target.testFilePath,

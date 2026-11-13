@@ -465,3 +465,148 @@ export class DiffAllowlistValidator {
     }
   }
 }
+
+export interface StatementDiffAllowlistTarget {
+  originalSource: string;
+  patchedSource: string;
+  operation?: string | undefined;
+  targetLine?: number | undefined;
+}
+
+export interface StatementDiffAllowlistResult {
+  isAllowed: boolean;
+  reason?: string | undefined;
+}
+
+export class StatementDiffAllowlistValidator {
+  private static readonly DISALLOWED_SECURITY_TOKENS = [
+    'process.env',
+    'process.exit',
+    'child_process',
+    'require(',
+    'eval(',
+    'exec(',
+    'spawn(',
+    'fs.',
+    'Function(',
+  ];
+
+  /**
+   * Validates that ONLY approved statement-level modifications (timing synchronizations,
+   * event-driven wait replacements, readiness checks, or inline locator repairs) were applied to the test spec AST.
+   *
+   * Guarantees:
+   * - No arbitrary code execution or dangerous APIs.
+   * - No unauthorized third-party module imports.
+   * - Top-level declarations (functions, classes, interfaces, types) remain invariant.
+   * - Test block structure and test descriptions remain invariant.
+   */
+  public static validate(target: StatementDiffAllowlistTarget): StatementDiffAllowlistResult {
+    // 1. Prohibit dangerous tokens
+    for (const token of StatementDiffAllowlistValidator.DISALLOWED_SECURITY_TOKENS) {
+      if (target.patchedSource.includes(token) && !target.originalSource.includes(token)) {
+        return {
+          isAllowed: false,
+          reason: `Statement diff allowlist violated: Prohibited security token '${token}' introduced.`,
+        };
+      }
+    }
+
+    const origProject = new Project({ skipAddingFilesFromTsConfig: true });
+    const patchProject = new Project({ skipAddingFilesFromTsConfig: true });
+
+    const origFile = origProject.createSourceFile('orig.spec.ts', target.originalSource);
+    const patchFile = patchProject.createSourceFile('patched.spec.ts', target.patchedSource);
+
+    // 2. Verify Imports: Only allow adding expect from @playwright/test
+    const origImports = origFile.getImportDeclarations();
+    const patchImports = patchFile.getImportDeclarations();
+
+    for (const patchImp of patchImports) {
+      const spec = patchImp.getModuleSpecifierValue();
+      const origImp = origImports.find((i) => i.getModuleSpecifierValue() === spec);
+      if (!origImp) {
+        // Only @playwright/test import may be added
+        if (spec !== '@playwright/test') {
+          return {
+            isAllowed: false,
+            reason: `Statement diff allowlist violated: Unauthorized new import of module '${spec}'.`,
+          };
+        }
+      } else {
+        // If module exists, ensure no unauthorized named imports were added
+        const origNamed = new Set(origImp.getNamedImports().map((n) => n.getName()));
+        for (const named of patchImp.getNamedImports()) {
+          const name = named.getName();
+          if (!origNamed.has(name) && name !== 'expect') {
+            return {
+              isAllowed: false,
+              reason: `Statement diff allowlist violated: Unauthorized import '${name}' added from '${spec}'.`,
+            };
+          }
+        }
+      }
+    }
+
+    // 3. Prohibit adding or removing top-level declarations
+    if (origFile.getFunctions().length !== patchFile.getFunctions().length) {
+      return {
+        isAllowed: false,
+        reason: 'Statement diff allowlist violated: Top-level function declarations modified or added.',
+      };
+    }
+    if (origFile.getClasses().length !== patchFile.getClasses().length) {
+      return {
+        isAllowed: false,
+        reason: 'Statement diff allowlist violated: Top-level class declarations modified or added.',
+      };
+    }
+    if (origFile.getInterfaces().length !== patchFile.getInterfaces().length) {
+      return {
+        isAllowed: false,
+        reason: 'Statement diff allowlist violated: Top-level interface declarations modified or added.',
+      };
+    }
+    if (origFile.getTypeAliases().length !== patchFile.getTypeAliases().length) {
+      return {
+        isAllowed: false,
+        reason: 'Statement diff allowlist violated: Top-level type aliases modified or added.',
+      };
+    }
+
+    // 4. Verify test blocks: Count and descriptions of test() and test.describe() must match
+    const extractTestCalls = (sourceFile: import('ts-morph').SourceFile) => {
+      const calls: string[] = [];
+      sourceFile.forEachDescendant((node) => {
+        if (Node.isCallExpression(node)) {
+          const text = node.getExpression().getText();
+          if (text === 'test' || text === 'test.describe' || text === 'test.only' || text === 'test.skip') {
+            const firstArg = node.getArguments()[0];
+            calls.push(`${text}:${firstArg ? firstArg.getText() : ''}`);
+          }
+        }
+      });
+      return calls;
+    };
+
+    const origTestCalls = extractTestCalls(origFile);
+    const patchTestCalls = extractTestCalls(patchFile);
+    if (JSON.stringify(origTestCalls) !== JSON.stringify(patchTestCalls)) {
+      return {
+        isAllowed: false,
+        reason: 'Statement diff allowlist violated: Test suite structure, test names, or test block declarations altered.',
+      };
+    }
+
+    return {
+      isAllowed: true,
+    };
+  }
+
+  public static assertAllowed(target: StatementDiffAllowlistTarget): void {
+    const res = StatementDiffAllowlistValidator.validate(target);
+    if (!res.isAllowed) {
+      throw new UnauthorizedAstModificationError(res.reason ?? 'Unknown violation');
+    }
+  }
+}

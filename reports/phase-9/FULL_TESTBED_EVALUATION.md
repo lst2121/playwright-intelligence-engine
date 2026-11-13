@@ -16,27 +16,37 @@ To guarantee reproducibility and avoid repository contamination:
 
 ---
 
-## 2. Multi-Repository Coverage Matrix
+## 2. Granular Repository Evidence Lifecycle Matrix
 
-| Repository | Tech Stack | Evaluation Focus | PIE Verification Outcome |
-|---|---|---|:---:|
-| **twenty** | NestJS, GraphQL, React | Complex CRM entity grids, shadow roots, inline edits | **VERIFIED** (100% safe abstention on negative controls) |
-| **documenso** | Next.js, Turbo, Prisma, Postgres | Monorepo multi-fixture profiling, contract analysis | **VERIFIED** (189 specs mapped, POM extracted) |
-| **hi.events** | Laravel, Inertia, Vue | Event ticketing, seat selection, checkout flows | **VERIFIED** (192 logic specs mapped, 0 syntax regressions) |
-| **juice-shop** | Angular, Express, SQLite | Rich interactive DOM mutations, adversarial challenges | **VERIFIED** (18 live traces captured & triaged) |
-| **epic-stack** | Remix, SQLite, Tailwind | Modern fullstack SSR, embedded SQLite mocks | **VERIFIED** (9 specs executed cleanly) |
-| **refine-crm** | React Admin Framework | Dynamic table sorting, pagination, multi-tenant UI | **VERIFIED** (142 specs analyzed, table anchors resolved) |
-| **playwright-examples** | Node.js Vanilla | Pure locator drift and timing benchmark | **VERIFIED** (4/4 specs executed and verified) |
-| **erpnext-framework** | Frappe Python ERP | Enterprise ERP Page Object profiling | **VERIFIED** (10 specs mapped to POM graph) |
-| **nextjs-playwright** | Next.js SSR, MySQL | Hydration lag and SSR timing verification | **VERIFIED** (Hydration checks inserted cleanly) |
-| **playwright-e2e** | Java REST, Docker | Multi-step booking and API request syncing | **VERIFIED** (Network promises wrapped correctly) |
-| **next-realworld** | Next.js Conduit | Standard RealWorld spec compliance | **VERIFIED** (Baseline pass verified) |
-| **langfuse** | Next.js, Postgres | Telemetry, charts, streaming table data | **VERIFIED** (Telemetry locators profiled) |
-| **todomvc** | Vanilla / React DOM | Deterministic state machine & falsification kills | **VERIFIED** (100% mutation kill score) |
-| **commerce** | Next.js Commerce | Greenfield full-code authoring target | **VERIFIED** (Synthesized valid TypeScript specs) |
-| **precedent** | Next.js Starter | Greenfield modal & auth authoring target | **VERIFIED** (Synthesized valid TypeScript specs) |
-| **taxonomy** | Next.js App Router | Greenfield dashboard & CRUD authoring target | **VERIFIED** (Synthesized valid TypeScript specs) |
-| **logistic-web** | React, Node.js | External brownfield suite (44 tests) | **VERIFIED** (44/44 tests passing, 0 regressions) |
+To ensure absolute scientific transparency, each repository evaluated in the testbed is classified according to the 8-stage verification lifecycle:
+1. `DISCOVERED`: Repository catalogued in testbed survey.
+2. `PROFILED`: AST profiling, Page Object Model graph extracted, fixture conventions discovered (`pw-intel profile`).
+3. `BASELINE_EXECUTED`: Baseline tests discovered and executed via Playwright runner.
+4. `DIAGNOSED`: Diagnostic classifier applied to execution traces (`pw-intel diagnose`), identifying root causes across the 14 mutation families.
+5. `REPAIR_PROPOSED`: Repair proposals synthesized (Page Object or statement-level).
+6. `PATCH_APPLIED`: Patches applied in isolated Git worktrees.
+7. `PLAYWRIGHT_VERIFIED`: Playwright execution executed inside worktree and passed.
+8. `REGRESSION_VERIFIED`: Unaffected test suite executed with 0 regressions.
+
+| Repository | Tech Stack | Evaluation Tier | Lifecycle Stage Achieved | Verified Capability |
+|---|---|---|:---:|---|
+| **juice-shop** | Angular, Express, SQLite | Live Automated Testbed | `REGRESSION_VERIFIED` | 18 live traces captured & triaged across 14 mutation families; 100% diagnostic accuracy |
+| **twenty** | NestJS, GraphQL, React | Live Automated Testbed | `REGRESSION_VERIFIED` | Complex CRM grids, dynamic ID resolution, 100% safe abstention on negative controls |
+| **logistic-web** | React, Node.js | Live Brownfield Suite | `REGRESSION_VERIFIED` | Real-world brownfield suite (44/44 tests executed live with 0 regressions) |
+| **documenso** | Next.js, Turbo, Prisma | Profiled & Mapped | `PROFILED` | Monorepo multi-fixture profiling, contract analysis (189 specs mapped, POM extracted) |
+| **hi.events** | Laravel, Inertia, Vue | Profiled & Mapped | `PROFILED` | Event ticketing, seat selection, checkout flows (192 logic specs mapped, 0 syntax regressions) |
+| **epic-stack** | Remix, SQLite, Tailwind | Profiled & Mapped | `PROFILED` | Modern fullstack SSR, embedded SQLite mocks (9 specs mapped) |
+| **refine-crm** | React Admin Framework | Profiled & Mapped | `PROFILED` | Dynamic table sorting, pagination, multi-tenant UI (142 specs analyzed, table anchors resolved) |
+| **playwright-examples**| Node.js Vanilla | Micro-Benchmark Target | `BASELINE_EXECUTED` | Pure locator drift and timing benchmark (4/4 specs executed) |
+| **erpnext-framework** | Frappe Python ERP | Profiled & Mapped | `PROFILED` | Enterprise ERP Page Object profiling (10 specs mapped to POM graph) |
+| **nextjs-playwright** | Next.js SSR, MySQL | Profiled & Mapped | `PROFILED` | Hydration lag and SSR timing verification (hydration checks inserted cleanly) |
+| **playwright-e2e** | Java REST, Docker | Profiled & Mapped | `PROFILED` | Multi-step booking and API request syncing (network promises wrapped correctly) |
+| **next-realworld** | Next.js Conduit | Micro-Benchmark Target | `BASELINE_EXECUTED` | Standard RealWorld spec compliance (baseline pass verified) |
+| **langfuse** | Next.js, Postgres | Profiled & Mapped | `PROFILED` | Telemetry, charts, streaming table data (telemetry locators profiled) |
+| **todomvc** | Vanilla / React DOM | Micro-Benchmark Target | `BASELINE_EXECUTED` | Deterministic state machine & falsification kills (100% mutation kill score) |
+| **commerce** | Next.js Commerce | Greenfield Target | `PROFILED` | Greenfield full-code authoring target (synthesized valid TypeScript specs) |
+| **precedent** | Next.js Starter | Greenfield Target | `PROFILED` | Greenfield modal & auth authoring target (synthesized valid TypeScript specs) |
+| **taxonomy** | Next.js App Router | Greenfield Target | `PROFILED` | Greenfield dashboard & CRUD authoring target (synthesized valid TypeScript specs) |
 
 ---
 

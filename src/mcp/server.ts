@@ -74,10 +74,10 @@ export class McpServer {
     // Cross-platform absolute path validation:
     // If a path contains a Windows drive letter or UNC prefix, but we are running on Linux/macOS,
     // POSIX path.resolve would mistakenly treat it as a relative filename inside workspaceRoot.
-    // Explicitly reject paths with Windows drive letters or UNC paths on non-Windows platforms.
+    // Explicitly reject Windows drive letters (C:\...) and UNC paths (\\...) on non-Windows platforms.
     if (
       process.platform !== 'win32' &&
-      (path.win32.isAbsolute(targetPath) || /^[a-zA-Z]:[/\\]/.test(targetPath) || targetPath.startsWith('\\\\'))
+      (/^[a-zA-Z]:[/\\]/.test(targetPath) || targetPath.startsWith('\\\\'))
     ) {
       throw new Error(
         `Workspace Security Violation: Path '${targetPath}' resolves outside authorized workspace boundary '${this.workspaceRoot}'.`
@@ -108,7 +108,7 @@ export class McpServer {
     }
 
     const rel = path.relative(canonicalWorkspace, canonicalTarget);
-    if (rel.startsWith('..') || path.isAbsolute(rel) || path.win32.isAbsolute(rel)) {
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
       throw new Error(
         `Workspace Security Violation: Path '${targetPath}' resolves to '${canonicalTarget}' outside authorized workspace boundary '${canonicalWorkspace}'.`
       );

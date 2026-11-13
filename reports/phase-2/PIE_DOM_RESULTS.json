@@ -1,0 +1,59 @@
+{
+  "phase": "Phase 2 - Dynamic Locators & Semantic Attribute Extraction",
+  "timestamp": "2026-11-13T04:08:55.697Z",
+  "engine": "CandidateExtractor & SelectorScorer with Volatility Detection",
+  "totalScenariosEvaluated": 60,
+  "metrics": {
+    "repairPrecisionPct": 100.0,
+    "repairRecallPct": 96.67,
+    "repairPrecisionCI95": {
+      "lower": 93.79,
+      "upper": 100.0,
+      "confidenceLevel": 0.95
+    },
+    "repairRecallCI95": {
+      "lower": 88.64,
+      "upper": 99.08,
+      "confidenceLevel": 0.95
+    },
+    "volatileSelectorRejectionRatePct": 100.0,
+    "semanticLocatorAdoptionRatePct": 96.67
+  },
+  "patternsTested": [
+    {
+      "pattern": "React 18 useId colons (:r1:, :r2:)",
+      "occurrences": 12,
+      "detectedAsVolatile": 12,
+      "healedViaSemantic": 12,
+      "status": "PASS"
+    },
+    {
+      "pattern": "CSS-in-JS Emotion/Styled-Components hashes (.css-1x8a9bf)",
+      "occurrences": 15,
+      "detectedAsVolatile": 15,
+      "healedViaSemantic": 15,
+      "status": "PASS"
+    },
+    {
+      "pattern": "Dynamic auto-incrementing backend numeric IDs (#item-948123)",
+      "occurrences": 11,
+      "detectedAsVolatile": 11,
+      "healedViaSemantic": 11,
+      "status": "PASS"
+    },
+    {
+      "pattern": "E-Commerce multi-attribute product cards (Amazon/Shopify style)",
+      "occurrences": 12,
+      "detectedAsVolatile": 12,
+      "healedViaContainerAndSemantic": 11,
+      "status": "PASS"
+    },
+    {
+      "pattern": "Localized multilingual label drift",
+      "occurrences": 10,
+      "detectedAsVolatile": 10,
+      "healedViaAriaOrTestId": 9,
+      "status": "PASS"
+    }
+  ]
+}

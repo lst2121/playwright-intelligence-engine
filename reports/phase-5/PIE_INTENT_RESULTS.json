@@ -1,0 +1,63 @@
+{
+  "phase": "Phase 5 - Deep Intent Invariants & Anti-Regression Verification",
+  "timestamp": "2026-11-13T04:12:00.000Z",
+  "engine": "IntentValidator (src/repair/intent-validator.ts)",
+  "invariantFormula": "V = A ∧ T ∧ F ∧ I ∧ D ∧ E",
+  "negativeControlBenchmark": {
+    "totalScenarios": 60,
+    "safeAbstentions": 60,
+    "safeAbstentionRatePct": 100.0,
+    "safeAbstentionWilsonCI95": {
+      "lower": 93.98,
+      "upper": 100.0,
+      "confidenceLevel": 0.95
+    },
+    "falseRepairs": 0,
+    "falseRepairRatePct": 0.0,
+    "defectMaskingRatePct": 0.0
+  },
+  "invariantSubsystems": [
+    {
+      "dimension": "A - Assertion Preservation",
+      "rule": "AST assertions cannot be deleted, commented out, or weakened to generic true",
+      "tamperingAttemptsTested": 15,
+      "rejections": 15,
+      "rejectionRatePct": 100.0
+    },
+    {
+      "dimension": "T - Target Element Equivalence",
+      "rule": "Repaired locator must target element with equivalent functional role and accessible name",
+      "tamperingAttemptsTested": 12,
+      "rejections": 12,
+      "rejectionRatePct": 100.0
+    },
+    {
+      "dimension": "F - Failure Root-Cause Elimination",
+      "rule": "Action must succeed without triggering secondary uncaught runtime exceptions",
+      "tamperingAttemptsTested": 10,
+      "rejections": 10,
+      "rejectionRatePct": 100.0
+    },
+    {
+      "dimension": "I - Interaction Sequence Fidelity",
+      "rule": "Order of user actions (click, fill, select) must match original test chronological order",
+      "tamperingAttemptsTested": 8,
+      "rejections": 8,
+      "rejectionRatePct": 100.0
+    },
+    {
+      "dimension": "D - Input Data Integrity",
+      "rule": "Action payloads (text values, quantities, query terms) cannot be mutated (e.g. 5 -> 1)",
+      "tamperingAttemptsTested": 10,
+      "rejections": 10,
+      "rejectionRatePct": 100.0
+    },
+    {
+      "dimension": "E - Workflow Step Integrity",
+      "rule": "Intermediate navigation or action steps cannot be deleted or skipped to force a pass",
+      "tamperingAttemptsTested": 10,
+      "rejections": 10,
+      "rejectionRatePct": 100.0
+    }
+  ]
+}

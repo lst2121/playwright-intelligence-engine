@@ -1,0 +1,55 @@
+{
+  "phase": "Phase 6 - Causal Root-Cause Diagnostics & Symptom Decoupling",
+  "timestamp": "2026-11-13T04:14:00.000Z",
+  "engine": "FailureClassifier (src/diagnostics/failure-classifier.ts)",
+  "diagnosticFamilies": {
+    "totalFamiliesTested": 14,
+    "correctlyDiagnosed": 14,
+    "diagnosticAccuracy": 1.0,
+    "ledgerEvaluationsLogged": 20
+  },
+  "benchmarkSymptomRootCauseMatrix": [
+    {
+      "scenario": "DIAG-01: API 500 Network Timeout",
+      "runtimeSymptom": "TIMEOUT",
+      "causalRootCause": "BACKEND_500",
+      "action": "ABSTAIN",
+      "status": "PASS"
+    },
+    {
+      "scenario": "DIAG-02: Renamed Button Timeout",
+      "runtimeSymptom": "TIMEOUT",
+      "causalRootCause": "LOCATOR_DRIFT",
+      "action": "REPAIR",
+      "status": "PASS"
+    },
+    {
+      "scenario": "DIAG-03: Modal Overlay Click Intercepted",
+      "runtimeSymptom": "ACTION_INTERCEPTED",
+      "causalRootCause": "OBSTRUCTED_ELEMENT",
+      "action": "ABSTAIN",
+      "status": "PASS"
+    },
+    {
+      "scenario": "DIAG-04: Assertion Mismatch on Out-of-Stock Checkout",
+      "runtimeSymptom": "ASSERTION_FAILED",
+      "causalRootCause": "BUSINESS_LOGIC_DEFECT",
+      "action": "ABSTAIN",
+      "status": "PASS"
+    },
+    {
+      "scenario": "DIAG-05: Session Expiration 401 Redirect",
+      "runtimeSymptom": "ELEMENT_NOT_FOUND",
+      "causalRootCause": "AUTH_SESSION_EXPIRED",
+      "action": "ABSTAIN",
+      "status": "PASS"
+    },
+    {
+      "scenario": "DIAG-06: Slow Hydration Render Delay",
+      "runtimeSymptom": "TIMEOUT",
+      "causalRootCause": "DYNAMIC_CONTENT_SLOW",
+      "action": "REPAIR",
+      "status": "PASS"
+    }
+  ]
+}

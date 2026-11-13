@@ -37,6 +37,50 @@ import { runEvidenceDrivenGeneration } from '../intelligence/generation-verifier
 import { GitDiffCollector } from '../collectors/git-diff-collector.js';
 import type { AuthorKind } from '../authoring/index.js';
 
+function findTraceArchives(targetPath?: string): string[] {
+  if (targetPath && !targetPath.startsWith('--')) {
+    const resolved = path.resolve(targetPath);
+    if (fs.existsSync(resolved)) {
+      if (fs.statSync(resolved).isFile() && resolved.endsWith('.zip')) {
+        return [resolved];
+      }
+    }
+  }
+
+  const candidateDirs = [
+    targetPath && !targetPath.startsWith('--') && fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()
+      ? path.resolve(targetPath)
+      : null,
+    path.resolve('test-results'),
+    path.resolve('playwright-report'),
+    process.cwd(),
+  ].filter(Boolean) as string[];
+
+  const found: { filePath: string; mtime: number }[] = [];
+  const seen = new Set<string>();
+
+  for (const dir of candidateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const entries = fs.readdirSync(dir, { recursive: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, String(entry));
+        if (fullPath.endsWith('.zip') && !seen.has(fullPath)) {
+          try {
+            const stat = fs.statSync(fullPath);
+            if (stat.isFile()) {
+              seen.add(fullPath);
+              found.push({ filePath: fullPath, mtime: stat.mtimeMs });
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  return found.sort((a, b) => b.mtime - a.mtime).map((f) => f.filePath);
+}
+
 export async function runCli(argv: string[]): Promise<void> {
   const command = argv[2];
 
@@ -131,10 +175,21 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'diagnose') {
-    const tracePath = argv[3];
-    if (!tracePath) {
-      console.error('Error: trace.zip path required. Usage: pw-intel diagnose <path-to-trace.zip> [--error-context <error-context.md>]');
+    const candidateArg = argv[3];
+    const traces = findTraceArchives(candidateArg);
+    if (traces.length === 0) {
+      console.error(
+        'Error: No trace.zip files found in test-results/ or current directory.\n' +
+        'Please run your Playwright tests with tracing enabled: npx playwright test --trace on\n' +
+        'Or pass the path directly: pw-intel diagnose <path-to-trace.zip>'
+      );
       process.exit(1);
+    }
+    const tracePath = traces[0]!;
+    if (traces.length > 1) {
+      console.log(`[pw-intel] Auto-discovered ${traces.length} trace files. Diagnosing most recent: ${path.relative(process.cwd(), tracePath)}`);
+    } else if (!candidateArg || candidateArg.startsWith('--') || (fs.existsSync(candidateArg) && fs.statSync(candidateArg).isDirectory())) {
+      console.log(`[pw-intel] Auto-discovered trace: ${path.relative(process.cwd(), tracePath)}`);
     }
 
     try {
@@ -248,10 +303,21 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'autonomous-repair') {
-    const tracePath = argv[3];
-    if (!tracePath) {
-      console.error('Error: trace.zip path required. Usage: pw-intel autonomous-repair <trace.zip> [--execute] [--test <spec>] [--pom <page-object>] [--class <Class>] [--member <member>]');
+    const candidateArg = argv[3];
+    const traces = findTraceArchives(candidateArg);
+    if (traces.length === 0) {
+      console.error(
+        'Error: No trace.zip files found in test-results/ or current directory.\n' +
+        'Please run your Playwright tests with tracing enabled: npx playwright test --trace on\n' +
+        'Or pass the path directly: pw-intel autonomous-repair <trace.zip> [--execute]'
+      );
       process.exit(1);
+    }
+    const tracePath = traces[0]!;
+    if (traces.length > 1) {
+      console.log(`[pw-intel] Auto-discovered ${traces.length} trace files. Repairing most recent: ${path.relative(process.cwd(), tracePath)}`);
+    } else if (!candidateArg || candidateArg.startsWith('--') || (fs.existsSync(candidateArg) && fs.statSync(candidateArg).isDirectory())) {
+      console.log(`[pw-intel] Auto-discovered trace: ${path.relative(process.cwd(), tracePath)}`);
     }
     try {
       const option = (name: string): string | undefined => {

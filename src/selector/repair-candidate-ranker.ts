@@ -1,6 +1,6 @@
 import { ProjectIntelligenceSnapshot, getDecayedHistoricalSelectorScore } from '../intelligence/project-intelligence.js';
 import { CandidateExtractor } from './candidate-extractor.js';
-import { ResolvedElement } from '../trace/snapshot-resolver.js';
+import { ResolvedElement, BoundingBox } from '../trace/snapshot-resolver.js';
 import { ScoredCandidate } from './abstention-policy.js';
 import { SelectorScorer, SelectorProjectContext } from './selector-scorer.js';
 import { LocatorDisambiguationEngine } from '../intelligence/locator-disambiguation-engine.js';
@@ -17,6 +17,7 @@ export class RepairCandidateRanker {
     intelligence?: ProjectIntelligenceSnapshot,
     rootDom?: ResolvedElement,
     testIntentText?: string,
+    targetBoundingBox?: BoundingBox,
   ): RankedRepairCandidate[] {
     const projectContext: SelectorProjectContext | undefined = intelligence?.profile
       ? {
@@ -35,7 +36,7 @@ export class RepairCandidateRanker {
       candidates.length > 1
         ? LocatorDisambiguationEngine.disambiguate(
             candidates,
-            { originalSelector, intendedAction, rootDom, testIntentText },
+            { originalSelector, intendedAction, rootDom, testIntentText, targetBoundingBox },
             'page'
           )
         : undefined;

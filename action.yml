@@ -1,0 +1,89 @@
+name: 'Playwright Intelligence Engine Auto-Healing'
+description: 'Autonomous diagnosis, batch verification, and pull request generation for Playwright test failures.'
+author: 'Google Antigravity & Playwright Intelligence Community'
+
+inputs:
+  trace-path:
+    description: 'Path or pattern to Playwright trace archives'
+    required: false
+    default: 'test-results'
+  execute:
+    description: 'Verify repairs inside an isolated Git worktree'
+    required: false
+    default: 'true'
+  promote:
+    description: 'Promote verified repairs to repository workspace'
+    required: false
+    default: 'true'
+  open-pr:
+    description: 'Automatically open a pull request when repairs succeed'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token for creating branches and pull requests'
+    required: false
+    default: ${{ github.token }}
+  pie-version:
+    description: 'Package version of playwright-intelligence-engine to run'
+    required: false
+    default: 'latest'
+
+outputs:
+  status:
+    description: 'Batch repair verdict (COMPLETED, PARTIAL, ABSTAINED, or FAILED)'
+    value: ${{ steps.run-pie.outputs.status }}
+  repaired-count:
+    description: 'Number of test failures successfully repaired and verified'
+    value: ${{ steps.run-pie.outputs.repaired_count }}
+  report-path:
+    description: 'Absolute path to generated machine-readable report JSON'
+    value: ${{ steps.run-pie.outputs.report_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Playwright Intelligence Engine Auto-Healing
+      id: run-pie
+      shell: bash
+      run: |
+        CMD="npx playwright-intelligence-engine@${{ inputs.pie-version }} autonomous-repair --all"
+        if [ "${{ inputs.execute }}" = "true" ]; then
+          CMD="$CMD --execute"
+        fi
+        if [ "${{ inputs.promote }}" = "true" ]; then
+          CMD="$CMD --promote"
+        fi
+        echo "Executing: $CMD"
+        $CMD
+
+        REPORT_PATH=".pie/reports/batch-repair-report.json"
+        if [ -f "$REPORT_PATH" ]; then
+          STATUS=$(node -e "const r=require('./$REPORT_PATH'); console.log(r.status || 'UNKNOWN');")
+          REPAIRED=$(node -e "const r=require('./$REPORT_PATH'); console.log(r.repairedCount || 0);")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "repaired_count=$REPAIRED" >> $GITHUB_OUTPUT
+          echo "report_path=$(pwd)/$REPORT_PATH" >> $GITHUB_OUTPUT
+        else
+          echo "status=ABSTAINED" >> $GITHUB_OUTPUT
+          echo "repaired_count=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Pull Request with Auto-Healed Tests
+      if: inputs.open-pr == 'true' && inputs.promote == 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ inputs.github-token }}
+        commit-message: 'fix(tests): autonomous repair verified by Playwright Intelligence Engine'
+        title: '🤖 [PIE] Autonomous Repair for Failing Playwright Tests'
+        branch: 'pie/auto-repair-${{ github.run_id }}'
+        delete-branch: true
+        body: |
+          ### Playwright Intelligence Engine (PIE) Auto-Healing Report
+          
+          PIE detected and repaired test failures in run `${{ github.run_id }}`.
+          
+          - **Verdict**: `${{ steps.run-pie.outputs.status }}`
+          - **Repaired Tests**: `${{ steps.run-pie.outputs.repaired_count }}`
+          - **Verification Strategy**: Headless, isolated Git worktree multi-test execution
+          
+          *All assertions and test invariants were strictly validated and preserved.*

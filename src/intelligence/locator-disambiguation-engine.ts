@@ -1,4 +1,4 @@
-import { ResolvedElement } from '../trace/snapshot-resolver.js';
+import { ResolvedElement, BoundingBox } from '../trace/snapshot-resolver.js';
 import { CandidateExtractor } from '../selector/candidate-extractor.js';
 
 export type DisambiguationStrategy =
@@ -6,6 +6,7 @@ export type DisambiguationStrategy =
   | 'VISIBILITY_FILTER'
   | 'CONTAINER_ANCHOR'
   | 'LANDMARK_SECTION'
+  | 'SPATIAL_COORDINATE_MATCH'
   | 'EXPLICIT_POSITIONAL_INTENT'
   | 'ABSTAIN_AMBIGUOUS';
 
@@ -14,6 +15,7 @@ export interface DisambiguationContext {
   intendedAction?: string | undefined;
   testIntentText?: string | undefined;
   rootDom?: ResolvedElement | undefined;
+  targetBoundingBox?: BoundingBox | undefined;
 }
 
 export interface DisambiguationResult {
@@ -101,7 +103,15 @@ export class LocatorDisambiguationEngine {
       }
     }
 
-    // 5. Explicit Positional Intent Verification
+    // 5. Spatial Coordinate Disambiguation (Bounding Box Proximity)
+    if (context.targetBoundingBox) {
+      const spatialResult = this.attemptSpatialDisambiguation(candidates, context.targetBoundingBox, pageProperty);
+      if (spatialResult) {
+        return spatialResult;
+      }
+    }
+
+    // 6. Explicit Positional Intent Verification
     const hasExplicitPositionalIntent = this.verifyExplicitPositionalIntent(context);
     if (hasExplicitPositionalIntent) {
       const candidate = candidates[0]!;
@@ -119,7 +129,7 @@ export class LocatorDisambiguationEngine {
       };
     }
 
-    // 6. Safe Abstention (Never invent positional intent!)
+    // 7. Safe Abstention (Never invent positional intent!)
     return {
       strategy: 'ABSTAIN_AMBIGUOUS',
       matchCount: candidates.length,
@@ -313,6 +323,47 @@ export class LocatorDisambiguationEngine {
     }
 
     return null;
+  }
+
+  private static attemptSpatialDisambiguation(
+    candidates: ResolvedElement[],
+    targetBox: BoundingBox,
+    pageProperty: string,
+  ): DisambiguationResult | undefined {
+    const candidatesWithBoxes = candidates.filter((c) => c.boundingBox !== undefined);
+    if (candidatesWithBoxes.length === 0) return undefined;
+
+    const targetCenterX = targetBox.x + targetBox.width / 2;
+    const targetCenterY = targetBox.y + targetBox.height / 2;
+
+    const scored = candidatesWithBoxes
+      .map((c) => {
+        const box = c.boundingBox!;
+        const candCenterX = box.x + box.width / 2;
+        const candCenterY = box.y + box.height / 2;
+        const distance = Math.hypot(targetCenterX - candCenterX, targetCenterY - candCenterY);
+        const sizeDiff = Math.abs(targetBox.width - box.width) + Math.abs(targetBox.height - box.height);
+        return { candidate: c, distance, sizeDiff, totalScore: distance + sizeDiff * 0.5 };
+      })
+      .sort((a, b) => a.totalScore - b.totalScore);
+
+    const best = scored[0];
+    const secondBest = scored[1];
+
+    if (best && (!secondBest || (secondBest.distance - best.distance > 20) || best.distance < 15)) {
+      const baseExpr = CandidateExtractor.generateLocator(best.candidate, pageProperty);
+      return {
+        strategy: 'SPATIAL_COORDINATE_MATCH',
+        resolvedCandidate: best.candidate,
+        resolvedExpression: baseExpr,
+        matchCount: candidates.length,
+        explanation: `Disambiguated via spatial layout coordinates: candidate element aligns with target coordinates within ${best.distance.toFixed(1)}px distance.`,
+        confidence: 0.94,
+        isUnique: true,
+      };
+    }
+
+    return undefined;
   }
 
   private static getCleanText(el: ResolvedElement): string {

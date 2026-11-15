@@ -29,6 +29,7 @@ import { buildTeamDashboard, TeamEvidenceRun } from '../governance/team-dashboar
 import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../diagnostics/external-failure-evidence.js';
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
+import { runBatchRepairWorkflow } from '../intelligence/batch-repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput } from '../intelligence/test-intelligence.js';
@@ -315,6 +316,84 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'autonomous-repair') {
+    const option = (name: string): string | undefined => {
+      const index = argv.indexOf(name);
+      return index >= 0 ? argv[index + 1] : undefined;
+    };
+
+    if (argv.includes('--all')) {
+      try {
+        const batchResult = await runBatchRepairWorkflow({
+          workspaceRoot: option('--workspace') ?? process.cwd(),
+          execute: argv.includes('--execute'),
+          autoPromote: argv.includes('--promote'),
+          configPath: option('--config'),
+          worktreeId: option('--worktree-id'),
+          enableBrowserInvestigation: argv.includes('--browser'),
+          browserUrl: option('--browser-url'),
+          browserAllowedHosts: (option('--allow-host') ?? '').split(',').map((h) => h.trim()).filter(Boolean),
+          enableTestExecution: argv.includes('--run-tests'),
+        });
+
+        const reportsDir = path.resolve(process.cwd(), '.pie', 'reports');
+        await fs.promises.mkdir(reportsDir, { recursive: true });
+        const reportJsonPath = path.resolve(reportsDir, 'batch-repair-report.json');
+        await fs.promises.writeFile(reportJsonPath, `${JSON.stringify(batchResult, null, 2)}\n`, 'utf8');
+
+        if (argv.includes('--json')) {
+          console.log(JSON.stringify(batchResult, null, 2));
+        } else {
+          const divider = '─'.repeat(72);
+          console.log('');
+          console.log('╔══════════════════════════════════════════════════════════════════════╗');
+          console.log('║        PLAYWRIGHT INTELLIGENCE ENGINE: BATCH AUTO-HEALING            ║');
+          console.log('╚══════════════════════════════════════════════════════════════════════╝');
+          console.log('');
+          console.log(`Discovered Traces  : ${batchResult.totalTraces}`);
+          console.log(`Repaired & Verified: ${batchResult.repairedCount}`);
+          console.log(`Abstained          : ${batchResult.abstainedCount}`);
+          console.log(`Failed             : ${batchResult.failedCount}`);
+          console.log(`Batch Status       : ${batchResult.status}`);
+          console.log(divider);
+          console.log('Failure Clusters:');
+          if (batchResult.clusters.length > 0) {
+            for (const c of batchResult.clusters) {
+              console.log(`  • [${c.severity.toUpperCase()}] ${c.fingerprint.category} (count: ${c.count})`);
+            }
+          } else {
+            console.log('  • None');
+          }
+          console.log(divider);
+          console.log('Test Repair Summary:');
+          for (const item of batchResult.items) {
+            const icon = item.status === 'PROMOTED' || item.status === 'VERIFIED' ? '✅' : item.status === 'ABSTAINED' ? '⚠️' : item.status === 'PROPOSAL_READY' ? '💡' : '❌';
+            const spec = item.testTitle ?? path.basename(item.tracePath);
+            console.log(`  ${icon} [${item.status}] ${spec}`);
+            if (item.failedTarget) console.log(`     Failed Target : ${item.failedTarget}`);
+            if (item.healedLocator) console.log(`     Healed Locator: ${item.healedLocator}`);
+            if (item.targetFilePath) console.log(`     Target File   : ${path.relative(process.cwd(), item.targetFilePath)}`);
+            if (item.reason && item.status === 'ABSTAINED') console.log(`     Abstain Reason: ${item.reason}`);
+          }
+          console.log(divider);
+          if (batchResult.promotedFiles && batchResult.promotedFiles.length > 0) {
+            console.log('Promoted Files:');
+            for (const file of batchResult.promotedFiles) {
+              console.log(`  🎉 ${file}`);
+            }
+            console.log(divider);
+          }
+          console.log(`Report JSON        : ${path.relative(process.cwd(), reportJsonPath)}`);
+          console.log('(Pass --json to view full machine-readable payload)');
+        }
+
+        if (batchResult.status === 'FAILED') process.exitCode = 1;
+        return;
+      } catch (err: any) {
+        console.error(`Batch repair failed: ${err?.message ?? String(err)}`);
+        process.exit(1);
+      }
+    }
+
     const candidateArg = argv[3];
     const traces = findTraceArchives(candidateArg);
     if (traces.length === 0) {
@@ -332,10 +411,6 @@ export async function runCli(argv: string[]): Promise<void> {
       console.log(`[pw-intel] Auto-discovered trace: ${path.relative(process.cwd(), tracePath)}`);
     }
     try {
-      const option = (name: string): string | undefined => {
-        const index = argv.indexOf(name);
-        return index >= 0 ? argv[index + 1] : undefined;
-      };
       const result = await runAutonomousRepairWorkflow({
         tracePath,
         workspaceRoot: option('--workspace') ?? process.cwd(),
@@ -757,7 +832,41 @@ export async function runCli(argv: string[]): Promise<void> {
         write: argv.includes('--write'),
         verify: argv.includes('--verify'),
       });
-      console.log(JSON.stringify({ generatedAt: new Date().toISOString(), requirementsPath: path.resolve(requirementsPath), ...result }, null, 2));
+      const reportPayload = { generatedAt: new Date().toISOString(), requirementsPath: path.resolve(requirementsPath), ...result };
+      const reportsDir = path.resolve(process.cwd(), '.pie', 'reports');
+      await fs.promises.mkdir(reportsDir, { recursive: true });
+      const reportJsonPath = path.resolve(reportsDir, 'generation-report.json');
+      await fs.promises.writeFile(reportJsonPath, `${JSON.stringify(reportPayload, null, 2)}\n`, 'utf8');
+
+      if (argv.includes('--json')) {
+        console.log(JSON.stringify(reportPayload, null, 2));
+      } else {
+        const divider = '─'.repeat(72);
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════════════════════════╗');
+        console.log('║        PLAYWRIGHT INTELLIGENCE ENGINE: GENERATION AGENT              ║');
+        console.log('╚══════════════════════════════════════════════════════════════════════╝');
+        console.log('');
+        console.log(`Requirements File : ${path.relative(process.cwd(), requirementsPath)}`);
+        console.log(`Mode              : ${mode} (${author})`);
+        console.log(`Generation Status : ${result.status}`);
+        if ((result as any).reason) {
+          console.log(`Status Reason     : ${(result as any).reason}`);
+        }
+        console.log(divider);
+        const generatedList = (result as any).generatedFiles ?? [];
+        console.log(`Generated Files (${generatedList.length}):`);
+        if (generatedList.length > 0) {
+          for (const file of generatedList) {
+            console.log(`  • ${file}`);
+          }
+        } else {
+          console.log('  • None (No files written)');
+        }
+        console.log(divider);
+        console.log(`Report JSON       : ${path.relative(process.cwd(), reportJsonPath)}`);
+        console.log('(Pass --json to view full machine-readable payload)');
+      }
       if (result.status === 'ABSTAINED' || result.status === 'MODEL_NOT_CONFIGURED' || result.status === 'NEEDS_INPUT' || result.status === 'VERIFICATION_FAILED' || result.status === 'AGENT_NO_PROGRESS') process.exitCode = 1;
     } catch (err: any) {
       console.error(`Generation agent failed: ${err?.message ?? String(err)}`);
@@ -1032,12 +1141,60 @@ export async function runCli(argv: string[]): Promise<void> {
         runMutations,
       });
 
+      const reportsDir = path.resolve(process.cwd(), '.pie', 'reports');
+      await fs.promises.mkdir(reportsDir, { recursive: true });
+      const defaultReportPath = path.resolve(reportsDir, 'qa-report.json');
       const outFlag = readFlag('--out');
-      if (outFlag) {
-        await fs.promises.mkdir(path.dirname(path.resolve(outFlag)), { recursive: true });
-        await fs.promises.writeFile(path.resolve(outFlag), `${JSON.stringify(result.qaReport, null, 2)}\n`, 'utf8');
+      const targetReportJsonPath = outFlag ? path.resolve(outFlag) : defaultReportPath;
+      await fs.promises.mkdir(path.dirname(targetReportJsonPath), { recursive: true });
+      await fs.promises.writeFile(targetReportJsonPath, `${JSON.stringify(result.qaReport, null, 2)}\n`, 'utf8');
+
+      if (argv.includes('--json')) {
+        console.log(JSON.stringify(result.qaReport, null, 2));
+      } else {
+        const divider = '─'.repeat(72);
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════════════════════════╗');
+        console.log('║               PLAYWRIGHT INTELLIGENCE ENGINE: QA REPORT              ║');
+        console.log('╚══════════════════════════════════════════════════════════════════════╝');
+        console.log('');
+        console.log(`Feature           : ${result.qaReport.featureName}`);
+        console.log(`Topology          : ${result.qaReport.topology}`);
+        console.log(`Status            : ${result.qaReport.status}`);
+        console.log(`Runtime Verified  : ${result.qaReport.runtimeVerified ? '✅ YES' : '❌ NO'}`);
+        console.log(`Static Validation : ${result.qaReport.staticValidation.passed ? '✅ PASSED' : '❌ FAILED'}`);
+        console.log(divider);
+
+        console.log('Findings & Diagnostics:');
+        if (result.qaReport.findings && result.qaReport.findings.length > 0) {
+          for (const finding of result.qaReport.findings) {
+            const sev = finding.severity ? finding.severity.toUpperCase() : 'INFO';
+            console.log(`  • [${sev}] ${finding.actualBehavior}`);
+          }
+        } else {
+          console.log('  • No defects or runtime errors discovered.');
+        }
+
+        if (result.qaReport.staticValidation.violations.length > 0) {
+          console.log('\nValidation Violations:');
+          for (const viol of result.qaReport.staticValidation.violations) {
+            console.log(`  • ${viol}`);
+          }
+        }
+        console.log(divider);
+
+        console.log('Artifacts Generated:');
+        console.log(`  • Generated Files : ${result.qaReport.generatedFiles.length > 0 ? result.qaReport.generatedFiles.join(', ') : 'None'}`);
+        if (result.qaReport.artifacts?.featureFilePath) {
+          console.log(`  • Feature File    : ${path.relative(process.cwd(), result.qaReport.artifacts.featureFilePath)}`);
+        }
+        if (result.qaReport.artifacts?.explorationBundlePath) {
+          console.log(`  • Exploration Log : ${path.relative(process.cwd(), result.qaReport.artifacts.explorationBundlePath)}`);
+        }
+        console.log(`  • Report JSON     : ${path.relative(process.cwd(), targetReportJsonPath)}`);
+        console.log(divider);
+        console.log('(Pass --json to view full machine-readable report)');
       }
-      console.log(JSON.stringify(result.qaReport, null, 2));
     } catch (err: any) {
       console.error(`QA pipeline failed: ${err?.message ?? String(err)}`);
       process.exit(1);

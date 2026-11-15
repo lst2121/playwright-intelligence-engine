@@ -45,6 +45,20 @@ function normalize(value: string): string {
   return value.replace(/\s+/g, '').replace(/;$/, '');
 }
 
+function extractInternalSelectorValues(selector: string): string[] {
+  const values: string[] = [];
+  if (!selector.startsWith('internal:')) return values;
+  const quoted = selector.matchAll(/(?:name|text|label|testid|placeholder)=["']([^"']+)["']/gi);
+  for (const m of quoted) {
+    if (m[1]) values.push(m[1]);
+  }
+  const unquoted = selector.matchAll(/(?:name|text|label|testid|placeholder)=([^\]\s]+)/gi);
+  for (const m of unquoted) {
+    if (m[1] && !m[1].startsWith('"') && !m[1].startsWith("'")) values.push(m[1].replace(/i$/, ''));
+  }
+  return values;
+}
+
 function selectorMatches(selector: string, locator: ExtractedLocatorAst): { score: number; evidence: string[] } | undefined {
   const wanted = normalize(selector);
   const source = normalize(locator.selectorText);
@@ -52,6 +66,14 @@ function selectorMatches(selector: string, locator: ExtractedLocatorAst): { scor
 
   if (source.includes(wanted)) {
     return { score: 100, evidence: ['Failed selector expression matched a Page Object locator expression'] };
+  }
+
+  const internalValues = extractInternalSelectorValues(selector);
+  for (const val of internalValues) {
+    const normVal = normalize(val);
+    if (normVal && source.includes(normVal)) {
+      return { score: 95, evidence: [`Failed internal selector value '${val}' matched a Page Object locator expression`] };
+    }
   }
 
   // Trace formats sometimes emit only the locator argument (for example
@@ -122,7 +144,10 @@ export async function discoverRepairSourceMapping(input: {
     } catch {
       continue;
     }
-    if (!normalize(sourceText).includes(normalizedSelector)) continue;
+    const internalValues = extractInternalSelectorValues(selector);
+    const hasMatchInSource = normalize(sourceText).includes(normalizedSelector) ||
+      internalValues.some((val) => normalize(sourceText).includes(normalize(val)));
+    if (!hasMatchInSource) continue;
     const result = await new StaticAstCollector().collect({ targetFilePath: filePath });
     const payload = result[0]?.payload as AstPayload | undefined;
     if (!payload?.isPageObject || !payload.locators) continue;

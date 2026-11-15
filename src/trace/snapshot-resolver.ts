@@ -3,6 +3,13 @@ export type NodeSnapshot =
   | number
   | [string, Record<string, string>, ...NodeSnapshot[]];
 
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ResolvedElement {
   tag: string;
   attributes: Record<string, string>;
@@ -10,6 +17,7 @@ export interface ResolvedElement {
   children: ResolvedElement[];
   role?: string | undefined;
   accessibleName?: string | undefined;
+  boundingBox?: BoundingBox | undefined;
 }
 
 export type SnapshotCompleteness = 'COMPLETE' | 'PARTIAL' | 'UNAVAILABLE';
@@ -115,6 +123,17 @@ export class SnapshotResolver {
       inputValue ??
       textAccumulator.trim();
 
+    let boundingBox: BoundingBox | undefined;
+    const boxAttr = attributes['data-bbox'] ?? attributes['__playwright_box_'] ?? attributes['data-box'];
+    if (boxAttr) {
+      try {
+        const parts = boxAttr.split(',').map(Number);
+        if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
+          boundingBox = { x: parts[0]!, y: parts[1]!, width: parts[2]!, height: parts[3]! };
+        }
+      } catch {}
+    }
+
     return {
       tag,
       attributes,
@@ -122,6 +141,7 @@ export class SnapshotResolver {
       children,
       role,
       accessibleName: accessibleName || undefined,
+      boundingBox,
     };
   }
 
@@ -222,6 +242,17 @@ export class SnapshotResolver {
       inputValue ??
       textAccumulator.trim();
 
+    let boundingBox: BoundingBox | undefined;
+    const boxAttr = attributes['data-bbox'] ?? attributes['__playwright_box_'] ?? attributes['data-box'];
+    if (boxAttr) {
+      try {
+        const parts = boxAttr.split(',').map(Number);
+        if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
+          boundingBox = { x: parts[0]!, y: parts[1]!, width: parts[2]!, height: parts[3]! };
+        }
+      } catch {}
+    }
+
     return {
       tag,
       attributes,
@@ -229,6 +260,7 @@ export class SnapshotResolver {
       children,
       role,
       accessibleName: accessibleName || undefined,
+      boundingBox,
     };
   }
 

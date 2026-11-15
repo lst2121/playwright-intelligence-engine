@@ -79,6 +79,7 @@ export * from './intelligence/repair-agent.js';
 export * from './intelligence/trace-proposal-workflow.js';
 export * from './intelligence/verified-llm-repair-workflow.js';
 export * from './intelligence/autonomous-repair-workflow.js';
+export * from './intelligence/batch-repair-workflow.js';
 export * from './intelligence/generation-agent.js';
 export * from './intelligence/generation-verifier.js';
 export * from './intelligence/repository-profile.js';

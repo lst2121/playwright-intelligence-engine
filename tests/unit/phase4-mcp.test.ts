@@ -139,5 +139,24 @@ describe('Phase 4 Model Context Protocol (MCP) Server Tests', () => {
     expect(res.result.repositories[0].repository).toBe('shop');
     expect(res.result.markdown).toContain('PIE Team Quality Dashboard');
   });
+
+  it('should expose and call Antigravity MCP tool aliases: pw_intel_profile and pw_intel_batch_repair', async () => {
+    const server = new McpServer();
+    const listRes = await server.handleRequest({ jsonrpc: '2.0', id: 10, method: 'tools/list' });
+    const toolNames = listRes.result.tools.map((t: any) => t.name);
+    expect(toolNames).toContain('pw_intel_diagnose');
+    expect(toolNames).toContain('pw_intel_autonomous_repair');
+    expect(toolNames).toContain('pw_intel_batch_repair');
+    expect(toolNames).toContain('pw_intel_profile');
+
+    const profileRes = await server.handleRequest({
+      jsonrpc: '2.0',
+      id: 11,
+      method: 'tools/call',
+      params: { name: 'pw_intel_profile', arguments: {} },
+    });
+    expect(profileRes.id).toBe(11);
+    expect(profileRes.result.status).toBe('PROFILE_READY');
+  });
 });
 

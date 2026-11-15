@@ -30,6 +30,7 @@ import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { runTraceProposalWorkflow } from '../intelligence/trace-proposal-workflow.js';
 import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
+import { runBatchRepairWorkflow } from '../intelligence/batch-repair-workflow.js';
 import { runEvidenceDrivenGeneration } from '../intelligence/generation-verifier.js';
 import type { AuthorKind } from '../authoring/index.js';
 
@@ -173,6 +174,60 @@ export class McpServer {
           id,
           result: {
             tools: [
+              {
+                name: 'pw_intel_diagnose',
+                description: 'Analyzes a Playwright trace.zip archive and outputs root-cause classification with causal evidence.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePath: { type: 'string', description: 'Workspace-relative or absolute path to trace.zip archive' },
+                    errorContextPath: { type: 'string', description: 'Optional workspace-relative path to Playwright error-context.md when the trace lacks a failed action' },
+                  },
+                  required: ['tracePath'],
+                },
+              },
+              {
+                name: 'pw_intel_autonomous_repair',
+                description: 'Runs bounded reasoning agent, allowlisted repository/browser tools, isolated repair verification, and optional explicitly authorized promotion.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePath: { type: 'string' },
+                    errorContextPath: { type: 'string' },
+                    testPath: { type: 'string' },
+                    pomPath: { type: 'string' },
+                    className: { type: 'string' },
+                    memberName: { type: 'string' },
+                    configPath: { type: 'string' },
+                    execute: { type: 'boolean' },
+                    autoPromote: { type: 'boolean' },
+                    enableBrowserInvestigation: { type: 'boolean' },
+                    browserUrl: { type: 'string' },
+                    browserAllowedHosts: { type: 'array', items: { type: 'string' } },
+                    enableTestExecution: { type: 'boolean' },
+                    worktreeId: { type: 'string' },
+                  },
+                  required: ['tracePath'],
+                },
+              },
+              {
+                name: 'pw_intel_batch_repair',
+                description: 'Executes batch failure diagnosis, single-worktree parallel verification, and atomic promotion across all failing traces in the repository.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePaths: { type: 'array', items: { type: 'string' }, description: 'Optional list of trace archives; auto-discovers all failing traces if omitted' },
+                    execute: { type: 'boolean', description: 'Verify repairs inside an isolated Git worktree' },
+                    autoPromote: { type: 'boolean', description: 'Atomically promote verified repairs to workspace' },
+                    configPath: { type: 'string' },
+                  },
+                },
+              },
+              {
+                name: 'pw_intel_profile',
+                description: 'Builds and persists a repository convention profile for project-aware diagnosis and generation.',
+                inputSchema: { type: 'object', properties: {} },
+              },
               {
                 name: 'diagnose_trace',
                 description: 'Analyzes a Playwright trace.zip archive and outputs root-cause classification with causal evidence.',
@@ -398,7 +453,7 @@ export class McpServer {
         };
       }
 
-      if (toolName === 'diagnose_trace') {
+      if (toolName === 'diagnose_trace' || toolName === 'pw_intel_diagnose') {
         const tracePathRaw = args?.tracePath;
         if (!tracePathRaw || typeof tracePathRaw !== 'string') {
           return {
@@ -567,7 +622,7 @@ export class McpServer {
         };
       }
 
-      if (toolName === 'autonomous_repair') {
+      if (toolName === 'autonomous_repair' || toolName === 'pw_intel_autonomous_repair') {
         if (typeof args?.tracePath !== 'string' || !args.tracePath.trim()) {
           return { jsonrpc: '2.0', id, error: { code: -32602, message: 'tracePath argument must be a non-empty string' } };
         }
@@ -601,12 +656,33 @@ export class McpServer {
         return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }], ...response } };
       }
 
+      if (toolName === 'pw_intel_batch_repair') {
+        const tracePaths = Array.isArray(args?.tracePaths)
+          ? args.tracePaths.filter((p: unknown): p is string => typeof p === 'string')
+          : undefined;
+        const result = await runBatchRepairWorkflow({
+          workspaceRoot: this.workspaceRoot,
+          tracePaths,
+          execute: args?.execute === true,
+          autoPromote: args?.autoPromote === true,
+          configPath: typeof args?.configPath === 'string' ? args.configPath : undefined,
+        });
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            ...result,
+          },
+        };
+      }
+
       if (toolName === 'initialize_project') {
         const initialized = await initProjectConfig(this.workspaceRoot);
         return { jsonrpc: '2.0', id, result: { status: initialized.created ? 'CREATED' : 'EXISTING', configPath: initialized.configPath, config: initialized.config } };
       }
 
-      if (toolName === 'profile_repository') {
+      if (toolName === 'profile_repository' || toolName === 'pw_intel_profile') {
         const profile = await buildRepositoryProfile(this.workspaceRoot);
         const written = await writeRepositoryProfile(this.workspaceRoot, profile);
         return { jsonrpc: '2.0', id, result: { status: 'PROFILE_READY', profilePath: written.profilePath, profile } };

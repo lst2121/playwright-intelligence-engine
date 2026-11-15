@@ -196,37 +196,95 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
     };
   }
 
-  // Resolve source test file
-  let testFilePath: string | undefined;
+  // 1. Determine target file to patch (targetFilePath)
+  let targetFilePath: string | undefined;
   if (failedAction.sourceFile) {
     const candidate = path.resolve(workspaceRoot, failedAction.sourceFile);
     if (fsSync.existsSync(candidate)) {
-      testFilePath = candidate;
+      targetFilePath = candidate;
     } else {
-      // Find matching test file in workspace
       const base = path.basename(failedAction.sourceFile);
-      const testDir = path.resolve(workspaceRoot, 'tests');
-      if (fsSync.existsSync(testDir)) {
-        const files = fsSync.readdirSync(testDir, { recursive: true });
-        const match = files.find((f) => String(f).endsWith(base));
-        if (match) testFilePath = path.join(testDir, String(match));
+      const allFiles = fsSync.readdirSync(workspaceRoot, { recursive: true });
+      const match = allFiles.find((f) => String(f).endsWith(base));
+      if (match) targetFilePath = path.join(workspaceRoot, String(match));
+    }
+  }
+
+  // 2. Determine calling spec file to execute in Playwright (specFilePath)
+  let specFilePath: string | undefined;
+
+  // If targetFilePath is already a test/spec file:
+  if (targetFilePath && /\.(?:spec|test)\.[tj]sx?$/i.test(targetFilePath)) {
+    specFilePath = targetFilePath;
+  }
+
+  // Look up spec file from trace archive stacks
+  if (!specFilePath) {
+    const archiveSpec = ArchiveReader.extractSpecFileFromArchive(tracePath);
+    if (archiveSpec) {
+      const resolved = path.resolve(workspaceRoot, archiveSpec);
+      if (fsSync.existsSync(resolved)) {
+        specFilePath = resolved;
+      } else {
+        const base = path.basename(archiveSpec);
+        const testDir = path.resolve(workspaceRoot, 'tests');
+        if (fsSync.existsSync(testDir)) {
+          const files = fsSync.readdirSync(testDir, { recursive: true });
+          const match = files.find((f) => String(f).endsWith(base));
+          if (match) specFilePath = path.join(testDir, String(match));
+        }
+      }
+    }
+  }
+
+  // Fallback: check errorStack for a spec file match
+  if (!specFilePath && failedAction.errorStack) {
+    const stackMatches = [...failedAction.errorStack.matchAll(/(?:at\s+.*?\()?([A-Za-z]:\\[^:\s)]+\.(?:spec|test)\.[tj]sx?|\/[^:\s)]+\.(?:spec|test)\.[tj]sx?)/gi)];
+    for (const sm of stackMatches) {
+      if (sm[1]) {
+        const candidate = path.resolve(sm[1]);
+        if (fsSync.existsSync(candidate)) {
+          specFilePath = candidate;
+          break;
+        }
       }
     }
   }
 
   // Fallback: infer from trace parent folder name (e.g. login-Login-Test-Demo-chromium -> login.test.ts)
-  if (!testFilePath) {
+  if (!specFilePath) {
     const parentDir = path.basename(path.dirname(tracePath));
     const prefix = parentDir.split('-')[0]?.toLowerCase();
     const testDir = path.resolve(workspaceRoot, 'tests');
     if (prefix && fsSync.existsSync(testDir)) {
       const files = fsSync.readdirSync(testDir, { recursive: true });
-      const match = files.find((f) => String(f).toLowerCase().startsWith(prefix));
-      if (match) testFilePath = path.join(testDir, String(match));
+      const match = files.find((f) => String(f).toLowerCase().startsWith(prefix) && /\.(?:spec|test)\.[tj]sx?$/i.test(String(f)));
+      if (match) specFilePath = path.join(testDir, String(match));
     }
   }
 
-  if (!testFilePath || !fsSync.existsSync(testFilePath)) {
+  // If targetFilePath was not resolved, default to specFilePath
+  if (!targetFilePath && specFilePath) {
+    targetFilePath = specFilePath;
+  }
+
+  // If specFilePath was found and targetFilePath is a spec file, check if it delegates to a Page Object that holds the selector
+  if (targetFilePath && targetFilePath === specFilePath) {
+    const testCode = await fs.readFile(targetFilePath, 'utf8');
+    const pomMatch = testCode.match(/import\s+.*\{?\s*([A-Za-z0-9_]+Page)\s*\}?\s+from\s+['"]([^'"]+)['"]/);
+    if (pomMatch && pomMatch[2]) {
+      const resolvedPom = path.resolve(path.dirname(targetFilePath), pomMatch[2].endsWith('.ts') ? pomMatch[2] : `${pomMatch[2]}.ts`);
+      if (fsSync.existsSync(resolvedPom)) {
+        const pomCode = await fs.readFile(resolvedPom, 'utf8');
+        if (failedAction.selector && pomCode.includes(failedAction.selector)) {
+          targetFilePath = resolvedPom;
+        }
+      }
+    }
+  }
+
+  // If targetFilePath is still missing, fail closed
+  if (!targetFilePath || !fsSync.existsSync(targetFilePath)) {
     return {
       status: 'FAILED',
       tracePath,
@@ -242,26 +300,17 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
         executionMs: 0,
         totalMs: Date.now() - startedTotal,
       },
-      reason: `Could not resolve test source file for failed action: '${failedAction.sourceFile ?? 'unknown'}'`,
+      reason: `Could not resolve target source file for failed action: '${failedAction.sourceFile ?? 'unknown'}'`,
     };
   }
 
-  const originalTestCode = await fs.readFile(testFilePath, 'utf8');
-
-  // Discover if a Page Object is involved
-  let targetFilePath = testFilePath;
-  let originalTargetCode = originalTestCode;
-  const pomMatch = originalTestCode.match(/import\s+.*\{?\s*([A-Za-z0-9_]+Page)\s*\}?\s+from\s+['"]([^'"]+)['"]/);
-  if (pomMatch && pomMatch[2]) {
-    const resolvedPom = path.resolve(path.dirname(testFilePath), pomMatch[2].endsWith('.ts') ? pomMatch[2] : `${pomMatch[2]}.ts`);
-    if (fsSync.existsSync(resolvedPom)) {
-      const pomCode = await fs.readFile(resolvedPom, 'utf8');
-      if (failedAction.selector && pomCode.includes(failedAction.selector)) {
-        targetFilePath = resolvedPom;
-        originalTargetCode = pomCode;
-      }
-    }
+  if (!specFilePath || !fsSync.existsSync(specFilePath)) {
+    specFilePath = targetFilePath;
   }
+
+  const testFilePath = specFilePath;
+  const originalTargetCode = await fs.readFile(targetFilePath, 'utf8');
+  const originalSpecCode = targetFilePath === specFilePath ? originalTargetCode : await fs.readFile(specFilePath, 'utf8');
 
   // Extract DOM elements from trace snapshots
   const domSnippets = await extractTraceDomEvidence(tracePath, traceText);
@@ -338,7 +387,7 @@ CRITICAL INVARIANTS:
     ...(targetFilePath !== testFilePath ? {
       testFile: {
         filePath: path.relative(workspaceRoot, testFilePath),
-        content: originalTestCode,
+        content: originalSpecCode,
       }
     } : {}),
     traceEvidence: {
@@ -543,6 +592,7 @@ CRITICAL INVARIANTS:
     // Write the patched file into the worktree
     const relTarget = path.relative(workspaceRoot, targetFilePath);
     const worktreeTarget = path.resolve(worktree.worktreePath, relTarget);
+    await fs.mkdir(path.dirname(worktreeTarget), { recursive: true });
     await fs.writeFile(worktreeTarget, repairedCode, 'utf8');
 
     // Execute Playwright test targeting this spec
@@ -553,6 +603,7 @@ CRITICAL INVARIANTS:
       configPath: input.configPath,
       timeoutMs: 60_000,
       env: { CI: '1', HEADLESS: '1' },
+      headless: true,
     });
 
     executionPassed = execRes.exitCode === 0;

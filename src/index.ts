@@ -101,8 +101,9 @@ export * from './evaluation/repository-inspector.js';
 export * from './evaluation/repository-runner.js';
 export * from './evaluation/evaluation-scorecard.js';
 
-// Direct Code Repair (Experimental)
+// Direct & Hybrid Code Repair
 export * from './repair/direct-code-repair.js';
+export * from './repair/hybrid-repair-orchestrator.js';
 
 // Framework & MCP
 export * from './framework/config-adapter.js';

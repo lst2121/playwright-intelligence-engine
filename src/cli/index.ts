@@ -31,6 +31,7 @@ import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
 import { runBatchRepairWorkflow } from '../intelligence/batch-repair-workflow.js';
 import { runDirectCodeRepair, runBatchDirectCodeRepair } from '../repair/direct-code-repair.js';
+import { runHybridRepair, RepairMode } from '../repair/hybrid-repair-orchestrator.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput } from '../intelligence/test-intelligence.js';
@@ -270,54 +271,177 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'repair') {
-    const tracePath = argv[3];
-    if (!tracePath) {
-      console.error('Error: trace.zip path required. Usage: pw-intel repair <trace.zip> --test <spec> --pom <page-object> --class <Class> --member <member> [--execute]');
-      process.exit(1);
+    const option = (name: string): string | undefined => {
+      const index = argv.indexOf(name);
+      return index >= 0 ? argv[index + 1] : undefined;
+    };
+
+    // Legacy manual repair path (explicit --test and --pom specified)
+    if (option('--test') && option('--pom')) {
+      const tracePath = argv[3];
+      if (!tracePath) {
+        console.error('Error: trace.zip path required. Usage: pw-intel repair <trace.zip> --test <spec> --pom <page-object> --class <Class> --member <member> [--execute]');
+        process.exit(1);
+      }
+      try {
+        const operationText = option('--operation');
+        const operation = operationText ? JSON.parse(operationText) as unknown : undefined;
+        const result = await runRepairWorkflow({
+          tracePath,
+          workspaceRoot: option('--workspace') ?? process.cwd(),
+          errorContextPath: option('--error-context'),
+          testFilePath: option('--test'),
+          pomFilePath: option('--pom'),
+          className: option('--class'),
+          memberName: option('--member'),
+          configPath: option('--config'),
+          project: option('--project'),
+          execute: argv.includes('--execute'),
+          worktreeId: option('--worktree-id'),
+          operation,
+        });
+        const canonicalClassification = {
+          ...result.correlated.classification,
+          category: normalizeFailureCategory(result.correlated.classification.category),
+        };
+        console.log(JSON.stringify({
+          provenance: getRuntimeProvenance(process.cwd()),
+          status: result.status,
+          classification: canonicalClassification,
+          failureFingerprint: result.correlated.failureFingerprint,
+          proposedLocator: result.proposedLocator,
+          candidate: result.candidate,
+          proposalId: result.stagedProposal?.proposalId,
+          worktree: result.worktree,
+          verification: result.verification,
+          reason: result.reason,
+        }, null, 2));
+        if (result.status === 'REJECTED') process.exitCode = 1;
+      } catch (err: any) {
+        console.error(`Repair workflow failed: ${err?.message ?? String(err)}`);
+        process.exit(1);
+      }
+      return;
     }
+
+    // Modern Unified Hybrid Code Repair
+    const mode = (option('--mode') as RepairMode) ?? 'hybrid';
+    const candidateArg = argv[3] && !argv[3].startsWith('--') ? argv[3] : undefined;
+    const isAll = argv.includes('--all') || (!candidateArg && !option('--trace'));
+
+    let traces: string[] | undefined;
+    if (!isAll) {
+      const tracePathCandidate = option('--trace') ?? candidateArg;
+      traces = findTraceArchives(tracePathCandidate);
+      if (traces.length === 0) {
+        console.error(
+          'Error: No trace.zip files found.\n' +
+          'Usage: npx pie repair [--all] [--execute] [--promote] [--mode=hybrid|deterministic|llm]'
+        );
+        process.exit(1);
+      }
+    }
+
     try {
-      const option = (name: string): string | undefined => {
-        const index = argv.indexOf(name);
-        return index >= 0 ? argv[index + 1] : undefined;
-      };
-      const operationText = option('--operation');
-      const operation = operationText ? JSON.parse(operationText) as unknown : undefined;
-      const result = await runRepairWorkflow({
-        tracePath,
+      if (!argv.includes('--json')) {
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════════════════════════╗');
+        console.log(`║        PLAYWRIGHT INTELLIGENCE ENGINE: ${mode.toUpperCase()} CODE REPAIR`.padEnd(71) + '║');
+        console.log('╚══════════════════════════════════════════════════════════════════════╝');
+        console.log(`Execution Mode     : ${mode.toUpperCase()}`);
+        console.log(`Auto-Promotion     : ${argv.includes('--promote') ? 'ENABLED' : 'DISABLED (dry run)'}`);
+        console.log(`Worktree Testing   : ${argv.includes('--execute') ? 'ENABLED' : 'DISABLED'}`);
+        console.log('─'.repeat(72));
+      }
+
+      const hybridResult = await runHybridRepair({
         workspaceRoot: option('--workspace') ?? process.cwd(),
-        errorContextPath: option('--error-context'),
-        testFilePath: option('--test'),
-        pomFilePath: option('--pom'),
-        className: option('--class'),
-        memberName: option('--member'),
-        configPath: option('--config'),
-        project: option('--project'),
+        tracePaths: traces,
         execute: argv.includes('--execute'),
-        worktreeId: option('--worktree-id'),
-        operation,
+        autoPromote: argv.includes('--promote'),
+        configPath: option('--config'),
+        mode,
+        onProgress: argv.includes('--json')
+          ? undefined
+          : (ev) => {
+              const tag = `[${ev.index}/${ev.total}]`;
+              if (ev.stage === 'tier1_evaluating') {
+                const name = path.basename(path.dirname(ev.tracePath));
+                console.log(`${tag} 🔍 Ingesting: ${name}`);
+                console.log(`      ⚡ Tier 1: Evaluating deterministic AST locators...`);
+              } else if (ev.stage === 'tier1_verified') {
+                console.log(`      ✅ Healed via Tier 1 Fast-Path (0 tokens, $0.00 USD)`);
+              } else if (ev.stage === 'tier2_fallback') {
+                console.log(`      🔄 Tier 1 inconclusive. Cascading to Tier 2 (LLM Authoring)...`);
+              } else if (ev.stage === 'tier2_authoring') {
+                console.log(`      🧠 Tier 2: Generating semantic code repair...`);
+              } else if (ev.stage === 'tier2_verified') {
+                console.log(`      ✅ Healed via Tier 2 LLM (${ev.tokens?.toLocaleString()} tokens, $${ev.costUsd?.toFixed(6)} USD)`);
+              } else if (ev.stage === 'tier2_proposal') {
+                console.log(`      💡 Tier 2 Proposal Ready (${ev.tokens?.toLocaleString()} tokens, $${ev.costUsd?.toFixed(6)} USD)`);
+              } else if (ev.stage === 'abstained') {
+                console.log(`      ⛔ Negative Control: ${ev.message}`);
+              } else if (ev.stage === 'failed') {
+                console.log(`      ❌ ${ev.message}`);
+              }
+            },
       });
-      const canonicalClassification = {
-        ...result.correlated.classification,
-        category: normalizeFailureCategory(result.correlated.classification.category),
-      };
-      console.log(JSON.stringify({
-        provenance: getRuntimeProvenance(process.cwd()),
-        status: result.status,
-        classification: canonicalClassification,
-        failureFingerprint: result.correlated.failureFingerprint,
-        proposedLocator: result.proposedLocator,
-        candidate: result.candidate,
-        proposalId: result.stagedProposal?.proposalId,
-        worktree: result.worktree,
-        verification: result.verification,
-        reason: result.reason,
-      }, null, 2));
-      if (result.status === 'REJECTED') process.exitCode = 1;
+
+      const reportsDir = path.resolve(process.cwd(), '.pie', 'reports');
+      await fs.promises.mkdir(reportsDir, { recursive: true });
+      const reportJsonPath = path.resolve(reportsDir, 'hybrid-repair-report.json');
+      await fs.promises.writeFile(reportJsonPath, `${JSON.stringify(hybridResult, null, 2)}\n`, 'utf8');
+
+      if (argv.includes('--json')) {
+        console.log(JSON.stringify(hybridResult, null, 2));
+      } else {
+        const divider = '─'.repeat(72);
+        console.log(divider);
+        console.log(`Discovered Traces   : ${hybridResult.totalTraces}`);
+        console.log(`Repaired & Verified : ${hybridResult.repairedCount} (Tier 1 Fast-Path: ${hybridResult.tier1RepairedCount}, Tier 2 LLM: ${hybridResult.tier2RepairedCount})`);
+        console.log(`Abstained           : ${hybridResult.abstainedCount}`);
+        console.log(`Failed / Incomplete : ${hybridResult.failedCount}`);
+        console.log(divider);
+        console.log('Aggregate Telemetry & Resource Monitoring:');
+        console.log(`  • Mode            : ${hybridResult.mode.toUpperCase()}`);
+        console.log(`  • Tier 1 Healed   : ${hybridResult.tier1RepairedCount} traces (0 tokens, $0.000000 USD)`);
+        console.log(`  • Tier 2 Healed   : ${hybridResult.tier2RepairedCount} traces (${hybridResult.aggregateTelemetry.totalTokens.toLocaleString()} tokens, $${hybridResult.aggregateTelemetry.totalCostUsd.toFixed(6)} USD)`);
+        console.log(`  • Total Tokens    : ${hybridResult.aggregateTelemetry.totalTokens.toLocaleString()} tokens`);
+        console.log(`  • Total Cost      : $${hybridResult.aggregateTelemetry.totalCostUsd.toFixed(6)} USD`);
+        console.log(`  • Total Duration  : ${(hybridResult.aggregateTelemetry.totalDurationMs / 1000).toFixed(1)}s`);
+        console.log(divider);
+        console.log('Test Repair Summary:');
+        for (const item of hybridResult.items) {
+          const icon = item.status === 'REPAIRED_AND_VERIFIED' ? '✅' : item.status === 'ABSTAINED' ? '⚠️' : item.status === 'PROPOSAL_READY' ? '💡' : '❌';
+          const tierTag = item.tier === 'tier1_deterministic' ? 'Tier 1: Fast-Path' : item.tier === 'tier2_llm' ? 'Tier 2: LLM' : 'Negative Control';
+          const spec = item.testFilePath ? path.basename(item.testFilePath) : path.basename(path.dirname(item.tracePath));
+          console.log(`  ${icon} [${item.status}] ${spec} (${tierTag})`);
+          if (item.targetFilePath) console.log(`     Target File   : ${path.relative(process.cwd(), item.targetFilePath)}`);
+          if (item.healedLocator) console.log(`     Healed Locator: ${item.healedLocator}`);
+          if (item.analysis) console.log(`     Analysis      : ${item.analysis}`);
+          if (item.reason && item.status === 'ABSTAINED') console.log(`     Abstain Reason: ${item.reason}`);
+          if (item.telemetry.totalTokens > 0) {
+            console.log(`     Telemetry     : ${item.telemetry.totalTokens} tokens | $${item.telemetry.costUsd.toFixed(6)} | ${(item.telemetry.totalMs / 1000).toFixed(1)}s`);
+          }
+        }
+        console.log(divider);
+        if (hybridResult.promotedFiles && hybridResult.promotedFiles.length > 0) {
+          console.log('Promoted Files:');
+          for (const file of hybridResult.promotedFiles) {
+            console.log(`  🎉 ${file}`);
+          }
+          console.log(divider);
+        }
+        console.log(`Report JSON         : ${path.relative(process.cwd(), reportJsonPath)}`);
+        console.log('(Pass --json to view full machine-readable payload)');
+      }
+
+      if (hybridResult.failedCount > 0 && hybridResult.repairedCount === 0) process.exitCode = 1;
+      return;
     } catch (err: any) {
-      console.error(`Repair workflow failed: ${err?.message ?? String(err)}`);
+      console.error(`Repair failed: ${err?.message ?? String(err)}`);
       process.exit(1);
     }
-    return;
   }
 
   if (command === 'direct-repair') {

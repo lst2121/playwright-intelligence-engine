@@ -115,10 +115,46 @@ export class ArchiveReader {
   }
 
   /** Reads multiple archive entries and joins them as one logical JSONL stream. */
-  public static async readEntriesAsText(zipPath: string, entryNames: string[]): Promise<string> {
-    const uniqueNames = [...new Set(entryNames.filter(Boolean))];
+  public static async readEntriesAsText(zipPath: string, entryNames: string[] = []): Promise<string> {
+    const uniqueNames = [...new Set((entryNames ?? []).filter(Boolean))];
     const texts = await Promise.all(uniqueNames.map((entryName) => ArchiveReader.readEntryAsText(zipPath, entryName)));
     return texts.join('\n');
+  }
+
+  /**
+   * Discovers the calling test spec file (.spec.ts / .test.ts) embedded in Playwright trace stacks.
+   */
+  public static extractSpecFileFromArchive(zipPath: string): string | undefined {
+    try {
+      const zip = new AdmZip(zipPath);
+      const entries = zip.getEntries();
+
+      // 1. Look for *.stacks entries which map stack frames to source files
+      for (const entry of entries) {
+        if (entry.entryName.endsWith('.stacks')) {
+          const text = entry.getData().toString('utf8');
+          const firstLine = text.split(/\r?\n/)[0];
+          if (firstLine) {
+            try {
+              const parsed = JSON.parse(firstLine);
+              if (Array.isArray(parsed.files)) {
+                const spec = parsed.files.find((f: unknown) => typeof f === 'string' && /\.(?:spec|test)\.[tj]sx?$/i.test(f));
+                if (spec) return spec;
+              }
+            } catch {}
+          }
+        }
+      }
+
+      // 2. Fallback to scanning test.trace for spec file references
+      const testTrace = zip.getEntry('test.trace');
+      if (testTrace) {
+        const text = testTrace.getData().toString('utf8');
+        const match = text.match(/["']([A-Za-z]:\\[^"'\n\r]+\.(?:spec|test)\.[tj]sx?|\/[^"'\n\r]+\.(?:spec|test)\.[tj]sx?)["']/);
+        if (match && match[1]) return match[1].replace(/\\\\/g, '\\');
+      }
+    } catch {}
+    return undefined;
   }
 
   /**

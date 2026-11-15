@@ -73,7 +73,7 @@ function findTraceArchives(targetPath?: string): string[] {
               let hasFailure = false;
               try {
                 const discovery = ArchiveReader.findTraceFileEntries(fullPath);
-                hasFailure = Boolean(discovery.hasFailure || (discovery.failureScore && discovery.failureScore > 0));
+                hasFailure = Boolean(discovery.hasFailure);
               } catch {}
               const isTestResults = fullPath.includes('test-results');
               found.push({ filePath: fullPath, mtime: stat.mtimeMs, hasFailure, isTestResults });

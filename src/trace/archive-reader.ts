@@ -54,16 +54,23 @@ export class ArchiveReader {
           const text = entry.getData().toString('utf8');
           const lines = text.split(/\r?\n/);
           let failureScore = 0;
+          let hasRealError = false;
           for (const line of lines) {
             if (!line.includes('"type":"')) continue;
-            if (line.includes('"type":"after"') && line.includes('"error"')) failureScore += 100;
-            if (line.includes('"type":"error"') && (line.includes('"message"') || line.includes('"error"'))) failureScore += 80;
+            if (line.includes('"type":"after"') && line.includes('"error"')) {
+              failureScore += 100;
+              hasRealError = true;
+            }
+            if (line.includes('"type":"error"') && (line.includes('"message"') || line.includes('"error"'))) {
+              failureScore += 80;
+              hasRealError = true;
+            }
             if (line.includes('"type":"log"')) failureScore += 1;
           }
           if (path.basename(entry.entryName).toLowerCase() === 'test.trace' && failureScore > 0) {
             failureScore += 10;
           }
-          return { entry, failureScore };
+          return { entry, failureScore, hasRealError };
         })
         .sort((a, b) => b.failureScore - a.failureScore || b.entry.header.size - a.entry.header.size);
 
@@ -90,14 +97,16 @@ export class ArchiveReader {
         bestNetwork = prefixMatch ? prefixMatch.entryName : networkCandidates.sort((a, b) => b.header.size - a.header.size)[0]?.entryName;
       }
 
-      const topFailureScore = traceCandidates[0]?.failureScore ?? 0;
+      const topCandidate = traceCandidates[0];
+      const hasFailure = Boolean(topCandidate?.hasRealError);
+      const topFailureScore = topCandidate?.failureScore ?? 0;
 
       return {
         traceEntryName: bestTrace,
         networkEntryName: bestNetwork,
         traceEntryNames: orderedTraceNames,
         networkEntryNames,
-        hasFailure: topFailureScore > 0,
+        hasFailure,
         failureScore: topFailureScore,
       };
     } catch {

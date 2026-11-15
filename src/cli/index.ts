@@ -366,7 +366,7 @@ export async function runCli(argv: string[]): Promise<void> {
           console.log('Test Repair Summary:');
           for (const item of batchResult.results) {
             const icon = item.status === 'REPAIRED_AND_VERIFIED' ? '✅' : item.status === 'ABSTAINED' ? '⚠️' : item.status === 'PROPOSAL_READY' ? '💡' : '❌';
-            const spec = item.testFilePath ? path.basename(item.testFilePath) : path.basename(item.tracePath);
+            const spec = item.testFilePath ? path.basename(item.testFilePath) : path.basename(path.dirname(item.tracePath));
             console.log(`  ${icon} [${item.status}] ${spec}`);
             if (item.targetFilePath) console.log(`     Target File   : ${path.relative(process.cwd(), item.targetFilePath)}`);
             if (item.analysis) console.log(`     Analysis      : ${item.analysis}`);

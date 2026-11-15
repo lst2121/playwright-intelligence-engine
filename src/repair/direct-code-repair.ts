@@ -172,6 +172,30 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
   const context = TraceParser.assembleDiagnosticContext(traceText.split('\n'), netText.split('\n'));
   const failedAction = context.failedAction;
 
+  // Check Negative Controls first (Server 5xx / Client 404 / Backend Failure)
+  const serverError = context.networkEvents.find((n) => n.status >= 500 && !/favicon|docketai|intercom|clarity|optimizely/i.test(n.url));
+  const missingAsset = context.networkEvents.find((n) => n.status === 404 && /\.(?:png|jpe?g|svg|webp|json|api)/i.test(n.url) && !/favicon|docketai/i.test(n.url));
+  if (serverError || missingAsset) {
+    const offending = serverError ?? missingAsset!;
+    return {
+      status: 'ABSTAINED',
+      tracePath,
+      telemetry: {
+        provider: 'deterministic-negative-control',
+        model: 'pie-negative-control',
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        evidenceAssemblyMs: Date.now() - startedAssembly,
+        inferenceMs: 0,
+        executionMs: 0,
+        totalMs: Date.now() - startedTotal,
+      },
+      reason: `Negative Control Triggered: Test failed due to backend server failure (HTTP ${offending.status} on ${offending.url}). Modifying UI locators or code is prohibited.`,
+    };
+  }
+
   // Resolve source test file
   let testFilePath: string | undefined;
   if (failedAction.sourceFile) {
@@ -187,6 +211,18 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
         const match = files.find((f) => String(f).endsWith(base));
         if (match) testFilePath = path.join(testDir, String(match));
       }
+    }
+  }
+
+  // Fallback: infer from trace parent folder name (e.g. login-Login-Test-Demo-chromium -> login.test.ts)
+  if (!testFilePath) {
+    const parentDir = path.basename(path.dirname(tracePath));
+    const prefix = parentDir.split('-')[0]?.toLowerCase();
+    const testDir = path.resolve(workspaceRoot, 'tests');
+    if (prefix && fsSync.existsSync(testDir)) {
+      const files = fsSync.readdirSync(testDir, { recursive: true });
+      const match = files.find((f) => String(f).toLowerCase().startsWith(prefix));
+      if (match) testFilePath = path.join(testDir, String(match));
     }
   }
 
@@ -207,31 +243,6 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
         totalMs: Date.now() - startedTotal,
       },
       reason: `Could not resolve test source file for failed action: '${failedAction.sourceFile ?? 'unknown'}'`,
-    };
-  }
-
-  // Check Negative Controls (Server 5xx / Client 404 / Backend Failure)
-  const serverError = context.networkEvents.find((n) => n.status >= 500 && !/favicon|docketai|intercom|clarity|optimizely/i.test(n.url));
-  const missingAsset = context.networkEvents.find((n) => n.status === 404 && /\.(?:png|jpe?g|svg|webp|json|api)/i.test(n.url) && !/favicon|docketai/i.test(n.url));
-  if (serverError || missingAsset) {
-    const offending = serverError ?? missingAsset!;
-    return {
-      status: 'ABSTAINED',
-      tracePath,
-      testFilePath,
-      telemetry: {
-        provider: 'deterministic-negative-control',
-        model: 'pie-negative-control',
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-        estimatedCostUsd: 0,
-        evidenceAssemblyMs: Date.now() - startedAssembly,
-        inferenceMs: 0,
-        executionMs: 0,
-        totalMs: Date.now() - startedTotal,
-      },
-      reason: `Negative Control Triggered: Test failed due to backend server failure (HTTP ${offending.status} on ${offending.url}). Modifying UI locators or code is prohibited.`,
     };
   }
 

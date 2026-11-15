@@ -163,6 +163,55 @@ export class WorktreeManager {
       }
     }
 
+    // Step 3b: Mirror auth state, local environment configs, databases, and build artifacts even if gitignored
+    const criticalUntrackedCandidates = [
+      '.env',
+      '.env.local',
+      '.env.test',
+      '.env.development',
+      'playwright/.auth',
+      '.auth',
+      'build',
+      '.next/standalone',
+      '.next/server',
+    ];
+
+    // Mirror local SQLite/Prisma databases and runtime state
+    const dbScanDirs = ['.', 'prisma', 'data'];
+    for (const d of dbScanDirs) {
+      const fullDir = path.resolve(this.rootDir, d);
+      if (fsSync.existsSync(fullDir)) {
+        try {
+          const files = fsSync.readdirSync(fullDir);
+          for (const file of files) {
+            if (/\.(?:db|sqlite|sqlite3)(?:-journal|-wal|-shm)?$/i.test(String(file))) {
+              criticalUntrackedCandidates.push(path.join(d, String(file)));
+            }
+          }
+        } catch {
+          // Ignore unreadable directory
+        }
+      }
+    }
+
+    for (const item of criticalUntrackedCandidates) {
+      try {
+        const src = path.resolve(this.rootDir, item);
+        const dest = path.resolve(worktreePath, item);
+        if (fsSync.existsSync(src)) {
+          const stat = fsSync.statSync(src);
+          if (stat.isDirectory()) {
+            await fs.cp(src, dest, { recursive: true });
+          } else {
+            await fs.mkdir(path.dirname(dest), { recursive: true });
+            await fs.copyFile(src, dest);
+          }
+        }
+      } catch {
+        // Non-critical file copy failure
+      }
+    }
+
     // Step 2: Prepare dependencies via DependencyStrategy and enforce validation (AUDIT-16)
     const strategy = await DependencyStrategyResolver.resolve(this.rootDir);
     let prepResult;

@@ -166,7 +166,37 @@ export class ArchiveReader {
     try {
       const zip = new AdmZip(zipPath);
 
-      // Strategy 1: Look at 0-trace.stacks frame lines and scan enclosing test() in resolved spec file
+      const parentDir = path.basename(path.dirname(zipPath));
+
+      // Strategy 1: Match enclosing test titles in resolved spec file against Playwright's trace folder slug
+      if (resolvedSpecPath && fsSync.existsSync(resolvedSpecPath)) {
+        try {
+          const specCode = fsSync.readFileSync(resolvedSpecPath, 'utf8');
+          const parentDirNorm = parentDir.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const testMatches = [...specCode.matchAll(/test(?:\.only|\.skip)?\s*\(\s*['"`]([^'"`]+)['"`]/g)];
+          
+          let bestTitle: string | undefined;
+          let maxMatches = 0;
+
+          for (const match of testMatches) {
+            const title = match[1];
+            if (title) {
+              const words = title.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+              const matchingCount = words.filter((w) => parentDirNorm.includes(w)).length;
+              if (matchingCount > maxMatches && matchingCount >= Math.min(2, words.length)) {
+                maxMatches = matchingCount;
+                bestTitle = title;
+              }
+            }
+          }
+
+          if (bestTitle) {
+            return bestTitle;
+          }
+        } catch {}
+      }
+
+      // Strategy 2: Look at 0-trace.stacks frame lines matching resolved spec file
       const stacksEntry = zip.getEntries().find((e) => e.entryName.endsWith('.stacks'));
       if (stacksEntry && resolvedSpecPath && fsSync.existsSync(resolvedSpecPath)) {
         try {
@@ -174,12 +204,18 @@ export class ArchiveReader {
           const firstLine = text.split(/\r?\n/)[0];
           if (firstLine) {
             const parsed = JSON.parse(firstLine);
-            if (Array.isArray(parsed.stacks)) {
+            if (Array.isArray(parsed.stacks) && Array.isArray(parsed.files)) {
+              const specFileNorm = path.normalize(resolvedSpecPath).toLowerCase();
+              let targetSpecIndex = parsed.files.findIndex((f: string) => path.normalize(f).toLowerCase() === specFileNorm);
+              if (targetSpecIndex === -1) {
+                targetSpecIndex = parsed.files.findIndex((f: string) => /\.(spec|test)\.[jt]sx?$/i.test(f));
+              }
+
               let targetLine: number | undefined;
               for (const s of parsed.stacks) {
                 if (Array.isArray(s) && Array.isArray(s[1])) {
                   for (const frame of s[1]) {
-                    if (Array.isArray(frame) && typeof frame[1] === 'number') {
+                    if (Array.isArray(frame) && (targetSpecIndex === -1 || frame[0] === targetSpecIndex) && typeof frame[1] === 'number') {
                       targetLine = frame[1];
                       break;
                     }
@@ -203,8 +239,7 @@ export class ArchiveReader {
         } catch {}
       }
 
-      // Strategy 2: Derive from trace folder name (e.g. dropdown-Bootstrap-dropdown-chromium -> "Bootstrap dropdown")
-      const parentDir = path.basename(path.dirname(zipPath));
+      // Strategy 3: Derive from trace folder name (e.g. dropdown-Bootstrap-dropdown-chromium -> "Bootstrap dropdown")
       const parts = parentDir.split('-');
       if (parts.length >= 3) {
         const middle = parts.slice(1, -1).join(' ').trim();
@@ -217,17 +252,44 @@ export class ArchiveReader {
   }
 
   /**
-   * Extracts the Playwright project name from the trace folder structure
-   * (e.g. "front-page-contact-hotel-...-chromium" -> "chromium").
+   * Extracts the Playwright project name from the trace folder structure and repository configuration
+   * (e.g. "ui-inventory-...-logged-in-chromium-desktop" -> "logged-in-chromium-desktop", or "...-chromium" -> "chromium").
    */
-  public static extractProjectFromArchive(zipPath: string): string | undefined {
+  public static extractProjectFromArchive(zipPath: string, configPath?: string): string | undefined {
     try {
       const parentDir = path.basename(path.dirname(zipPath));
+
+      // Strategy 1: Match against configured projects in playwright.config
+      const rootDir = path.resolve(path.dirname(zipPath), '..', '..');
+      const candidates = configPath ? [configPath] : ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs'];
+      for (const cand of candidates) {
+        const fullCfg = path.isAbsolute(cand) ? cand : path.resolve(rootDir, cand);
+        if (fsSync.existsSync(fullCfg)) {
+          const cfgText = fsSync.readFileSync(fullCfg, 'utf8');
+          const projMatches = [...cfgText.matchAll(/name\s*:\s*['"`]([^'"`]+)['"`]/g)];
+          for (const m of projMatches) {
+            const pName = m[1];
+            if (pName && parentDir.endsWith(pName)) {
+              return pName;
+            }
+          }
+        }
+      }
+
+      // Strategy 2: Match standard browser token at end of folder name
       const parts = parentDir.split('-');
       if (parts.length >= 2) {
         const lastPart = parts[parts.length - 1]?.trim().toLowerCase();
         if (lastPart && ['chromium', 'firefox', 'webkit', 'chrome', 'msedge'].includes(lastPart)) {
           return lastPart;
+        }
+      }
+
+      // Strategy 3: Fall back to matching known browser substring
+      const known = ['chromium', 'firefox', 'webkit', 'chrome', 'msedge'];
+      for (const k of known) {
+        if (parentDir.toLowerCase().includes(k)) {
+          return k;
         }
       }
     } catch {}

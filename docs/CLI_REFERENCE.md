@@ -12,7 +12,7 @@ npx pw-intel [command] [options]
 
 ### Global Options
 - `-h, --help`: Displays help information and command syntax.
-- `-v, --version`: Displays the current package version (`2.2.0`).
+- `-v, --version`: Displays the current package version (`2.2.1`).
 
 ---
 

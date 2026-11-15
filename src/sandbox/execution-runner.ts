@@ -47,6 +47,14 @@ export class ExecutionRunner {
     'CI',
     'PW_INTELLIGENCE_REPRODUCE',
     'PLAYWRIGHT_BROWSERS_PATH',
+    'PORT',
+    'HOST',
+    'BASE_URL',
+    'PLAYWRIGHT_TEST_BASE_URL',
+    'DATABASE_URL',
+    'DEBUG',
+    'PWDEBUG',
+    'PW_TEST_HTML_REPORT_OPEN',
   ]);
 
   private static readonly DANGEROUS_ENV_KEYS = new Set([
@@ -299,10 +307,12 @@ export class ExecutionRunner {
       cwd: options.cwd,
       args,
       timeoutMs: options.timeoutMs ?? 60000,
+      env: {
+        CI: '1',
+        PW_TEST_HTML_REPORT_OPEN: 'never',
+        ...(options.env ?? {}),
+      },
     };
-    if (options.env) {
-      runnerOptions.env = options.env;
-    }
     return ExecutionRunner.run('npx', runnerOptions);
   }
 

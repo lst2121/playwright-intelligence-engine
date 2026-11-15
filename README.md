@@ -21,44 +21,24 @@ npx pie repair
 npx pie repair --apply
 ```
 
-### The Two-Tier Hybrid Architecture
+### Verification Pipeline
 
-```
-                       Playwright trace.zip
-                               │
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │        Gate 0: Negative Control Filter       │
-        │  Abstains on 4xx/5xx, offline network, DNS  │
-        └──────────────────────┬───────────────────────┘
-                               │ Passed Gate 0
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │      Tier 1: AST Fast-Path ($0.00 Cost)      │
-        │  Static locator & Page Object substitution   │
-        └──────────────────────┬───────────────────────┘
-                               │ Inconclusive / Drift
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │      Tier 2: Semantic LLM Authoring          │
-        │  Select2, dynamic widgets, structural shifts │
-        └──────────────────────┬───────────────────────┘
-                               │ Candidate Generated
-                               ▼
-        ┌──────────────────────────────────────────────┐
-        │      Headless Git Worktree Verification      │
-        │  Isolated -g test execution in fresh sandbox │
-        └──────────────────────┬───────────────────────┘
-                               │ Proven Green
-                               ▼
-                   Active Workspace Updated
+```text
+Trace (.zip) ──> [Gate 0: Negative Controls] ──> [Tier 1: AST Fast-Path] ──> [Tier 2: Semantic LLM] ──> [Worktree Sandbox] ──> Active Workspace
 ```
 
-- **Gate 0 (Fail-Closed Negative Control):** Detects backend crashes, HTTP 4xx/5xx responses, and DNS resolution failures. If a test failed because the server or network was down, PIE immediately abstains from modifying UI locators. Zero false heals.
-- **Tier 1 (Deterministic AST Fast-Path):** Operates 100% offline at $0.00 token cost. Analyzes trace action snapshots against Page Object and test AST trees to substitute broken locators in milliseconds.
-- **Tier 2 (Semantic LLM Fallback):** Engaged only when DOM structure shifts significantly (e.g. Select2 comboboxes, nested modals, dynamic custom components).
-- **Worktree Sandboxed Proof:** Every single fix is compiled and re-executed against headless Playwright in an isolated Git worktree using per-test title isolation (`-g "^testTitle$"`) before touching your working tree.
-- **Assertion Invariance:** Assertions (`expect(...)`) are strictly immutable. PIE will never alter, weaken, or remove test assertions.
+1. **Gate 0: Fail-Closed Negative Controls**
+   * Detects backend crashes (HTTP 5xx), failing client APIs (HTTP 4xx), network disconnections, and DNS lookup errors.
+   * If a test failed because the environment or service is down, PIE immediately abstains from modifying UI locators. **Zero false heals.**
+2. **Tier 1: Deterministic AST Fast-Path ($0.00 Token Cost)**
+   * Operates 100% offline and locally at zero token cost.
+   * Analyzes trace action snapshots against Page Object and test AST trees to substitute drifted locators in milliseconds.
+3. **Tier 2: Semantic LLM Authoring (Adaptive Fallback)**
+   * Engaged only when DOM structure shifts significantly (e.g. Select2 comboboxes, nested modals, dynamic custom components).
+4. **Headless Git Worktree Sandbox Proof**
+   * Every single fix is compiled and re-executed against headless Playwright in an isolated Git worktree using per-test title isolation (`-g "^testTitle$"`) before touching your working tree.
+5. **Strict Assertion Invariance**
+   * Assertions (`expect(...)`) are strictly immutable. PIE will never alter, weaken, or remove test assertions.
 
 ---
 

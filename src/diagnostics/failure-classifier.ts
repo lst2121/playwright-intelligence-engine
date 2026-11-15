@@ -90,6 +90,10 @@ export class FailureClassifier {
     /fullstory/i,
   ];
 
+  private static readonly NON_CRITICAL_ASSET_PATTERNS = [
+    /\.(?:png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot)(?:\?.*)?$/i,
+  ];
+
   /**
    * Builds an explicit Causal Evidence Graph to correlate network events with failed actions,
    * distinguishing primary business requests from background analytics and telemetry noise.
@@ -138,9 +142,26 @@ export class FailureClassifier {
 
     for (const net of context.networkEvents) {
       const isTelemetry = FailureClassifier.TELEMETRY_PATTERNS.some((p) => p.test(net.url));
+      const isNonCriticalAsset =
+        FailureClassifier.NON_CRITICAL_ASSET_PATTERNS.some((p) => p.test(net.url)) ||
+        net.resourceType === 'image' ||
+        net.resourceType === 'font';
+      const hasSnapshots = Boolean(
+        context.snapshots?.action ||
+        context.snapshots?.before ||
+        context.snapshots?.after ||
+        context.evidenceCompleteness?.domAvailable
+      );
+      const isSpaNavigation404 =
+        net.status === 404 &&
+        (net.resourceType === 'document' || /\.html(?:\?.*)?$/i.test(net.url)) &&
+        hasSnapshots;
+
       const isServerError = net.status >= 500 && net.status <= 599;
       const isAuthError = net.status === 401 || net.status === 403;
-      const isClientApiError = (net.status === 400 || net.status === 404 || net.status === 429) && !isTelemetry;
+      const isClientApiError =
+        (net.status === 400 || (net.status === 404 && !isNonCriticalAsset && !isSpaNavigation404) || net.status === 429) &&
+        !isTelemetry;
 
       let isCausallyRelevant = false;
       let relevanceReason = '';

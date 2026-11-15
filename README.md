@@ -240,6 +240,8 @@ Add to `claude_desktop_config.json`:
 | `diagnose` | `npx pie diagnose <trace.zip>` | Ingests trace and outputs causal root cause |
 | `doctor` | `npx pie doctor` | Verifies Node, Git, Playwright & LLM readiness |
 | `init` | `npx pie init [--api-key <k>]` | Initializes `.pie/config.json` & optional LLM credentials |
+| `profile` | `npx pie profile [dir]` | Scans repository conventions, Page Objects, and preferred locators |
+| `architect` | `npx pie architect <feature> [--write]` | Plans greenfield/brownfield Playwright architecture and typed fixtures |
 | `qa` | `npx pw-intel qa <feature> --author hybrid` | Evidence-driven 4-phase test generation (greenfield/brownfield) |
 | `reproduce` | `npx pie reproduce <spec.ts>` | Reruns spec with live DOM and network capture |
 | `ci-report` | `npx pw-intel ci-report <results.json>` | Generates CI annotations and SARIF report |

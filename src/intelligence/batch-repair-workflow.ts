@@ -413,6 +413,11 @@ export async function runBatchRepairWorkflow(
         if (specItems.length === 0) continue;
 
         const testArgs = ['playwright', 'test', relSpec, '--reporter=line'];
+        const sampleTrace = specItems[0]?.tracePath;
+        const projectName = sampleTrace ? ArchiveReader.extractProjectFromArchive(sampleTrace) : undefined;
+        if (projectName) {
+          testArgs.push(`--project=${projectName}`);
+        }
         if (input.configPath) {
           testArgs.push('--config', path.relative(workspaceRoot, input.configPath).replace(/\\/g, '/'));
         }

@@ -277,6 +277,7 @@ export class ExecutionRunner {
     timeoutMs?: number | undefined;
     env?: Record<string, string> | undefined;
     headless?: boolean | undefined;
+    project?: string | undefined;
   }): Promise<ExecutionResult> {
     const relOrNormPath = path.isAbsolute(options.testFilePath)
       ? path.relative(options.cwd, options.testFilePath).replace(/\\/g, '/') || options.testFilePath.replace(/\\/g, '/')
@@ -284,6 +285,9 @@ export class ExecutionRunner {
     const args = ['playwright', 'test', relOrNormPath, '--reporter=line'];
     if (options.headless === false) {
       args.push('--headed');
+    }
+    if (options.project) {
+      args.push(`--project=${options.project}`);
     }
     if (options.configPath) {
       args.push('--config', options.configPath);

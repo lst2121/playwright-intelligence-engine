@@ -623,6 +623,7 @@ CRITICAL INVARIANTS:
     // Execute Playwright test targeting this spec (with precise -g grep isolation for multi-test specs)
     const relSpec = path.relative(workspaceRoot, testFilePath);
     const testTitle = ArchiveReader.extractTestTitleFromArchive(tracePath, testFilePath);
+    const projectName = ArchiveReader.extractProjectFromArchive(tracePath);
     const execRes = await ExecutionRunner.runPlaywrightTest({
       cwd: worktree.worktreePath,
       testFilePath: relSpec,
@@ -631,6 +632,7 @@ CRITICAL INVARIANTS:
       timeoutMs: 60_000,
       env: { CI: '1', HEADLESS: '1' },
       headless: true,
+      project: projectName,
     });
 
     executionPassed = execRes.exitCode === 0;

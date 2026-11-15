@@ -217,6 +217,24 @@ export class ArchiveReader {
   }
 
   /**
+   * Extracts the Playwright project name from the trace folder structure
+   * (e.g. "front-page-contact-hotel-...-chromium" -> "chromium").
+   */
+  public static extractProjectFromArchive(zipPath: string): string | undefined {
+    try {
+      const parentDir = path.basename(path.dirname(zipPath));
+      const parts = parentDir.split('-');
+      if (parts.length >= 2) {
+        const lastPart = parts[parts.length - 1]?.trim().toLowerCase();
+        if (lastPart && ['chromium', 'firefox', 'webkit', 'chrome', 'msedge'].includes(lastPart)) {
+          return lastPart;
+        }
+      }
+    } catch {}
+    return undefined;
+  }
+
+  /**
    * Reads a single entry as a UTF-8 string directly from a .zip file in memory
    * with strict per-entry size limits.
    */

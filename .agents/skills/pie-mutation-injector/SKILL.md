@@ -30,6 +30,18 @@ Use this skill to introduce realistic defect mutations into testbed repositories
 * **Mutation Pattern:** Return HTTP 500 or simulate server crash.
 * **Expected PIE Behavior:** **STRICT ABSTENTION**. Gate 0 must not touch locators or assertions, and must file a defect ticket via `pw-intel report-defect`.
 
+## Automation Scripts
+
+Execute fleet-wide mutation injection across all testbeds:
+```powershell
+node .agents/skills/pie-mutation-injector/scripts/inject-fleet-mutations.mjs inject
+```
+
+Restore all testbed repositories to clean git state:
+```powershell
+node .agents/skills/pie-mutation-injector/scripts/inject-fleet-mutations.mjs restore
+```
+
 ## Rollback Procedure
 
 Always cleanly revert testbed mutations before switching test modes:

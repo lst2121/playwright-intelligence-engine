@@ -43,3 +43,9 @@ Automates inspecting and running Playwright test suites across the 8 empirical t
    ```powershell
    pw-intel repair test-results/trace.zip --apply --verbose
    ```
+
+4. **Fleet-Wide Automated Runner Script:**
+   Execute full-fleet verification, mutation injection, autonomous repair, and metric calculation across all repositories:
+   ```powershell
+   node .agents/skills/pie-testbed-runner/scripts/run-fleet-testbed.mjs
+   ```

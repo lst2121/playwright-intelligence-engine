@@ -384,7 +384,10 @@ export async function runCli(argv: string[]): Promise<void> {
         console.log(divider);
 
         console.log('Agent Diagnostic & Proposal:');
-        console.log(`  • Classification: ${result.proposalRun.agent.classification ?? 'N/A'}`);
+        const classificationStr = typeof result.proposalRun.agent.classification === 'object' && result.proposalRun.agent.classification !== null
+          ? (result.proposalRun.agent.classification as any).category ?? (result.proposalRun.agent.classification as any).name ?? 'N/A'
+          : result.proposalRun.agent.classification ?? 'N/A';
+        console.log(`  • Classification: ${classificationStr}`);
         console.log(`  • Model Invoked : ${result.proposalRun.agent.modelInvoked}`);
         console.log(`  • Steps / Turns : ${result.proposalRun.agent.steps?.length ?? 0}`);
         if (result.proposal) {

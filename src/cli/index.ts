@@ -29,7 +29,6 @@ import { buildTeamDashboard, TeamEvidenceRun } from '../governance/team-dashboar
 import { parseExternalFailureEvidence, supplementDiagnosticContext } from '../diagnostics/external-failure-evidence.js';
 import { runRepairWorkflow } from '../repair/repair-workflow.js';
 import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-workflow.js';
-import { runBatchRepairWorkflow } from '../intelligence/batch-repair-workflow.js';
 import { normalizeFailureCategory } from '../diagnostics/failure-category.js';
 import { buildEvaluationScorecard, EvaluationObservation } from '../evaluation/evaluation-scorecard.js';
 import { buildTestIntelligencePlan, ExistingTestInput, RequirementInput } from '../intelligence/test-intelligence.js';
@@ -45,17 +44,21 @@ function findTraceArchives(targetPath?: string): string[] {
       if (fs.statSync(resolved).isFile() && resolved.endsWith('.zip')) {
         return [resolved];
       }
+      const directTraceZip = path.join(resolved, 'trace.zip');
+      if (fs.existsSync(directTraceZip) && fs.statSync(directTraceZip).isFile()) {
+        return [directTraceZip];
+      }
     }
   }
 
-  const candidateDirs = [
-    targetPath && !targetPath.startsWith('--') && fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory()
-      ? path.resolve(targetPath)
-      : null,
-    path.resolve('test-results'),
-    path.resolve('playwright-report'),
-    process.cwd(),
-  ].filter(Boolean) as string[];
+  const isExplicitDir = targetPath && !targetPath.startsWith('--') && fs.existsSync(targetPath) && fs.statSync(targetPath).isDirectory();
+  const candidateDirs = isExplicitDir
+    ? [path.resolve(targetPath)]
+    : [
+        path.resolve('test-results'),
+        path.resolve('playwright-report'),
+        process.cwd(),
+      ];
 
   const found: { filePath: string; mtime: number; hasFailure: boolean; isTestResults: boolean }[] = [];
   const seen = new Set<string>();
@@ -316,84 +319,6 @@ export async function runCli(argv: string[]): Promise<void> {
   }
 
   if (command === 'autonomous-repair') {
-    const option = (name: string): string | undefined => {
-      const index = argv.indexOf(name);
-      return index >= 0 ? argv[index + 1] : undefined;
-    };
-
-    if (argv.includes('--all')) {
-      try {
-        const batchResult = await runBatchRepairWorkflow({
-          workspaceRoot: option('--workspace') ?? process.cwd(),
-          execute: argv.includes('--execute'),
-          autoPromote: argv.includes('--promote'),
-          configPath: option('--config'),
-          worktreeId: option('--worktree-id'),
-          enableBrowserInvestigation: argv.includes('--browser'),
-          browserUrl: option('--browser-url'),
-          browserAllowedHosts: (option('--allow-host') ?? '').split(',').map((h) => h.trim()).filter(Boolean),
-          enableTestExecution: argv.includes('--run-tests'),
-        });
-
-        const reportsDir = path.resolve(process.cwd(), '.pie', 'reports');
-        await fs.promises.mkdir(reportsDir, { recursive: true });
-        const reportJsonPath = path.resolve(reportsDir, 'batch-repair-report.json');
-        await fs.promises.writeFile(reportJsonPath, `${JSON.stringify(batchResult, null, 2)}\n`, 'utf8');
-
-        if (argv.includes('--json')) {
-          console.log(JSON.stringify(batchResult, null, 2));
-        } else {
-          const divider = '─'.repeat(72);
-          console.log('');
-          console.log('╔══════════════════════════════════════════════════════════════════════╗');
-          console.log('║        PLAYWRIGHT INTELLIGENCE ENGINE: BATCH AUTO-HEALING            ║');
-          console.log('╚══════════════════════════════════════════════════════════════════════╝');
-          console.log('');
-          console.log(`Discovered Traces  : ${batchResult.totalTraces}`);
-          console.log(`Repaired & Verified: ${batchResult.repairedCount}`);
-          console.log(`Abstained          : ${batchResult.abstainedCount}`);
-          console.log(`Failed             : ${batchResult.failedCount}`);
-          console.log(`Batch Status       : ${batchResult.status}`);
-          console.log(divider);
-          console.log('Failure Clusters:');
-          if (batchResult.clusters.length > 0) {
-            for (const c of batchResult.clusters) {
-              console.log(`  • [${c.severity.toUpperCase()}] ${c.fingerprint.category} (count: ${c.count})`);
-            }
-          } else {
-            console.log('  • None');
-          }
-          console.log(divider);
-          console.log('Test Repair Summary:');
-          for (const item of batchResult.items) {
-            const icon = item.status === 'PROMOTED' || item.status === 'VERIFIED' ? '✅' : item.status === 'ABSTAINED' ? '⚠️' : item.status === 'PROPOSAL_READY' ? '💡' : '❌';
-            const spec = item.testTitle ?? path.basename(item.tracePath);
-            console.log(`  ${icon} [${item.status}] ${spec}`);
-            if (item.failedTarget) console.log(`     Failed Target : ${item.failedTarget}`);
-            if (item.healedLocator) console.log(`     Healed Locator: ${item.healedLocator}`);
-            if (item.targetFilePath) console.log(`     Target File   : ${path.relative(process.cwd(), item.targetFilePath)}`);
-            if (item.reason && item.status === 'ABSTAINED') console.log(`     Abstain Reason: ${item.reason}`);
-          }
-          console.log(divider);
-          if (batchResult.promotedFiles && batchResult.promotedFiles.length > 0) {
-            console.log('Promoted Files:');
-            for (const file of batchResult.promotedFiles) {
-              console.log(`  🎉 ${file}`);
-            }
-            console.log(divider);
-          }
-          console.log(`Report JSON        : ${path.relative(process.cwd(), reportJsonPath)}`);
-          console.log('(Pass --json to view full machine-readable payload)');
-        }
-
-        if (batchResult.status === 'FAILED') process.exitCode = 1;
-        return;
-      } catch (err: any) {
-        console.error(`Batch repair failed: ${err?.message ?? String(err)}`);
-        process.exit(1);
-      }
-    }
-
     const candidateArg = argv[3];
     const traces = findTraceArchives(candidateArg);
     if (traces.length === 0) {
@@ -411,6 +336,10 @@ export async function runCli(argv: string[]): Promise<void> {
       console.log(`[pw-intel] Auto-discovered trace: ${path.relative(process.cwd(), tracePath)}`);
     }
     try {
+      const option = (name: string): string | undefined => {
+        const index = argv.indexOf(name);
+        return index >= 0 ? argv[index + 1] : undefined;
+      };
       const result = await runAutonomousRepairWorkflow({
         tracePath,
         workspaceRoot: option('--workspace') ?? process.cwd(),

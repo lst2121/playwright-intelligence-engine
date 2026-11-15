@@ -389,7 +389,7 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
       patchHash: 'hash-patch-1',
       targetFilePath: path.resolve(tmpDir, 'pom.ts'),
       originalSourceHash: ApprovalService.hashContent('source 1'),
-      executionVerified: true,
+      proof: { passed: true, exitCode: 0, assertionIntegrityValid: true } as any,
     });
 
     const check1 = service.verifyAndConsumeToken({
@@ -418,7 +418,7 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
       patchHash: 'hash-patch-2',
       targetFilePath: path.resolve(tmpDir, 'pom2.ts'),
       originalSourceHash: ApprovalService.hashContent('original source'),
-      executionVerified: true,
+      proof: { passed: true, exitCode: 0, assertionIntegrityValid: true } as any,
     });
 
     const check = service.verifyAndConsumeToken({
@@ -439,7 +439,7 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
       patchHash: 'hash-patch-unverified',
       targetFilePath: path.resolve(tmpDir, 'pom-unverified.ts'),
       originalSourceHash: ApprovalService.hashContent('unverified source'),
-      // executionVerified omitted -> must fail-closed to false
+      // proof omitted -> must fail-closed to false
     });
 
     const check = service.verifyAndConsumeToken({
@@ -450,6 +450,38 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
     });
     expect(check.isValid).toBe(false);
     expect(check.reason).toContain('Cannot consume token for unverified repair execution');
+  });
+
+  // 18c. ApprovalService: Path Traversal Rejection
+  it('ADV-18c: ApprovalService should strictly reject path traversal in proposalId and tokenId', () => {
+    const service = ApprovalService.getInstance();
+    
+    expect(() => {
+      service.stageProposal({
+        proposalId: '../../etc/passwd',
+        targetFilePath: path.resolve(tmpDir, 'target.ts'),
+        targetClassName: 'Test',
+        targetMemberName: 'm',
+        originalSourceContent: 'code',
+        replacementSelector: '#btn',
+        fullDiff: '+ diff',
+        patchedSource: 'patched',
+        testFilePath: path.resolve(tmpDir, 'test.spec.ts'),
+        testFileContent: 'spec',
+        worktreeId: 'wt1',
+      });
+    }).toThrow(/Security Violation/);
+
+    expect(service.getTokenPayload('../../etc/shadow')).toBeUndefined();
+    expect(service.getProposal('../../etc/shadow')).toBeUndefined();
+
+    const check = service.verifyAndConsumeToken({
+      tokenId: '../escape-token',
+      targetFilePath: path.resolve(tmpDir, 'target.ts'),
+      currentSourceContent: 'code',
+    });
+    expect(check.isValid).toBe(false);
+    expect(check.reason).toContain('Security Violation');
   });
 
   // 19. WorkspacePromoter: Atomic Replacement and CAS Protection
@@ -466,7 +498,7 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
       targetFilePath: targetFile,
       originalSourceHash: ApprovalService.hashContent(originalContent),
       patchedSourceHash: ApprovalService.hashContent(patchedContent),
-      executionVerified: true,
+      proof: { passed: true, exitCode: 0, assertionIntegrityValid: true } as any,
     });
 
     const { WorkspacePromoter } = await import('../../src/repair/workspace-promoter.js');
@@ -505,5 +537,25 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
     };
 
     expect(() => CandidateExtractor.generateLocator(bareEl)).toThrowError(InsufficientIdentifiersError);
+  });
+
+  // 22. DirectCodeRepair: Workspace Boundary Containment
+  it('ADV-22: DirectCodeRepair should reject paths escaping workspace boundary', async () => {
+    const { assertPathWithinWorkspace } = await import('../../src/repair/direct-code-repair.js');
+
+    expect(() => assertPathWithinWorkspace('../../etc/passwd', tmpDir)).toThrow(/Security Violation/);
+    expect(() => assertPathWithinWorkspace(path.resolve(tmpDir, '../evil.ts'), tmpDir)).toThrow(/Security Violation/);
+    expect(assertPathWithinWorkspace(path.resolve(tmpDir, 'safe.ts'), tmpDir)).toBe(path.resolve(tmpDir, 'safe.ts'));
+  });
+
+  // 23. DirectCodeRepair: Insecure HTTP Protocol Rejection
+  it('ADV-23: DirectCodeRepair should reject unencrypted remote HTTP endpoints', async () => {
+    const { validateEndpointUrl } = await import('../../src/repair/direct-code-repair.js');
+
+    expect(() => validateEndpointUrl('http://insecure-remote.com/v1/chat')).toThrow(/Security Violation/);
+    expect(() => validateEndpointUrl('ftp://example.com')).toThrow(/Security Violation/);
+    expect(validateEndpointUrl('https://api.openai.com/v1/chat/completions')).toBe('https://api.openai.com/v1/chat/completions');
+    expect(validateEndpointUrl('http://localhost:11434/v1/chat/completions')).toBe('http://localhost:11434/v1/chat/completions');
+    expect(validateEndpointUrl('http://127.0.0.1:11434/v1/chat/completions')).toBe('http://127.0.0.1:11434/v1/chat/completions');
   });
 });

@@ -143,29 +143,53 @@ async function captureVisibleTextSnapshot(page: any): Promise<{ summary: string;
 
 async function collectInteractiveControls(page: any): Promise<RawDomElementInfo[]> {
   try {
-    const raw = await page.$$eval(
-      'input, textarea, select, button, a[href], [role="button"], [role="textbox"], [role="checkbox"], [role="status"], [role="alert"], h1, h2, h3',
-      (nodes: any[]) =>
-        nodes.slice(0, 80).map((el) => {
-          const tag = el.tagName.toLowerCase();
-          const type = el.getAttribute('type') || undefined;
-          let role = el.getAttribute('role') || '';
-          if (!role) {
-            if (tag === 'button' || (tag === 'input' && (type === 'submit' || type === 'button'))) role = 'button';
-            else if (tag === 'input' && type === 'checkbox') role = 'checkbox';
-            else if (tag === 'input' || tag === 'textarea') role = 'textbox';
-            else if (tag === 'select') role = 'combobox';
-            else if (tag === 'a') role = 'link';
-            else if (/^h[1-3]$/.test(tag)) role = 'heading';
-          }
-          const placeholder = el.getAttribute('placeholder') || undefined;
-          const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
-          const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
-          const accessibleName = (el.getAttribute('aria-label') || el.innerText || placeholder || '').trim().slice(0, 120);
-          const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-          return { tag, role, accessibleName, placeholder, label, testId, type, visible };
-        }),
-    );
+    const selector = 'input, textarea, select, button, a[href], [role="button"], [role="textbox"], [role="checkbox"], [role="status"], [role="alert"], h1, h2, h3';
+    const mapper = (nodes: any[]) =>
+      nodes.slice(0, 80).map((el) => {
+        const tag = el.tagName.toLowerCase();
+        const type = el.getAttribute('type') || undefined;
+        let role = el.getAttribute('role') || '';
+        if (!role) {
+          if (tag === 'button' || (tag === 'input' && (type === 'submit' || type === 'button'))) role = 'button';
+          else if (tag === 'input' && type === 'checkbox') role = 'checkbox';
+          else if (tag === 'input' || tag === 'textarea') role = 'textbox';
+          else if (tag === 'select') role = 'combobox';
+          else if (tag === 'a') role = 'link';
+          else if (/^h[1-3]$/.test(tag)) role = 'heading';
+        }
+        const placeholder = el.getAttribute('placeholder') || undefined;
+        const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
+        const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
+        const accessibleName = (el.getAttribute('aria-label') || el.innerText || placeholder || '').trim().slice(0, 120);
+        const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+        return { tag, role, accessibleName, placeholder, label, testId, type, visible };
+      });
+
+    const raw = typeof page.locator === 'function'
+      ? await page.locator(selector).evaluateAll(mapper)
+      : await page.evaluate((sel: string) => {
+          const doc = (globalThis as any).document;
+          const nodes = Array.from(doc ? doc.querySelectorAll(sel) : []);
+          return nodes.slice(0, 80).map((el: any) => {
+            const tag = el.tagName.toLowerCase();
+            const type = el.getAttribute('type') || undefined;
+            let role = el.getAttribute('role') || '';
+            if (!role) {
+              if (tag === 'button' || (tag === 'input' && (type === 'submit' || type === 'button'))) role = 'button';
+              else if (tag === 'input' && type === 'checkbox') role = 'checkbox';
+              else if (tag === 'input' || tag === 'textarea') role = 'textbox';
+              else if (tag === 'select') role = 'combobox';
+              else if (tag === 'a') role = 'link';
+              else if (/^h[1-3]$/.test(tag)) role = 'heading';
+            }
+            const placeholder = el.getAttribute('placeholder') || undefined;
+            const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
+            const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
+            const accessibleName = (el.getAttribute('aria-label') || el.innerText || placeholder || '').trim().slice(0, 120);
+            const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+            return { tag, role, accessibleName, placeholder, label, testId, type, visible };
+          });
+        }, selector);
     return raw.filter((r: RawDomElementInfo) => r.visible);
   } catch {
     return [];
@@ -379,9 +403,14 @@ export class InteractiveWorkflowRunner {
           page.goto(options.baseUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs }),
         );
         const origin = new URL(options.baseUrl).origin;
-        const linkHrefs: string[] = await page.$$eval('a[href]', (anchors: any[]) =>
-          anchors.map((a) => String(a.getAttribute('href') || '')).filter(Boolean),
-        ).catch(() => []);
+        const linkHrefs: string[] = typeof page.locator === 'function'
+          ? await page.locator('a[href]').evaluateAll((anchors: any[]) =>
+              anchors.map((a) => String(a.getAttribute('href') || '')).filter(Boolean),
+            ).catch(() => [])
+          : await page.evaluate(() => {
+              const doc = (globalThis as any).document;
+              return Array.from(doc ? doc.querySelectorAll('a[href]') : []).map((a: any) => String(a.getAttribute('href') || '')).filter(Boolean);
+            }).catch(() => []);
         const candidateRoutes = new Set<string>([options.baseUrl]);
         for (const href of linkHrefs) {
           if (href.startsWith('#') || /^(?:mailto:|tel:|javascript:)/i.test(href)) continue;

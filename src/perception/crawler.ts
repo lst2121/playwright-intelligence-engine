@@ -77,7 +77,8 @@ async function extractFrameSelector(frame: any): Promise<string> {
 
 async function collectFrameElements(frameHandle: any, frameSelector?: string): Promise<AppElement[]> {
   try {
-    const raw = await frameHandle.$$eval('button, a, input, select, textarea, [role="button"], [role="textbox"], [role="status"], [role="list"], [role="listitem"], ul, ol, heading, h1, h2, h3', (nodes: any[]) => {
+    const selector = 'button, a, input, select, textarea, [role="button"], [role="textbox"], [role="status"], [role="list"], [role="listitem"], ul, ol, heading, h1, h2, h3';
+    const mapper = (nodes: any[]) => {
       return nodes.map((el) => {
         const tag = el.tagName.toLowerCase();
         const type = el.getAttribute('type') || undefined;
@@ -101,7 +102,37 @@ async function collectFrameElements(frameHandle: any, frameSelector?: string): P
         const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
         return { tag, role, accessibleName, label, testId, placeholder, type, visible };
       });
-    });
+    };
+
+    const raw = typeof frameHandle.locator === 'function'
+      ? await frameHandle.locator(selector).evaluateAll(mapper)
+      : await frameHandle.evaluate((sel: string) => {
+          const doc = (globalThis as any).document;
+          const nodes = Array.from(doc ? doc.querySelectorAll(sel) : []);
+          return nodes.map((el: any) => {
+            const tag = el.tagName.toLowerCase();
+            const type = el.getAttribute('type') || undefined;
+            let role = el.getAttribute('role');
+            if (!role) {
+              if (tag === 'button') role = 'button';
+              else if (tag === 'input') {
+                if (type === 'checkbox') role = 'checkbox';
+                else if (type === 'radio') role = 'radio';
+                else if (type === 'submit' || type === 'button') role = 'button';
+                else role = 'textbox';
+              } else if (tag === 'textarea') role = 'textbox';
+              else if (tag === 'select') role = 'combobox';
+              else if (/^h[1-6]$/.test(tag)) role = 'heading';
+              else if (tag === 'ul' || tag === 'ol') role = 'list';
+            }
+            const placeholder = el.getAttribute('placeholder') || undefined;
+            const accessibleName = el.getAttribute('aria-label') || el.innerText?.trim() || placeholder || undefined;
+            const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
+            const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
+            const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+            return { tag, role, accessibleName, label, testId, placeholder, type, visible };
+          });
+        }, selector);
 
     const elements: AppElement[] = raw.map((item: any) => ({
       tag: item.tag,
@@ -219,9 +250,14 @@ export class AppCrawler {
         // Bounded exploration: collect links without clicking destructive elements
         if (item.depth < maxDepth && routes.length < maxRoutes) {
           try {
-            const hrefs: string[] = await page.$$eval('a[href]', (anchors: any[]) =>
-              anchors.map((a) => a.getAttribute('href')).filter(Boolean),
-            );
+            const hrefs: string[] = typeof page.locator === 'function'
+              ? await page.locator('a[href]').evaluateAll((anchors: any[]) =>
+                  anchors.map((a) => a.getAttribute('href')).filter(Boolean),
+                )
+              : await page.evaluate(() => {
+                  const doc = (globalThis as any).document;
+                  return Array.from(doc ? doc.querySelectorAll('a[href]') : []).map((a: any) => a.getAttribute('href')).filter(Boolean);
+                });
             for (const href of hrefs) {
               try {
                 const resolved = new URL(href, item.url);

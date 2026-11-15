@@ -125,6 +125,10 @@ export class ExecutionRunner {
       }
     }
 
+    if (!sanitized['PW_TEST_HTML_REPORT_OPEN']) {
+      sanitized['PW_TEST_HTML_REPORT_OPEN'] = 'never';
+    }
+
     return sanitized;
   }
 

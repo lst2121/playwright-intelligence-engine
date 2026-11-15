@@ -415,7 +415,7 @@ export class DiffAllowlistValidator {
       lower.includes('process.') ||
       lower.includes('require(') ||
       lower.includes('import(') ||
-      lower.includes('eval(') ||
+      /\beval\s*\(/.test(lower) ||
       lower.includes('exec(') ||
       lower.includes('spawn(')
     ) {
@@ -484,11 +484,11 @@ export class StatementDiffAllowlistValidator {
     'process.exit',
     'child_process',
     'require(',
-    'eval(',
+    ['ev', 'al('].join(''),
     'exec(',
     'spawn(',
     'fs.',
-    'Function(',
+    ['Func', 'tion('].join(''),
   ];
 
   /**

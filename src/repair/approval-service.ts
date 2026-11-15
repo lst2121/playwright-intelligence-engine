@@ -63,6 +63,8 @@ export interface TokenValidationResult {
  * - Isolated Worktree Execution Verification Proof
  */
 export class ApprovalService {
+  public static readonly SAFE_ID_REGEX = /^[a-zA-Z0-9_\-]{1,128}$/;
+
   private static instance: ApprovalService | undefined;
   private proposals = new Map<string, StagedProposal>();
   private tokens = new Map<string, ApprovalTokenPayload>();
@@ -81,6 +83,29 @@ export class ApprovalService {
     } catch {
       // Safe fallback if filesystem is read-only
     }
+  }
+
+  /**
+   * Validates that an identifier contains only alphanumeric, hyphen, and underscore characters.
+   * Strictly prevents path traversal (e.g. '../', '..\\', absolute paths, null bytes).
+   */
+  public static assertSafeId(id: string, label = 'Identifier'): void {
+    if (!id || typeof id !== 'string' || !ApprovalService.SAFE_ID_REGEX.test(id)) {
+      throw new Error(`Security Violation: Invalid ${label} '${id}'. Must match pattern ${ApprovalService.SAFE_ID_REGEX}`);
+    }
+  }
+
+  /**
+   * Resolves a file path within a directory and verifies that it does not escape the boundary.
+   */
+  private resolveContainedPath(parentDir: string, id: string): string {
+    ApprovalService.assertSafeId(id, 'Identifier');
+    const resolvedParent = path.resolve(parentDir);
+    const resolvedPath = path.resolve(resolvedParent, `${id}.json`);
+    if (!resolvedPath.startsWith(resolvedParent + path.sep)) {
+      throw new Error(`Security Violation: Path traversal detected for '${id}'.`);
+    }
+    return resolvedPath;
   }
 
   public static getInstance(customStorageDir?: string): ApprovalService {
@@ -126,6 +151,9 @@ export class ApprovalService {
       ? fs.realpathSync(params.testFilePath)
       : path.resolve(params.testFilePath);
 
+    if (params.proposalId) {
+      ApprovalService.assertSafeId(params.proposalId, 'Proposal ID');
+    }
     const proposalId = params.proposalId ?? `prop-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
     const now = Date.now();
     const ttl = params.ttlMs ?? this.defaultTtlMs;
@@ -166,8 +194,9 @@ export class ApprovalService {
     this.proposals.set(proposalId, staged);
     try {
       fs.mkdirSync(this.proposalsDir, { recursive: true });
+      const diskPath = this.resolveContainedPath(this.proposalsDir, proposalId);
       fs.writeFileSync(
-        path.join(this.proposalsDir, `${proposalId}.json`),
+        diskPath,
         JSON.stringify(staged, null, 2),
         'utf-8'
       );
@@ -178,12 +207,15 @@ export class ApprovalService {
   }
 
   public getTokenPayload(tokenId: string): ApprovalTokenPayload | undefined {
+    if (!ApprovalService.SAFE_ID_REGEX.test(tokenId)) {
+      return undefined;
+    }
     this.cleanupExpired();
     let payload = this.tokens.get(tokenId);
     if (!payload) {
-      const diskPath = path.join(this.tokensDir, `${tokenId}.json`);
-      if (fs.existsSync(diskPath)) {
-        try {
+      try {
+        const diskPath = this.resolveContainedPath(this.tokensDir, tokenId);
+        if (fs.existsSync(diskPath)) {
           const raw = fs.readFileSync(diskPath, 'utf-8');
           const parsed = JSON.parse(raw) as ApprovalTokenPayload;
           if (Date.now() <= parsed.expiresAt && !parsed.used) {
@@ -192,21 +224,24 @@ export class ApprovalService {
           } else {
             try { fs.unlinkSync(diskPath); } catch {}
           }
-        } catch {
-          // Ignore corrupt file
         }
+      } catch {
+        // Ignore corrupt file or path violation
       }
     }
     return payload;
   }
 
   public getProposal(proposalId: string): StagedProposal | undefined {
+    if (!ApprovalService.SAFE_ID_REGEX.test(proposalId)) {
+      return undefined;
+    }
     this.cleanupExpired();
     let proposal = this.proposals.get(proposalId);
     if (!proposal) {
-      const diskPath = path.join(this.proposalsDir, `${proposalId}.json`);
-      if (fs.existsSync(diskPath)) {
-        try {
+      try {
+        const diskPath = this.resolveContainedPath(this.proposalsDir, proposalId);
+        if (fs.existsSync(diskPath)) {
           const raw = fs.readFileSync(diskPath, 'utf-8');
           const parsed = JSON.parse(raw) as StagedProposal;
           if (Date.now() <= parsed.expiresAt) {
@@ -215,9 +250,9 @@ export class ApprovalService {
           } else {
             try { fs.unlinkSync(diskPath); } catch {}
           }
-        } catch {
-          // Ignore corrupt file
         }
+      } catch {
+        // Ignore corrupt file or path violation
       }
     }
     return proposal;
@@ -231,6 +266,7 @@ export class ApprovalService {
     proposalId: string;
     ttlMs?: number;
   }): ApprovalTokenPayload {
+    ApprovalService.assertSafeId(params.proposalId, 'Proposal ID');
     this.cleanupExpired();
     const proposal = this.getProposal(params.proposalId);
     if (!proposal) {
@@ -271,8 +307,9 @@ export class ApprovalService {
     this.tokens.set(tokenId, payload);
     try {
       fs.mkdirSync(this.tokensDir, { recursive: true });
+      const diskPath = this.resolveContainedPath(this.tokensDir, tokenId);
       fs.writeFileSync(
-        path.join(this.tokensDir, `${tokenId}.json`),
+        diskPath,
         JSON.stringify(payload, null, 2),
         'utf-8'
       );
@@ -283,7 +320,8 @@ export class ApprovalService {
   }
 
   /**
-   * Legacy generator helper retained for compatibility, now strictly requires explicit execution verification.
+   * Generator helper for verified approval tokens.
+   * Execution verification strictly requires an affirmative VerifiedExecutionProof.
    */
   public generateToken(params: {
     proposalId: string;
@@ -298,8 +336,10 @@ export class ApprovalService {
     testFilePath?: string;
     testFileHash?: string;
     executionVerified?: boolean;
+    proof?: VerifiedExecutionProof;
     ttlMs?: number;
   }): ApprovalTokenPayload {
+    ApprovalService.assertSafeId(params.proposalId, 'Proposal ID');
     let canonicalTarget = params.targetFilePath;
     try {
       if (fs.existsSync(params.targetFilePath)) {
@@ -323,8 +363,17 @@ export class ApprovalService {
     const now = Date.now();
     const ttl = params.ttlMs ?? this.defaultTtlMs;
 
-    // Fail closed: executionVerified is strictly false unless explicitly supplied as true
-    const executionVerified = params.executionVerified === true;
+    // Derived execution verification: require verified proof from worktree execution.
+    // Callers cannot mark execution as verified without supplying an affirmative proof.
+    let executionVerified = false;
+    if (params.proof) {
+      executionVerified = Boolean(
+        params.proof.passed &&
+        params.proof.exitCode === 0 &&
+        (params.proof.executionOutcome === 'PASS' || params.proof.executionOutcome === undefined) &&
+        (params.proof.assertionIntegrityValid !== false)
+      );
+    }
 
     const payload: ApprovalTokenPayload = {
       tokenId,
@@ -349,8 +398,9 @@ export class ApprovalService {
     this.tokens.set(tokenId, payload);
     try {
       fs.mkdirSync(this.tokensDir, { recursive: true });
+      const diskPath = this.resolveContainedPath(this.tokensDir, tokenId);
       fs.writeFileSync(
-        path.join(this.tokensDir, `${tokenId}.json`),
+        diskPath,
         JSON.stringify(payload, null, 2),
         'utf-8'
       );
@@ -372,6 +422,12 @@ export class ApprovalService {
     fullDiffHash?: string;
     currentTestFileContent?: string;
   }): TokenValidationResult {
+    if (!ApprovalService.SAFE_ID_REGEX.test(params.tokenId)) {
+      return {
+        isValid: false,
+        reason: 'Security Violation: Invalid token identifier.',
+      };
+    }
     this.cleanupExpired();
 
     const payload = this.tokens.get(params.tokenId);
@@ -475,12 +531,12 @@ export class ApprovalService {
     // Atomically mark as consumed in memory and delete on disk
     payload.used = true;
     this.tokens.delete(params.tokenId);
-    const diskPath = path.join(this.tokensDir, `${params.tokenId}.json`);
-    if (fs.existsSync(diskPath)) {
-      try {
+    try {
+      const diskPath = this.resolveContainedPath(this.tokensDir, params.tokenId);
+      if (fs.existsSync(diskPath)) {
         fs.unlinkSync(diskPath);
-      } catch {}
-    }
+      }
+    } catch {}
 
     return {
       isValid: true,
@@ -489,14 +545,17 @@ export class ApprovalService {
   }
 
   public revokeToken(tokenId: string): boolean {
+    if (!ApprovalService.SAFE_ID_REGEX.test(tokenId)) {
+      return false;
+    }
     const memDeleted = this.tokens.delete(tokenId);
-    const diskPath = path.join(this.tokensDir, `${tokenId}.json`);
-    if (fs.existsSync(diskPath)) {
-      try {
+    try {
+      const diskPath = this.resolveContainedPath(this.tokensDir, tokenId);
+      if (fs.existsSync(diskPath)) {
         fs.unlinkSync(diskPath);
         return true;
-      } catch {}
-    }
+      }
+    } catch {}
     return memDeleted;
   }
 

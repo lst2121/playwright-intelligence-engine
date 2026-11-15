@@ -152,6 +152,50 @@ async function extractTraceDomEvidence(_tracePath: string, traceText: string): P
 }
 
 /**
+ * Asserts that a target file path resides strictly within the authorized workspaceRoot.
+ * Prevents directory traversal attacks via malicious traces or stack traces.
+ */
+export function assertPathWithinWorkspace(targetPath: string, workspaceRoot: string): string {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(workspaceRoot);
+  const rel = path.relative(resolvedRoot, resolvedTarget);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error(`Security Violation: Path '${targetPath}' escapes workspace root '${workspaceRoot}'.`);
+  }
+  return resolvedTarget;
+}
+
+export function isPathWithinWorkspace(targetPath: string, workspaceRoot: string): boolean {
+  try {
+    const resolvedTarget = path.resolve(targetPath);
+    const resolvedRoot = path.resolve(workspaceRoot);
+    const rel = path.relative(resolvedRoot, resolvedTarget);
+    return !rel.startsWith('..') && !path.isAbsolute(rel);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validates that an LLM inference endpoint uses encrypted HTTPS or local loopback.
+ * Prevents arbitrary unencrypted remote network egress.
+ */
+export function validateEndpointUrl(endpointUrl: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(endpointUrl);
+  } catch {
+    throw new Error(`Security Violation: Invalid LLM endpoint URL '${endpointUrl}'.`);
+  }
+  const isHttps = parsed.protocol === 'https:';
+  const isLocalHttp = parsed.protocol === 'http:' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+  if (!isHttps && !isLocalHttp) {
+    throw new Error(`Security Violation: Insecure or invalid endpoint URL '${endpointUrl}'. Only https: or localhost/127.0.0.1 http: are permitted.`);
+  }
+  return endpointUrl;
+}
+
+/**
  * Direct LLM Code Authoring & Verification Engine.
  * Gives the LLM direct access to author the code fix based on the rich evidence dump,
  * and monitors latency, token costs, performance, and assertion integrity.
@@ -309,7 +353,7 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
   }
 
   // If targetFilePath is still missing, fail closed
-  if (!targetFilePath || !fsSync.existsSync(targetFilePath)) {
+  if (!targetFilePath || !fsSync.existsSync(targetFilePath) || !isPathWithinWorkspace(targetFilePath, workspaceRoot)) {
     return {
       status: 'FAILED',
       tracePath,
@@ -329,9 +373,12 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
     };
   }
 
-  if (!specFilePath || !fsSync.existsSync(specFilePath)) {
+  if (!specFilePath || !fsSync.existsSync(specFilePath) || !isPathWithinWorkspace(specFilePath, workspaceRoot)) {
     specFilePath = targetFilePath;
   }
+
+  assertPathWithinWorkspace(targetFilePath, workspaceRoot);
+  assertPathWithinWorkspace(specFilePath, workspaceRoot);
 
   const testFilePath = specFilePath;
   const originalTargetCode = await fs.readFile(targetFilePath, 'utf8');
@@ -379,6 +426,30 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
         totalMs: Date.now() - startedTotal,
       },
       reason: 'No LLM credentials configured. Set PIE_LLM_API_KEY and PIE_LLM_ENDPOINT.',
+    };
+  }
+
+  try {
+    validateEndpointUrl(endpoint);
+  } catch (urlErr: any) {
+    return {
+      status: 'FAILED',
+      tracePath,
+      testFilePath,
+      targetFilePath,
+      telemetry: {
+        provider: 'none',
+        model: 'none',
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        evidenceAssemblyMs,
+        inferenceMs: 0,
+        executionMs: 0,
+        totalMs: Date.now() - startedTotal,
+      },
+      reason: urlErr.message,
     };
   }
 
@@ -640,6 +711,7 @@ CRITICAL INVARIANTS:
 
     // 5. Atomic Promotion if verified and requested
     if (executionPassed && input.autoPromote) {
+      assertPathWithinWorkspace(targetFilePath, workspaceRoot);
       await fs.writeFile(targetFilePath, repairedCode, 'utf8');
     }
   } finally {

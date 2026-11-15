@@ -312,4 +312,131 @@ describe('bounded reasoning-and-action LLM loop', () => {
     expect(result.state).toBe('AGENT_TIME_BUDGET');
     expect(result.steps).toHaveLength(0);
   });
+
+  it('normalizes common code-diff model keys {type, oldLocator, newLocator, filePath} into canonical replace_locator', () => {
+    const raw = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'FINAL',
+      status: 'PROPOSAL_READY',
+      classification: { category: 'LOCATOR_DRIFT', confidence: 0.95 },
+      reasoningSummary: 'Fixed button selector using live DOM.',
+      evidenceReferences: ['diagnostic.failedAction'],
+      humanApprovalRequired: true,
+      proposal: {
+        proposalVersion: '1',
+        decision: 'PROPOSE',
+        failureKind: 'LOCATOR_DRIFT',
+        confidence: 0.95,
+        reasoningSummary: 'Fixed button selector using live DOM.',
+        operations: [{
+          type: 'replace_locator',
+          filePath: 'pages/upload.page.ts',
+          oldLocator: '#broken-file-submit',
+          newLocator: "this.page.locator('#file-submit')",
+        }],
+        requiredVerification: ['isolated target test'],
+        evidenceReferences: ['diagnostic.failedAction'],
+      },
+    }));
+
+    expect(raw.isValid).toBe(true);
+    expect(raw.response?.responseType).toBe('FINAL');
+    if (raw.response?.responseType === 'FINAL') {
+      expect(raw.response.proposal?.operations[0]).toEqual({
+        kind: 'replace_locator',
+        target: '#broken-file-submit',
+        locator: "this.page.locator('#file-submit')",
+      });
+    }
+  });
+
+  it('normalizes line-based diff keys {filePath, startLine, oldText, newText} into canonical replace_locator', () => {
+    const raw = parseAgentResponse(JSON.stringify({
+      protocolVersion: '2',
+      responseType: 'FINAL',
+      status: 'PROPOSAL_READY',
+      classification: { category: 'LOCATOR_DRIFT', confidence: 0.95 },
+      reasoningSummary: 'Fixed line 18 in upload page.',
+      evidenceReferences: ['diagnostic.failedAction'],
+      humanApprovalRequired: true,
+      proposal: {
+        proposalVersion: '1',
+        decision: 'PROPOSE',
+        failureKind: 'LOCATOR_DRIFT',
+        confidence: 0.95,
+        reasoningSummary: 'Fixed line 18 in upload page.',
+        operations: [{
+          filePath: 'pages/upload.page.ts',
+          startLine: 18,
+          endLine: 18,
+          oldText: '#broken-file-submit',
+          newText: "this.page.locator('#file-submit')",
+        }],
+        requiredVerification: ['isolated target test'],
+        evidenceReferences: ['diagnostic.failedAction'],
+      },
+    }));
+
+    expect(raw.isValid).toBe(true);
+    expect(raw.response?.responseType).toBe('FINAL');
+    if (raw.response?.responseType === 'FINAL') {
+      expect(raw.response.proposal?.operations[0]).toEqual({
+        kind: 'replace_locator',
+        target: '#broken-file-submit',
+        locator: "this.page.locator('#file-submit')",
+      });
+    }
+  });
+
+  it('self-heals via ReAct feedback loop when step 0 produces a malformed proposal', async () => {
+    let callCount = 0;
+    const receivedObservations: unknown[] = [];
+    const provider: ProposalProvider & AgentStepProvider = {
+      propose: async () => ({ isValid: false, errors: ['not used'] }),
+      proposeStep: async (req) => {
+        callCount += 1;
+        receivedObservations.push(req.observation);
+        if (callCount === 1) {
+          // Return malformed proposal missing required protocolVersion
+          return { isValid: false, errors: ['Missing protocolVersion "2"'] };
+        }
+        // Self-corrected turn
+        return parseAgentResponse(JSON.stringify({
+          protocolVersion: '2',
+          responseType: 'FINAL',
+          status: 'PROPOSAL_READY',
+          classification: { category: 'LOCATOR_DRIFT', confidence: 0.95 },
+          reasoningSummary: 'Corrected proposal after feedback.',
+          evidenceReferences: ['diagnostic.failedAction'],
+          humanApprovalRequired: true,
+          proposal: {
+            proposalVersion: '1',
+            decision: 'PROPOSE',
+            failureKind: 'LOCATOR_DRIFT',
+            confidence: 0.95,
+            reasoningSummary: 'Corrected proposal after feedback.',
+            operations: [{
+              kind: 'replace_locator',
+              target: 'button.checkout',
+              locator: "this.page.locator('#checkout-btn')",
+            }],
+            requiredVerification: ['isolated target test'],
+            evidenceReferences: ['diagnostic.failedAction'],
+          },
+        }));
+      },
+    };
+
+    const result = await runRepairProposalAgent({
+      context: context(),
+      bundle: bundle(),
+      provider,
+      maxSteps: 4,
+    });
+
+    expect(result.state).toBe('PROPOSAL_RECEIVED');
+    expect(callCount).toBe(2);
+    expect((receivedObservations[1] as { status?: string })?.status).toBe('VALIDATION_ERROR');
+    expect(result.proposal?.operations[0]?.locator).toBe("this.page.locator('#checkout-btn')");
+  });
 });

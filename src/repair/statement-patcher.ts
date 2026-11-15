@@ -199,7 +199,16 @@ export class StatementPatcher {
 
     try {
       fs.writeFileSync(tempFile, result.patchedSource, 'utf8');
-      fs.renameSync(tempFile, resolvedPath);
+      try {
+        fs.renameSync(tempFile, resolvedPath);
+      } catch (renameErr: any) {
+        if (process.platform === 'win32' && (renameErr.code === 'EPERM' || renameErr.code === 'EBUSY' || renameErr.code === 'EEXIST')) {
+          fs.copyFileSync(tempFile, resolvedPath);
+          try { fs.unlinkSync(tempFile); } catch {}
+        } else {
+          throw renameErr;
+        }
+      }
       sourceFile.refreshFromFileSystemSync();
       return result;
     } catch (err: any) {

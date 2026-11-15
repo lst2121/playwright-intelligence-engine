@@ -153,6 +153,16 @@ async function runBoundedAgentLoop(
     const result = await provider.proposeStep(request);
     const durationMs = Date.now() - started;
     if (!result.isValid || !result.response) {
+      if (stepIndex < maxSteps - 1) {
+        observation = {
+          phase: 'schema_validation_retry',
+          status: 'VALIDATION_ERROR',
+          validationErrors: result.errors,
+          instruction: `Your response failed protocol validation: ${result.errors.join('; ')}. ` +
+            `Return a valid protocolVersion "2" JSON object. If proposing a repair, use kind: "replace_locator", target: "${input.context.failedAction.selector ?? ''}", locator: "this.page.locator('<selector>')".`,
+        };
+        continue;
+      }
       return {
         state: 'PROPOSAL_REJECTED',
         classification,
@@ -177,6 +187,16 @@ async function runBoundedAgentLoop(
       }
       const proposalResult = parseLlmRepairProposal(response.proposal);
       if (!proposalResult.isValid || !proposalResult.proposal) {
+        if (stepIndex < maxSteps - 1) {
+          observation = {
+            phase: 'proposal_schema_retry',
+            status: 'PROPOSAL_VALIDATION_ERROR',
+            validationErrors: proposalResult.errors,
+            instruction: `Your proposal failed schema validation: ${proposalResult.errors.join('; ')}. ` +
+              `Return a valid proposal with proposalVersion: "1", decision: "PROPOSE", failureKind: "LOCATOR_DRIFT", operations: [{"kind": "replace_locator", "target": "${input.context.failedAction.selector ?? ''}", "locator": "this.page.locator('<selector>')"}]. Do not return filePath, startLine, or oldText.`,
+          };
+          continue;
+        }
         return {
           state: 'PROPOSAL_REJECTED',
           classification,
@@ -198,6 +218,16 @@ async function runBoundedAgentLoop(
       }
       const semanticError = proposalMatchesClassification(proposalResult.proposal, classification, input.context.failedAction.selector);
       if (semanticError) {
+        if (stepIndex < maxSteps - 1) {
+          observation = {
+            phase: 'semantic_classification_retry',
+            status: 'SEMANTIC_ERROR',
+            validationErrors: [semanticError],
+            instruction: `Your proposal had a semantic conflict: ${semanticError}. ` +
+              `Ensure target exactly matches "${input.context.failedAction.selector ?? ''}" and failureKind is "${classification.category}".`,
+          };
+          continue;
+        }
         return { state: 'PROPOSAL_REJECTED', classification, modelInvoked: true, errors: [semanticError], steps, finalResponse: response };
       }
       return {

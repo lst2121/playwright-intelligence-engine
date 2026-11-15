@@ -200,6 +200,134 @@ function parseJsonInput(input: unknown): { candidate?: unknown; errors: string[]
   }
 }
 
+export function normalizeRepairOperation(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const item = raw as Record<string, unknown>;
+
+  let kind = typeof item.kind === 'string' ? item.kind : typeof item.type === 'string' ? item.type : undefined;
+
+  const target = typeof item.target === 'string' && item.target.trim().length > 0
+    ? item.target.trim()
+    : typeof item.oldLocator === 'string' && item.oldLocator.trim().length > 0
+      ? item.oldLocator.trim()
+      : typeof item.oldText === 'string' && item.oldText.trim().length > 0
+        ? item.oldText.trim()
+        : typeof item.selector === 'string' && item.selector.trim().length > 0
+          ? item.selector.trim()
+          : typeof item.originalLocator === 'string' && item.originalLocator.trim().length > 0
+            ? item.originalLocator.trim()
+            : undefined;
+
+  const locator = typeof item.locator === 'string' && item.locator.trim().length > 0
+    ? item.locator.trim()
+    : typeof item.newLocator === 'string' && item.newLocator.trim().length > 0
+      ? item.newLocator.trim()
+      : typeof item.newText === 'string' && item.newText.trim().length > 0
+        ? item.newText.trim()
+        : typeof item.replacement === 'string' && item.replacement.trim().length > 0
+          ? item.replacement.trim()
+          : typeof item.proposedLocator === 'string' && item.proposedLocator.trim().length > 0
+            ? item.proposedLocator.trim()
+            : undefined;
+
+  if ((!kind || kind === 'replace_locator' || kind === 'replace_text' || kind === 'replace_selector' || kind === 'edit' || kind === 'replace') && target && locator) {
+    kind = 'replace_locator';
+  }
+
+  if (kind === 'replace_locator' && target && locator) {
+    const result: Record<string, unknown> = {
+      kind: 'replace_locator',
+      target,
+      locator,
+    };
+    if (typeof item.reason === 'string') result.reason = item.reason;
+    return result;
+  }
+
+  if (kind === 'add_frame_scope' && target && typeof item.frameLocator === 'string') {
+    return { kind, target, frameLocator: item.frameLocator, ...(typeof item.reason === 'string' ? { reason: item.reason } : {}) };
+  }
+  if (kind === 'add_shadow_scope' && target && Array.isArray(item.shadowPath)) {
+    return { kind, target, shadowPath: item.shadowPath, ...(typeof item.reason === 'string' ? { reason: item.reason } : {}) };
+  }
+  if (kind === 'dismiss_overlay' && locator) {
+    return { kind, locator, ...(typeof item.reason === 'string' ? { reason: item.reason } : {}) };
+  }
+  if (kind === 'satisfy_prerequisite' && typeof item.prerequisite === 'string') {
+    return { kind, prerequisite: item.prerequisite, ...(typeof item.reason === 'string' ? { reason: item.reason } : {}) };
+  }
+  if ((kind === 'replace_select_with_combobox_flow' || kind === 'replace_unstable_wait_with_state_wait') && target && Array.isArray(item.steps)) {
+    return { kind, target, steps: item.steps, ...(typeof item.reason === 'string' ? { reason: item.reason } : {}) };
+  }
+  if (kind === 'abstain') {
+    return { kind, reason: typeof item.reason === 'string' ? item.reason : 'Model abstained' };
+  }
+
+  return raw;
+}
+
+export function normalizeProposalCandidate(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const item = { ...(raw as Record<string, unknown>) };
+
+  let operations = Array.isArray(item.operations)
+    ? item.operations.map(normalizeRepairOperation)
+    : item.operation && typeof item.operation === 'object'
+      ? [normalizeRepairOperation(item.operation)]
+      : [];
+
+  if (operations.length === 0) {
+    const singleOp = normalizeRepairOperation(item);
+    if (singleOp && typeof singleOp === 'object' && 'kind' in singleOp) {
+      operations = [singleOp];
+    }
+  }
+
+  const proposalVersion = item.proposalVersion === '1' ? '1' : '1';
+  const decision = item.decision === 'PROPOSE' || item.decision === 'ABSTAIN'
+    ? item.decision
+    : (operations.some((op) => (op as { kind?: string })?.kind !== 'abstain') ? 'PROPOSE' : 'ABSTAIN');
+
+  const failureKind = typeof item.failureKind === 'string' && item.failureKind.trim().length > 0
+    ? item.failureKind.trim().toUpperCase()
+    : typeof item.failureCategory === 'string' && item.failureCategory.trim().length > 0
+      ? item.failureCategory.trim().toUpperCase()
+      : typeof item.category === 'string' && item.category.trim().length > 0
+        ? item.category.trim().toUpperCase()
+        : 'LOCATOR_DRIFT';
+
+  const confidence = typeof item.confidence === 'number' && item.confidence >= 0 && item.confidence <= 1
+    ? item.confidence
+    : 0.9;
+
+  const reasoningSummary = typeof item.reasoningSummary === 'string' && item.reasoningSummary.trim().length > 0
+    ? item.reasoningSummary.trim()
+    : typeof item.summary === 'string' && item.summary.trim().length > 0
+      ? item.summary.trim()
+      : typeof item.rationale === 'string' && item.rationale.trim().length > 0
+        ? item.rationale.trim()
+        : 'Model generated repair proposal';
+
+  const requiredVerification = Array.isArray(item.requiredVerification) && item.requiredVerification.length > 0
+    ? item.requiredVerification.filter((v): v is string => typeof v === 'string')
+    : ['isolated target test', 'assertions unchanged'];
+
+  const evidenceReferences = Array.isArray(item.evidenceReferences)
+    ? item.evidenceReferences.filter((v): v is string => typeof v === 'string')
+    : [];
+
+  return {
+    proposalVersion,
+    decision,
+    failureKind,
+    confidence,
+    reasoningSummary,
+    operations,
+    requiredVerification,
+    evidenceReferences,
+  };
+}
+
 function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: string[]; metadata?: AgentProtocolMetadata | undefined } {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { candidate: input, notes: [] };
   const envelope = normalizeAgentEnvelope(input as Record<string, unknown>);
@@ -221,6 +349,17 @@ function normalizeAgentCandidate(input: unknown): { candidate: unknown; notes: s
     if (AgentFinalResponseSchema.safeParse(source).success) return withEnvelope(source);
 
     const notes: string[] = [];
+    if (source.status === 'PROPOSAL_READY' && source.proposal && typeof source.proposal === 'object' && !Array.isArray(source.proposal)) {
+      const normalizedProposal = normalizeProposalCandidate(source.proposal);
+      const testParse = LlmRepairProposalSchema.safeParse(normalizedProposal);
+      if (testParse.success) {
+        source.proposal = testParse.data;
+        notes.push('Normalized repair proposal operations into canonical PIE schema.');
+        if (AgentFinalResponseSchema.safeParse(source).success) {
+          return withEnvelope(source, notes);
+        }
+      }
+    }
     const classification = source.classification && typeof source.classification === 'object' && !Array.isArray(source.classification)
       ? source.classification as Record<string, unknown>
       : {};
@@ -474,7 +613,7 @@ function normalizeAgentEnvelope(input: Record<string, unknown>): {
 export function parseLlmRepairProposal(input: unknown): ProposalParseResult {
   const parsedInput = parseJsonInput(input);
   if (parsedInput.errors.length > 0) return { isValid: false, errors: parsedInput.errors.map((error) => error.replace(/^Response/, 'Proposal')) };
-  const candidate = parsedInput.candidate;
+  const candidate = normalizeProposalCandidate(parsedInput.candidate);
 
   const parsed = LlmRepairProposalSchema.safeParse(candidate);
   if (!parsed.success) {

@@ -1720,46 +1720,31 @@ async function runDoctor(): Promise<void> {
 
 function printHelp(): void {
   console.log(`
-Playwright Intelligence Engine CLI (pw-intel)
+Playwright Intelligence Engine CLI (pie / pw-intel)
 
-Usage:
+Core Workflows:
+  pie repair [--apply] [--all]      Autonomous self-healing (Two-Tier Hybrid: AST fast-path -> LLM with worktree proof)
   pw-intel init [dir] [--api-key <k>] [--model <m>] Initializes PIE config & optional LLM credentials
-  pw-intel profile [directory]   Builds the project repository convention profile
-  pw-intel cluster-failures <json> Groups failure observations by deterministic fingerprints
-  pw-intel evaluation-scorecard <json> Reconciles expected/predicted categories, repairs, abstentions, and latency
-  pw-intel plan-test-intelligence <requirements.json> Plans coverage, missing scenarios, and duplicate tests
-  pw-intel generate-agent <requirements.json> Uses structured LLM planning, then deterministic Playwright generation
-                                   --mode greenfield|brownfield --tests <tests.json> --base-url <url> --write --verify
-  pw-intel stability-feedback <selector> --outcome accepted|rejected Records operator repair feedback
-  pw-intel suite-health <json>    Calculates flaky-test and duration summaries
-  pw-intel team-dashboard <json> Aggregates repository CI evidence into a team dashboard
-  pw-intel impact <json>         Selects impacted tests from changed files and repository imports
-  pw-intel architect <featureName> Plans greenfield/brownfield Playwright architecture; add --write to create missing files
-  pw-intel qa <featureName>         Runs 4-phase evidence-driven QA workflow (plan, explore, generate, verify & falsify)
-                                   --workspace <dir> --url <baseUrl> --requirements <path> --gherkin <path> --diff --author template|hybrid|llm --out-dir <dir>
-  pw-intel ci-report <playwright-report.json> Ingests Playwright JSON and emits clusters, stability, gate, and CI annotations
-                                   --sarif-out <file> writes GitHub/code-scanning SARIF output
   pw-intel doctor                   Inspects host environment, Node, Git, Playwright & workspace readiness
-  pw-intel diagnose <trace.zip>     Diagnoses a Playwright trace archive and outputs root cause
-                                   --error-context <file> supplements traces with Playwright error-context.md
-  pw-intel repair <trace.zip>       Creates a proposal; add --execute for isolated verification
-                                   --test <spec> --pom <page-object> --class <Class> --member <member>
-                                   --config <playwright.config> --error-context <file> --worktree-id <id>
-                                   --operation <JSON> for an allowlisted frame/shadow/locator operation
-  pw-intel autonomous-repair <trace.zip> Runs the bounded LLM agent and deterministic isolated verifier
-                                   --execute applies the proposal only in a disposable worktree
-                                   --browser --browser-url <url> --allow-host <hostname[,hostname]>
-                                   --run-tests allows the agent to run an explicitly requested target test
-                                   --promote promotes only an independently verified repair; implies execution
+  pw-intel diagnose <trace.zip>     Diagnoses a Playwright trace archive and outputs causal root cause
   pw-intel reproduce <spec.ts>      Reruns a failing test with live multi-source diagnostic instrumentation
-  pw-intel inspect-testbed <dir>    Inspects external Playwright repositories and emits a reproducible manifest
-  pw-intel run-testbed <dir>       Runs bounded baseline commands for discovered repositories
-                                   --repository <name> --script <name> --timeout <ms> --out <file>
+  pw-intel qa <featureName>         Runs 4-phase evidence-driven QA workflow (plan, explore, generate, verify & falsify)
+  pw-intel ci-report <report.json>  Ingests Playwright JSON and emits clusters, stability, gate, and SARIF output
+
+Enterprise Repair & Governance:
+  pw-intel repair <trace.zip>       Creates targeted proposal; add --execute for isolated worktree verification
   pw-intel approve <proposalId>     Human review and cryptographic authorization of staged repair proposal
   pw-intel promote --token <token>  Atomically applies authorized repair proposal to active workspace
-  pw-intel benchmark [options]      Executes empirical real browser benchmark suite against Controlled App Server
+
+Architecture & Analysis:
+  pw-intel profile [directory]      Builds the project repository convention profile
+  pw-intel architect <featureName>  Plans greenfield/brownfield Playwright architecture (--write to emit)
+  pw-intel cluster-failures <json>  Groups failure observations by deterministic fingerprints
+  pw-intel suite-health <json>      Calculates flaky-test and duration summaries
+  pw-intel team-dashboard <json>    Aggregates repository CI evidence into a team dashboard
+  pw-intel impact <json>            Selects impacted tests from changed files and repository imports
   pw-intel mcp                      Starts the Model Context Protocol (MCP) JSON-RPC server on stdio
-  pw-intel generate <featureName>   Generates verified Page Object and Spec scaffolding
+  pw-intel benchmark [options]      Executes empirical real browser benchmark suite against Controlled App Server
   pw-intel --help                   Shows this help message
 
 Benchmark Options:

@@ -136,12 +136,24 @@ classification and is not treated as trusted source code.
 
 ---
 
-### 2.1.1. `pw-intel repair`
+### 2.1.1. `pie repair` (Two-Tier Autonomous Self-Healing)
 
-Builds a locator-repair proposal from a trace. The default mode is proposal-only
-and does not modify the active workspace. Supplying `--execute` runs the proposed
-patch inside a dedicated Git worktree and stages approval evidence only when the
-target test and intent gates pass.
+The primary interface for self-healing across failed Playwright traces. By default, it operates in dry-run mode (runs Gate 0 negative control filtering, Tier 1 AST fast-path matching, and Tier 2 semantic LLM authoring with isolated worktree execution) without modifying your working branch. Supplying `--apply` (or `-a`) atomically writes proven passing fixes to your workspace.
+
+```bash
+# Dry run: discover traces in test-results, verify repairs in worktree, 0 active changes
+npx pie repair
+
+# Repair and apply: verify passing in sandbox and apply fixes atomically
+npx pie repair --apply
+
+# Verbose output (including token usage and raw diffs)
+npx pie repair --apply --verbose
+```
+
+#### Targeted & Governance Mode (`pw-intel repair`)
+
+When targeting a specific Page Object or in compliance-heavy pipelines requiring cryptographic sign-off:
 
 ```bash
 npx pw-intel repair <path-to-trace.zip> --test tests/login.spec.ts --pom pages/LoginPage.ts --class LoginPage --member submit

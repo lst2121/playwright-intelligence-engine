@@ -1,6 +1,6 @@
-# Playwright Intelligence Engine (`pw-intel`)
+# Playwright Intelligence Engine (`pie` / `pw-intel`)
 
-> Fast, verification-first failure diagnosis, autonomous self-healing, and test generation for Microsoft Playwright suites.
+> Fast, verification-first failure diagnosis, autonomous self-healing, and intent-preserving test generation for Microsoft Playwright suites.
 
 [![npm version](https://img.shields.io/npm/v/playwright-intelligence-engine.svg?style=flat-square)](https://www.npmjs.com/package/playwright-intelligence-engine)
 [![License](https://img.shields.io/badge/License-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
@@ -9,10 +9,65 @@
 
 ---
 
-## 1. Installation
+## 1. Quick Start: Autonomous Self-Healing
 
-Run without installing via `npx`:
+When Playwright tests fail in your repository, heal them autonomously with a single command:
+
 ```bash
+# 1. Dry run: diagnose traces and verify fixes in an isolated worktree (0 active changes)
+npx pie repair
+
+# 2. Repair & Apply: verify passing in sandbox and apply fixes atomically to your workspace
+npx pie repair --apply
+```
+
+### The Two-Tier Hybrid Architecture
+
+```
+                       Playwright trace.zip
+                               │
+                               ▼
+        ┌──────────────────────────────────────────────┐
+        │        Gate 0: Negative Control Filter       │
+        │  Abstains on 4xx/5xx, offline network, DNS  │
+        └──────────────────────┬───────────────────────┘
+                               │ Passed Gate 0
+                               ▼
+        ┌──────────────────────────────────────────────┐
+        │      Tier 1: AST Fast-Path ($0.00 Cost)      │
+        │  Static locator & Page Object substitution   │
+        └──────────────────────┬───────────────────────┘
+                               │ Inconclusive / Drift
+                               ▼
+        ┌──────────────────────────────────────────────┐
+        │      Tier 2: Semantic LLM Authoring          │
+        │  Select2, dynamic widgets, structural shifts │
+        └──────────────────────┬───────────────────────┘
+                               │ Candidate Generated
+                               ▼
+        ┌──────────────────────────────────────────────┐
+        │      Headless Git Worktree Verification      │
+        │  Isolated -g test execution in fresh sandbox │
+        └──────────────────────┬───────────────────────┘
+                               │ Proven Green
+                               ▼
+                   Active Workspace Updated
+```
+
+- **Gate 0 (Fail-Closed Negative Control):** Detects backend crashes, HTTP 4xx/5xx responses, and DNS resolution failures. If a test failed because the server or network was down, PIE immediately abstains from modifying UI locators. Zero false heals.
+- **Tier 1 (Deterministic AST Fast-Path):** Operates 100% offline at $0.00 token cost. Analyzes trace action snapshots against Page Object and test AST trees to substitute broken locators in milliseconds.
+- **Tier 2 (Semantic LLM Fallback):** Engaged only when DOM structure shifts significantly (e.g. Select2 comboboxes, nested modals, dynamic custom components).
+- **Worktree Sandboxed Proof:** Every single fix is compiled and re-executed against headless Playwright in an isolated Git worktree using per-test title isolation (`-g "^testTitle$"`) before touching your working tree.
+- **Assertion Invariance:** Assertions (`expect(...)`) are strictly immutable. PIE will never alter, weaken, or remove test assertions.
+
+---
+
+## 2. Installation & LLM Configuration
+
+Run directly without installing via `npx`:
+```bash
+npx pie --help
+# or
 npx pw-intel --help
 ```
 
@@ -21,33 +76,24 @@ Or install in your project:
 npm install --save-dev playwright-intelligence-engine
 ```
 
-Or install globally:
-```bash
-npm install -g playwright-intelligence-engine
-```
+*(Both `pie` and `pw-intel` executables are provided).*
 
-*(Both `pw-intel` and `playwright-intelligence-engine` commands are available).*
-
----
-
-## 2. Project Setup & LLM Configuration
-
-Initialize PIE in your Playwright repository:
+### Initialize PIE in your Playwright repository:
 
 ```bash
-npx pw-intel init
+npx pie init
 ```
 
 ### Providing your LLM API Key (Optional)
 
-> **Note:** Failure diagnosis, trace analysis, and AST test repairs run **100% offline and locally** without an LLM key.
-> An API key is only needed if you want AI-assisted test generation (`pw-intel generate-agent`).
+> **Note:** Trace diagnosis, Gate 0 negative control filtering, and Tier 1 AST test repairs run **100% offline and locally** without an LLM key.
+> An API key is only needed if you want Tier 2 complex semantic repairs or AI-assisted test generation (`pw-intel qa`).
 
 You can configure an LLM key in any of three ways:
 
 #### Option A: During `init`
 ```bash
-npx pw-intel init --api-key sk-your-openai-or-deepseek-key --model gpt-4o
+npx pie init --api-key sk-your-openai-or-deepseek-key --model gpt-4o
 ```
 *This automatically creates `.env` and adds it to your `.gitignore`.*
 
@@ -68,18 +114,18 @@ PIE_LLM_ENDPOINT=https://api.openai.com/v1/chat/completions
 
 Verify your setup at any time:
 ```bash
-npx pw-intel doctor
+npx pie doctor
 ```
 
 ---
 
-## 3. How to Use
+## 3. Core Capabilities
 
 ### 🔍 A. Diagnose a Failing Test
-Ingest a Playwright trace archive (`trace.zip`) to find the exact root cause:
+Ingest a Playwright trace archive (`trace.zip`) to pinpoint root causes without running repairs:
 
 ```bash
-npx pw-intel diagnose ./test-results/trace.zip
+npx pie diagnose ./test-results/trace.zip
 ```
 
 **Output example:**
@@ -95,60 +141,55 @@ npx pw-intel diagnose ./test-results/trace.zip
 }
 ```
 
-If the failure was caused by a backend crash (HTTP 500) or expired authentication (HTTP 401), PIE flags it immediately and abstains from modifying locators.
+If the failure was caused by a backend crash (HTTP 500) or network disconnection, PIE flags it immediately as a Negative Control Trigger and abstains.
 
 ---
 
-### 🔧 B. Autonomous Test Repair (Safe Worktrees)
-Repair a broken test or Page Object without risking your active Git branch:
+### 🚀 B. Evidence-Driven Test Generation (`pw-intel qa`)
+Generate full end-to-end test suites and Page Objects conforming to your repository's exact conventions:
 
 ```bash
-# 1. Plan and test the repair in an isolated Git worktree:
-npx pw-intel autonomous-repair ./test-results/trace.zip --execute
-
-# 2. Check the cryptographic proposal:
-npx pw-intel approve <proposalId>
-
-# 3. Promote the verified fix atomically to your workspace:
-npx pw-intel promote --token <approvalToken>
+npx pw-intel qa "Checkout Flow" --url http://localhost:3000 --author hybrid --out-dir tests/e2e
 ```
 
-**The Safety Guarantee:**
-- PIE **never** deletes or weakens your assertions (`expect(...)`).
-- PIE **never** alters test inputs or reorders user actions.
-- All repairs are executed and proven passing in a background worktree before promotion.
+**Generation Modes:**
+- **Brownfield Exploration:** Discovers existing Page Objects, fixtures, custom matchers, and auth states in your repository. Generates clean tests that reuse existing architecture without creating redundant login steps or duplicate Page Objects.
+- **Greenfield Scaffolding:** Sets up a complete Playwright testing architecture with Page Object Model patterns and clean fixture isolation from raw requirements.
+- **Automated Verification & Falsification:** Compiles generated TypeScript files and runs Playwright discovery to guarantee 0 syntax or type errors.
 
 ---
 
-### 🚀 C. Generate Tests from Requirements
-Generate complete Playwright test suites and Page Objects that conform to your repository's conventions:
+### 🧪 C. Live Diagnostic Reproduce
+Rerun a flaky or intermittent test in a dedicated worktree with live DOM snapshots, network capture, and console stream telemetry:
 
 ```bash
-npx pw-intel generate-agent ./requirements.json --mode brownfield --write --verify
-```
-
-**Arguments:**
-- `--mode brownfield`: Reuses existing fixtures, auth states, and Page Objects without generating duplicate login steps.
-- `--mode greenfield`: Scaffolds a new end-to-end testing architecture from scratch.
-- `--write`: Saves the generated files to disk.
-- `--verify`: Runs TypeScript typecheck and Playwright discovery to ensure generated code compiles.
-
----
-
-### 🧪 D. Reproduce a Spec with Live Instrumentation
-Rerun a flaky test with live DOM snapshots, network capture, and console logs:
-
-```bash
-npx pw-intel reproduce tests/checkout.spec.ts
+npx pie reproduce tests/checkout.spec.ts
 ```
 
 ---
 
-### 📊 E. CI/CD Quality Gate & SARIF Reporting
-Convert Playwright test results into GitHub Actions annotations and SARIF security/flakiness reports:
+### 📊 D. CI/CD Quality Gate & SARIF Reporting
+Convert Playwright test results into GitHub Actions annotations, failure clusters, and SARIF security/flakiness reports:
 
 ```bash
 npx pw-intel ci-report ./test-results/results.json --sarif-out ./pie-results.sarif
+```
+
+---
+
+### 🔒 E. Enterprise Governance & Cryptographic CI Sign-Off
+
+For regulated or compliance-heavy CI/CD pipelines where autonomous changes to source code require explicit multi-step sign-off:
+
+```bash
+# 1. Generate an isolated repair proposal and execute sandbox proof:
+npx pw-intel repair ./test-results/trace.zip --execute
+
+# 2. Inspect cryptographic proposal hash and sign off:
+npx pw-intel approve <proposalId>
+
+# 3. Promote the approved fix atomically to production:
+npx pw-intel promote --token <approvalToken>
 ```
 
 ---
@@ -195,16 +236,17 @@ Add to `claude_desktop_config.json`:
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
-| `init` | `pw-intel init [--api-key <k>]` | Initializes `.pie/config.json` & optional LLM credentials |
-| `doctor` | `pw-intel doctor` | Verifies Node, Git, Playwright & LLM readiness |
-| `diagnose` | `pw-intel diagnose <trace.zip>` | Ingests trace and outputs causal root cause |
-| `autonomous-repair` | `pw-intel autonomous-repair <trace.zip> --execute` | Verifies repair in an isolated Git worktree |
-| `approve` | `pw-intel approve <proposalId>` | Authorizes a verified repair proposal |
-| `promote` | `pw-intel promote --token <token>` | Applies authorized fix atomically to active code |
-| `generate-agent` | `pw-intel generate-agent <reqs.json> --write` | Generates tests matching project conventions |
-| `reproduce` | `pw-intel reproduce <spec.ts>` | Reruns spec with live DOM and network capture |
-| `ci-report` | `pw-intel ci-report <results.json>` | Generates CI annotations and SARIF report |
-| `mcp` | `pw-intel mcp` | Starts the Model Context Protocol stdio server |
+| `repair` | `npx pie repair [--apply] [--all]` | Two-tier autonomous repair with worktree verification |
+| `diagnose` | `npx pie diagnose <trace.zip>` | Ingests trace and outputs causal root cause |
+| `doctor` | `npx pie doctor` | Verifies Node, Git, Playwright & LLM readiness |
+| `init` | `npx pie init [--api-key <k>]` | Initializes `.pie/config.json` & optional LLM credentials |
+| `qa` | `npx pw-intel qa <feature> --author hybrid` | Evidence-driven 4-phase test generation (greenfield/brownfield) |
+| `reproduce` | `npx pie reproduce <spec.ts>` | Reruns spec with live DOM and network capture |
+| `ci-report` | `npx pw-intel ci-report <results.json>` | Generates CI annotations and SARIF report |
+| `repair (targeted)` | `npx pw-intel repair <trace.zip> --execute` | Generates targeted proposal verified in isolated worktree |
+| `approve` | `npx pw-intel approve <proposalId>` | Authorizes cryptographic repair proposal |
+| `promote` | `npx pw-intel promote --token <token>` | Atomically applies authorized repair proposal to active workspace |
+| `mcp` | `npx pie mcp` | Starts the Model Context Protocol stdio server |
 
 ---
 

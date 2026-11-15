@@ -268,17 +268,20 @@ export class SnapshotResolver {
    * Serializes a resolved element tree back into clean, formatted HTML.
    */
   public static toHtml(element: ResolvedElement, indent = 0): string {
+    if (!element || !element.tag) return '';
     const spacing = '  '.repeat(indent);
-    const attrs = Object.entries(element.attributes)
-      .map(([k, v]) => `${k}="${v.replace(/"/g, '&quot;')}"`)
+    const attrs = Object.entries(element.attributes ?? {})
+      .map(([k, v]) => `${k}="${String(v ?? '').replace(/"/g, '&quot;')}"`)
       .join(' ');
     const attrString = attrs.length > 0 ? ` ${attrs}` : '';
+    const children = element.children ?? [];
+    const text = element.text ?? '';
 
-    if (element.children.length === 0) {
-      return `${spacing}<${element.tag}${attrString}>${element.text}</${element.tag}>`;
+    if (children.length === 0) {
+      return `${spacing}<${element.tag}${attrString}>${text}</${element.tag}>`;
     }
 
-    const childrenHtml = element.children.map((c) => SnapshotResolver.toHtml(c, indent + 1)).join('\n');
+    const childrenHtml = children.map((c) => SnapshotResolver.toHtml(c, indent + 1)).filter(Boolean).join('\n');
     return `${spacing}<${element.tag}${attrString}>\n${childrenHtml}\n${spacing}</${element.tag}>`;
   }
 

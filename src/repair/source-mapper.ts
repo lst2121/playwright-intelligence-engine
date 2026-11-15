@@ -130,8 +130,24 @@ export async function discoverRepairSourceMapping(input: {
       if (!locator.className || locator.pattern === 'inline') continue;
       const matched = selectorMatches(input.failedAction.selector ?? '', locator);
       if (!matched) continue;
+
+      let testFilePath = resolvedTestSource.path ?? '';
+      if (!testFilePath || testFilePath === filePath || (!testFilePath.includes('.spec.') && !testFilePath.includes('.test.'))) {
+        const errorStack = input.failedAction.errorStack ?? '';
+        const stackMatches = [...errorStack.matchAll(/(?:at\s+.*?\()?([A-Za-z]:\\[^:\s)]+\.(?:spec|test)\.[tj]sx?|\/[^:\s)]+\.(?:spec|test)\.[tj]sx?)/gi)];
+        for (const sm of stackMatches) {
+          if (!sm?.[1]) continue;
+          const candidate = path.resolve(sm[1]);
+          const found = sourceFiles.find((f) => path.resolve(f) === candidate);
+          if (found) {
+            testFilePath = found;
+            break;
+          }
+        }
+      }
+
       matches.push({
-        testFilePath: resolvedTestSource.path ?? '',
+        testFilePath,
         pomFilePath: filePath,
         className: locator.className,
         memberName: locator.propertyName,

@@ -106,11 +106,13 @@ export class SnapshotResolver {
     }
 
     const role = attributes['role'] ?? SnapshotResolver.inferRoleFromTag(tag, attributes);
+    const inputValue = tag === 'input' ? (attributes['value'] ?? attributes['__playwright_value_']) : undefined;
     const accessibleName =
       attributes['aria-label'] ??
       attributes['alt'] ??
       attributes['title'] ??
       attributes['placeholder'] ??
+      inputValue ??
       textAccumulator.trim();
 
     return {
@@ -211,11 +213,13 @@ export class SnapshotResolver {
     }
 
     const role = attributes['role'] ?? SnapshotResolver.inferRoleFromTag(tag, attributes);
+    const inputValue = tag === 'input' ? (attributes['value'] ?? attributes['__playwright_value_']) : undefined;
     const accessibleName =
       attributes['aria-label'] ??
       attributes['alt'] ??
       attributes['title'] ??
       attributes['placeholder'] ??
+      inputValue ??
       textAccumulator.trim();
 
     return {

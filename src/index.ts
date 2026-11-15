@@ -105,6 +105,10 @@ export * from './evaluation/evaluation-scorecard.js';
 export * from './repair/direct-code-repair.js';
 export * from './repair/hybrid-repair-orchestrator.js';
 
+// Defect Reporting & Flaky Test Stabilization
+export * from './integrations/bug-ticket-generator.js';
+export * from './stabilize/flaky-test-stabilizer.js';
+
 // Framework & MCP
 export * from './framework/config-adapter.js';
 export * from './mcp/server.js';

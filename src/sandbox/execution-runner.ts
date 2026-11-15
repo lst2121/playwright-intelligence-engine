@@ -294,7 +294,7 @@ export class ExecutionRunner {
     const relOrNormPath = path.isAbsolute(options.testFilePath)
       ? path.relative(options.cwd, options.testFilePath).replace(/\\/g, '/') || options.testFilePath.replace(/\\/g, '/')
       : options.testFilePath.replace(/\\/g, '/');
-    const args = ['playwright', 'test', relOrNormPath, '--reporter=line'];
+    const args = ['playwright', 'test', relOrNormPath, '--reporter=list'];
     if (options.headless === false) {
       args.push('--headed');
     }

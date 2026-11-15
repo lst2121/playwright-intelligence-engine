@@ -8,6 +8,7 @@ import { SnapshotResolver, ResolvedElement } from '../trace/snapshot-resolver.js
 import { WorktreeManager, WorktreeInfo } from '../sandbox/worktree-manager.js';
 import { ExecutionRunner } from '../sandbox/execution-runner.js';
 import { AssertionHasher } from './assertion-hasher.js';
+import { BugTicketGenerator, BugTicket } from '../integrations/bug-ticket-generator.js';
 
 export interface DirectCodeRepairTelemetry {
   provider: string;
@@ -41,6 +42,7 @@ export interface DirectCodeRepairResult {
   worktree?: WorktreeInfo | undefined;
   executionPassed?: boolean | undefined;
   executionOutput?: string | undefined;
+  bugTicket?: BugTicket | undefined;
   reason?: string | undefined;
 }
 
@@ -222,9 +224,20 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
   const missingAsset = context.networkEvents.find((n) => n.status === 404 && /\.(?:png|jpe?g|svg|webp|json|api)/i.test(n.url) && !/favicon|docketai/i.test(n.url));
   if (serverError || missingAsset) {
     const offending = serverError ?? missingAsset!;
+    const ticket = BugTicketGenerator.generate({
+      context,
+      tracePath,
+      workspaceRoot,
+      testTitle: ArchiveReader.extractTestTitleFromArchive(tracePath, failedAction.sourceFile),
+      testFile: failedAction.sourceFile,
+      offendingNetworkEvent: offending,
+      category: serverError ? 'BACKEND_500' : 'ENVIRONMENT_FAILURE',
+    });
+
     return {
       status: 'ABSTAINED',
       tracePath,
+      bugTicket: ticket,
       telemetry: {
         provider: 'deterministic-negative-control',
         model: 'pie-negative-control',
@@ -237,7 +250,7 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
         executionMs: 0,
         totalMs: Date.now() - startedTotal,
       },
-      reason: `Negative Control Triggered: Test failed due to backend server failure (HTTP ${offending.status} on ${offending.url}). Modifying UI locators or code is prohibited.`,
+      reason: `Negative Control Triggered: Test failed due to backend server failure (HTTP ${offending.status} on ${offending.url}). Modifying UI locators or code is prohibited. Bug report filed: ${ticket.ticketId}.`,
     };
   }
 

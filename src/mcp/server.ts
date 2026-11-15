@@ -2,6 +2,7 @@ import readline from 'node:readline';
 import path from 'node:path';
 import fs from 'node:fs';
 import { ArchiveReader } from '../trace/archive-reader.js';
+import { TraceParser } from '../trace/trace-parser.js';
 import { VersionDetector } from '../trace/version-detector.js';
 import { TraceAdapterRegistry } from '../trace/adapters/adapter-registry.js';
 import { EvidenceCorrelator } from '../diagnostics/evidence-correlator.js';
@@ -33,6 +34,8 @@ import { runAutonomousRepairWorkflow } from '../intelligence/autonomous-repair-w
 import { runBatchRepairWorkflow } from '../intelligence/batch-repair-workflow.js';
 import { runEvidenceDrivenGeneration } from '../intelligence/generation-verifier.js';
 import type { AuthorKind } from '../authoring/index.js';
+import { BugTicketGenerator } from '../integrations/bug-ticket-generator.js';
+import { FlakyTestStabilizer } from '../stabilize/flaky-test-stabilizer.js';
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -227,6 +230,34 @@ export class McpServer {
                 name: 'pw_intel_profile',
                 description: 'Builds and persists a repository convention profile for project-aware diagnosis and generation.',
                 inputSchema: { type: 'object', properties: {} },
+              },
+              {
+                name: 'pw_intel_generate_bug_ticket',
+                description: 'Generates a ready-to-file GitHub/Jira defect ticket with HAR excerpt, reproduction curl, and console diagnostics from a negative control trace archive.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    tracePath: { type: 'string', description: 'Workspace-relative or absolute path to trace.zip archive' },
+                    testFile: { type: 'string', description: 'Optional test spec file path' },
+                    testTitle: { type: 'string', description: 'Optional test title' },
+                  },
+                  required: ['tracePath'],
+                },
+              },
+              {
+                name: 'pw_intel_stabilize_test',
+                description: 'Refactors flaky arbitrary sleeps (waitForTimeout) into event-driven awaits and verifies stability across repeated trials in an isolated Git worktree.',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    testFilePath: { type: 'string', description: 'Workspace-relative or absolute path to test specification file' },
+                    trials: { type: 'number', description: 'Number of verification trials to execute (default: 3)' },
+                    execute: { type: 'boolean', description: 'Whether to run multi-trial worktree verification (default: true)' },
+                    autoPromote: { type: 'boolean', description: 'Whether to atomically promote verified stabilized test to workspace (default: false)' },
+                    configPath: { type: 'string', description: 'Optional Playwright configuration file path' },
+                  },
+                  required: ['testFilePath'],
+                },
               },
               {
                 name: 'diagnose_trace',
@@ -515,6 +546,52 @@ export class McpServer {
             failureObservation: correlated.failureObservation,
             causalGraph: correlated.classification.causalGraph,
           },
+        };
+      }
+
+      if (toolName === 'pw_intel_generate_bug_ticket') {
+        const tracePathRaw = args?.tracePath;
+        if (!tracePathRaw || typeof tracePathRaw !== 'string') {
+          return { jsonrpc: '2.0', id, error: { code: -32000, message: 'tracePath argument must be a non-empty string' } };
+        }
+        const tracePath = this.assertPathInWorkspace(tracePathRaw);
+        const { traceEntryNames, networkEntryNames } = ArchiveReader.findTraceFileEntries(tracePath);
+        const traceText = await ArchiveReader.readEntriesAsText(tracePath, traceEntryNames ?? []);
+        const netText = networkEntryNames ? await ArchiveReader.readEntriesAsText(tracePath, networkEntryNames) : '';
+        const context = TraceParser.assembleDiagnosticContext(traceText.split('\n'), netText.split('\n'));
+        const testTitle = args?.testTitle ?? ArchiveReader.extractTestTitleFromArchive(tracePath, context.failedAction.sourceFile);
+        const ticket = BugTicketGenerator.generate({
+          context,
+          tracePath,
+          workspaceRoot: this.workspaceRoot,
+          testTitle,
+          testFile: args?.testFile ?? context.failedAction.sourceFile,
+        });
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: { content: [{ type: 'text', text: JSON.stringify(ticket, null, 2) }] },
+        };
+      }
+
+      if (toolName === 'pw_intel_stabilize_test') {
+        const testFilePathRaw = args?.testFilePath;
+        if (!testFilePathRaw || typeof testFilePathRaw !== 'string') {
+          return { jsonrpc: '2.0', id, error: { code: -32000, message: 'testFilePath argument must be a non-empty string' } };
+        }
+        const testFilePath = this.assertPathInWorkspace(testFilePathRaw);
+        const res = await FlakyTestStabilizer.stabilize({
+          testFilePath,
+          workspaceRoot: this.workspaceRoot,
+          trials: args?.trials,
+          execute: args?.execute,
+          autoPromote: args?.autoPromote,
+          configPath: args?.configPath ? this.assertPathInWorkspace(args.configPath) : undefined,
+        });
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: { content: [{ type: 'text', text: JSON.stringify(res, null, 2) }] },
         };
       }
 

@@ -39,6 +39,8 @@ import { runGenerationAgent } from '../intelligence/generation-agent.js';
 import { runEvidenceDrivenGeneration } from '../intelligence/generation-verifier.js';
 import { GitDiffCollector } from '../collectors/git-diff-collector.js';
 import type { AuthorKind } from '../authoring/index.js';
+import { BugTicketGenerator } from '../integrations/bug-ticket-generator.js';
+import { FlakyTestStabilizer } from '../stabilize/flaky-test-stabilizer.js';
 
 function findTraceArchives(targetPath?: string): string[] {
   if (targetPath && !targetPath.startsWith('--')) {
@@ -454,6 +456,105 @@ export async function runCli(argv: string[]): Promise<void> {
       return;
     } catch (err: any) {
       console.error(`Repair failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+  }
+
+  if (command === 'report-defect') {
+    const option = (name: string): string | undefined => {
+      const index = argv.indexOf(name);
+      return index >= 0 ? argv[index + 1] : undefined;
+    };
+    const targetTrace = argv[3] && !argv[3].startsWith('--') ? argv[3] : option('--trace');
+    const traces = findTraceArchives(targetTrace);
+    if (traces.length === 0) {
+      console.error('Error: No trace archives found. Specify a trace file: pw-intel report-defect <trace.zip>');
+      process.exit(1);
+    }
+    const tracePath = traces[0]!;
+    try {
+      const { traceEntryNames, networkEntryNames } = ArchiveReader.findTraceFileEntries(tracePath);
+      const traceText = await ArchiveReader.readEntriesAsText(tracePath, traceEntryNames ?? []);
+      const netText = networkEntryNames ? await ArchiveReader.readEntriesAsText(tracePath, networkEntryNames) : '';
+      const context = TraceParser.assembleDiagnosticContext(traceText.split('\n'), netText.split('\n'));
+      const testTitle = ArchiveReader.extractTestTitleFromArchive(tracePath, context.failedAction.sourceFile);
+      const ticket = BugTicketGenerator.generate({
+        context,
+        tracePath,
+        workspaceRoot: option('--workspace') ?? process.cwd(),
+        testTitle,
+        testFile: context.failedAction.sourceFile,
+      });
+
+      console.log('\n╔══════════════════════════════════════════════════════════════════════╗');
+      console.log('║        PLAYWRIGHT INTELLIGENCE ENGINE: DEFECT TICKET FILED           ║');
+      console.log('╚══════════════════════════════════════════════════════════════════════╝\n');
+      console.log(`Ticket ID       : ${ticket.ticketId}`);
+      console.log(`Title           : ${ticket.title}`);
+      console.log(`Severity        : ${ticket.severity}`);
+      console.log(`Classification  : ${ticket.category}`);
+      if (ticket.reproductionCurl) {
+        console.log(`Reproduction    : ${ticket.reproductionCurl}`);
+      }
+      if (ticket.savedPath) {
+        console.log(`Markdown File   : ${path.relative(process.cwd(), ticket.savedPath)}`);
+        console.log(`JSON File       : ${path.relative(process.cwd(), ticket.savedPath.replace(/\\.md$/, '.json'))}`);
+      }
+      console.log('\nJira Markup Excerpt:\n' + ticket.jiraMarkup.slice(0, 500) + '...\n');
+      return;
+    } catch (err: any) {
+      console.error(`Defect reporting failed: ${err?.message ?? String(err)}`);
+      process.exit(1);
+    }
+  }
+
+  if (command === 'stabilize') {
+    const option = (name: string): string | undefined => {
+      const index = argv.indexOf(name);
+      return index >= 0 ? argv[index + 1] : undefined;
+    };
+    const targetSpec = argv[3] && !argv[3].startsWith('--') ? argv[3] : option('--spec');
+    if (!targetSpec) {
+      console.error('Error: Specification file required. Usage: pw-intel stabilize <spec.ts> [--trials=3] [--apply]');
+      process.exit(1);
+    }
+    const trialsVal = option('--trials');
+    const trials = trialsVal ? parseInt(trialsVal, 10) : 3;
+    const autoPromote = argv.includes('--apply') || argv.includes('--promote');
+    const execute = !argv.includes('--no-exec');
+    const lineVal = option('--line');
+    const targetLine = lineVal ? parseInt(lineVal, 10) : undefined;
+
+    console.log(`\nScanning and stabilizing: ${targetSpec} (Trials: ${trials}, Apply: ${autoPromote ? 'YES' : 'NO'})...`);
+    try {
+      const res = await FlakyTestStabilizer.stabilize({
+        testFilePath: targetSpec,
+        workspaceRoot: option('--workspace') ?? process.cwd(),
+        trials,
+        execute,
+        autoPromote,
+        configPath: option('--config'),
+        targetLine,
+      });
+
+      console.log(`\nStatus          : ${res.status}`);
+      console.log(`Anti-Patterns   : ${res.antiPatterns.length} detected`);
+      for (const p of res.antiPatterns) {
+        console.log(`  • Line ${p.line}: ${p.statementText} -> ${p.suggestedReplacement}`);
+      }
+      if (res.diff) {
+        console.log('\nAST Diff:\n' + res.diff);
+      }
+      if (res.confidenceInterval) {
+        console.log(`Verification    : ${res.trialsPassed}/${res.trialsTotal} trials passed (${res.confidenceInterval.center}% Wilson score confidence)`);
+      }
+      console.log(`Outcome         : ${res.reason}\n`);
+      if (res.status === 'VERIFICATION_FAILED' || res.status === 'FAILED') {
+        process.exitCode = 1;
+      }
+      return;
+    } catch (err: any) {
+      console.error(`Stabilization failed: ${err?.message ?? String(err)}`);
       process.exit(1);
     }
   }
@@ -1724,6 +1825,8 @@ Playwright Intelligence Engine CLI (pie / pw-intel)
 
 Usage:
   pie repair [--apply] [--all]      Autonomous self-healing (Two-Tier Hybrid: AST fast-path -> LLM with worktree proof)
+  pw-intel stabilize <spec.ts>      Refactors flaky arbitrary sleeps (waitForTimeout) into event-driven awaits
+  pw-intel report-defect <trace>    Generates ready-to-file GitHub/Jira Issue with HAR & curl from negative control
   pw-intel init [dir] [--api-key <k>] [--model <m>] Initializes PIE config & optional LLM credentials
   pw-intel doctor                   Inspects host environment, Node, Git, Playwright & workspace readiness
   pw-intel diagnose <trace.zip>     Diagnoses a Playwright trace archive and outputs causal root cause

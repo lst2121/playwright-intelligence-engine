@@ -406,42 +406,49 @@ export async function runBatchRepairWorkflow(
     )];
 
     if (impactedSpecs.length > 0) {
-      const relSpecs = impactedSpecs.map((s) => path.relative(workspaceRoot, s).replace(/\\/g, '/'));
-      const testArgs = ['playwright', 'test', ...relSpecs, '--reporter=line'];
-      if (input.configPath) {
-        testArgs.push('--config', path.relative(workspaceRoot, input.configPath).replace(/\\/g, '/'));
-      }
+      // Verify each impacted spec file in the worktree independently to prevent cross-spec interference
+      for (const specPath of impactedSpecs) {
+        const relSpec = path.relative(workspaceRoot, specPath).replace(/\\/g, '/');
+        const specItems = proposableItems.filter((it) => it.testFilePath === specPath && it.status === 'PROPOSAL_READY');
+        if (specItems.length === 0) continue;
 
-      const execResult = await ExecutionRunner.run('npx', {
-        cwd: worktree.worktreePath,
-        args: testArgs,
-        timeoutMs: 120000,
-      });
+        const testArgs = ['playwright', 'test', relSpec, '--reporter=line'];
+        if (input.configPath) {
+          testArgs.push('--config', path.relative(workspaceRoot, input.configPath).replace(/\\/g, '/'));
+        }
 
-      const passedMatch = execResult.stdout.match(/(\d+)\s+passed/i);
-      const passedCount = passedMatch ? parseInt(passedMatch[1] ?? '0', 10) : 0;
-      executionPassed = execResult.exitCode === 0 && passedCount > 0 && !execResult.timedOut;
+        const execResult = await ExecutionRunner.run('npx', {
+          cwd: worktree.worktreePath,
+          args: testArgs,
+          timeoutMs: 60000,
+        });
 
-      for (const it of proposableItems) {
-        if (it.status === 'PROPOSAL_READY') {
-          it.status = executionPassed ? 'VERIFIED' : 'VERIFICATION_FAILED';
-          if (!executionPassed) {
+        const passedMatch = execResult.stdout.match(/(\d+)\s+passed/i);
+        const passedCount = passedMatch ? parseInt(passedMatch[1] ?? '0', 10) : 0;
+        const specPassed = execResult.exitCode === 0 && passedCount > 0 && !execResult.timedOut;
+
+        for (const it of specItems) {
+          it.status = specPassed ? 'VERIFIED' : 'VERIFICATION_FAILED';
+          if (!specPassed) {
             it.reason = execResult.timedOut ? 'Execution timed out in worktree' : `Worktree Playwright tests failed (exitCode=${execResult.exitCode})`;
           }
         }
       }
 
-      // Phase 3: Atomic Promotion if requested and verified
-      if (executionPassed && input.autoPromote) {
+      // Phase 3: Atomic Promotion for files where all related items verified green
+      if (input.autoPromote) {
         for (const [relPath, content] of modifiedFileContents.entries()) {
-          const workspaceDest = path.resolve(workspaceRoot, relPath);
-          await fs.mkdir(path.dirname(workspaceDest), { recursive: true });
-          await fs.writeFile(workspaceDest, content, 'utf8');
-          promotedFiles.push(relPath);
-        }
-        for (const it of proposableItems) {
-          if (it.status === 'VERIFIED') {
-            it.status = 'PROMOTED';
+          const fullTarget = path.resolve(workspaceRoot, relPath);
+          const relatedItems = proposableItems.filter((it) => it.targetFilePath && path.resolve(workspaceRoot, it.targetFilePath) === fullTarget);
+          const allVerified = relatedItems.length > 0 && relatedItems.every((it) => it.status === 'VERIFIED');
+          if (allVerified) {
+            const workspaceDest = path.resolve(workspaceRoot, relPath);
+            await fs.mkdir(path.dirname(workspaceDest), { recursive: true });
+            await fs.writeFile(workspaceDest, content, 'utf8');
+            promotedFiles.push(relPath);
+            for (const it of relatedItems) {
+              it.status = 'PROMOTED';
+            }
           }
         }
       }

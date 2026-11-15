@@ -329,6 +329,11 @@ export async function runCli(argv: string[]): Promise<void> {
     const candidateArg = argv[3] && !argv[3].startsWith('--') ? argv[3] : undefined;
     const isAll = argv.includes('--all') || (!candidateArg && !option('--trace'));
 
+    const shouldApply = argv.includes('--apply') || argv.includes('-a') || argv.includes('--write') || argv.includes('-w') || (argv.includes('--execute') && argv.includes('--promote'));
+    const execute = shouldApply || argv.includes('--execute');
+    const autoPromote = shouldApply || argv.includes('--promote');
+    const verbose = argv.includes('--verbose') || argv.includes('-v');
+
     let traces: string[] | undefined;
     if (!isAll) {
       const tracePathCandidate = option('--trace') ?? candidateArg;
@@ -336,7 +341,7 @@ export async function runCli(argv: string[]): Promise<void> {
       if (traces.length === 0) {
         console.error(
           'Error: No trace.zip files found.\n' +
-          'Usage: npx pie repair [--all] [--execute] [--promote] [--mode=hybrid|deterministic|llm]'
+          'Usage: npx pie repair [--apply] [--all] [--verbose]'
         );
         process.exit(1);
       }
@@ -346,19 +351,19 @@ export async function runCli(argv: string[]): Promise<void> {
       if (!argv.includes('--json')) {
         console.log('');
         console.log('╔══════════════════════════════════════════════════════════════════════╗');
-        console.log(`║        PLAYWRIGHT INTELLIGENCE ENGINE: ${mode.toUpperCase()} CODE REPAIR`.padEnd(71) + '║');
+        console.log('║               PLAYWRIGHT INTELLIGENCE ENGINE (PIE)                   ║');
+        console.log('║                     Autonomous Self-Healing                          ║');
         console.log('╚══════════════════════════════════════════════════════════════════════╝');
-        console.log(`Execution Mode     : ${mode.toUpperCase()}`);
-        console.log(`Auto-Promotion     : ${argv.includes('--promote') ? 'ENABLED' : 'DISABLED (dry run)'}`);
-        console.log(`Worktree Testing   : ${argv.includes('--execute') ? 'ENABLED' : 'DISABLED'}`);
+        console.log(`Action             : ${shouldApply ? 'REPAIR & APPLY (worktree verified)' : 'DRY RUN (inspection only, pass --apply to write)'}`);
+        console.log(`Worktree Sandbox   : ENABLED (headless)`);
         console.log('─'.repeat(72));
       }
 
       const hybridResult = await runHybridRepair({
         workspaceRoot: option('--workspace') ?? process.cwd(),
         tracePaths: traces,
-        execute: argv.includes('--execute'),
-        autoPromote: argv.includes('--promote'),
+        execute,
+        autoPromote,
         configPath: option('--config'),
         mode,
         onProgress: argv.includes('--json')
@@ -367,22 +372,26 @@ export async function runCli(argv: string[]): Promise<void> {
               const tag = `[${ev.index}/${ev.total}]`;
               if (ev.stage === 'tier1_evaluating') {
                 const name = path.basename(path.dirname(ev.tracePath));
-                console.log(`${tag} 🔍 Ingesting: ${name}`);
-                console.log(`      ⚡ Tier 1: Evaluating deterministic AST locators...`);
+                console.log(`${tag} › Ingesting trace: ${name}`);
+                console.log(`      › Evaluating deterministic AST locator match...`);
               } else if (ev.stage === 'tier1_verified') {
-                console.log(`      ✅ Healed via Tier 1 Fast-Path (0 tokens, $0.00 USD)`);
+                console.log(`      ✔ Verified & healed via AST Fast-Path`);
               } else if (ev.stage === 'tier2_fallback') {
-                console.log(`      🔄 Tier 1 inconclusive. Cascading to Tier 2 (LLM Authoring)...`);
+                console.log(`      › AST inconclusive. Cascading to semantic LLM...`);
               } else if (ev.stage === 'tier2_authoring') {
-                console.log(`      🧠 Tier 2: Generating semantic code repair...`);
+                console.log(`      › Synthesizing code repair with LLM...`);
               } else if (ev.stage === 'tier2_verified') {
-                console.log(`      ✅ Healed via Tier 2 LLM (${ev.tokens?.toLocaleString()} tokens, $${ev.costUsd?.toFixed(6)} USD)`);
+                if (verbose) {
+                  console.log(`      ✔ Verified green via LLM (${ev.tokens?.toLocaleString()} tokens, $${ev.costUsd?.toFixed(6)} USD)`);
+                } else {
+                  console.log(`      ✔ Verified green in isolated worktree`);
+                }
               } else if (ev.stage === 'tier2_proposal') {
-                console.log(`      💡 Tier 2 Proposal Ready (${ev.tokens?.toLocaleString()} tokens, $${ev.costUsd?.toFixed(6)} USD)`);
+                console.log(`      › Repair proposal ready for review`);
               } else if (ev.stage === 'abstained') {
-                console.log(`      ⛔ Negative Control: ${ev.message}`);
+                console.log(`      ⚠ Abstained: ${ev.message}`);
               } else if (ev.stage === 'failed') {
-                console.log(`      ❌ ${ev.message}`);
+                console.log(`      ✖ ${ev.message}`);
               }
             },
       });
@@ -398,42 +407,47 @@ export async function runCli(argv: string[]): Promise<void> {
         const divider = '─'.repeat(72);
         console.log(divider);
         console.log(`Discovered Traces   : ${hybridResult.totalTraces}`);
-        console.log(`Repaired & Verified : ${hybridResult.repairedCount} (Tier 1 Fast-Path: ${hybridResult.tier1RepairedCount}, Tier 2 LLM: ${hybridResult.tier2RepairedCount})`);
-        console.log(`Abstained           : ${hybridResult.abstainedCount}`);
+        console.log(`Repaired & Verified : ${hybridResult.repairedCount} (Fast-Path AST: ${hybridResult.tier1RepairedCount}, Semantic LLM: ${hybridResult.tier2RepairedCount})`);
+        console.log(`Abstained           : ${hybridResult.abstainedCount} (negative controls / protected)`);
         console.log(`Failed / Incomplete : ${hybridResult.failedCount}`);
-        console.log(divider);
-        console.log('Aggregate Telemetry & Resource Monitoring:');
-        console.log(`  • Mode            : ${hybridResult.mode.toUpperCase()}`);
-        console.log(`  • Tier 1 Healed   : ${hybridResult.tier1RepairedCount} traces (0 tokens, $0.000000 USD)`);
-        console.log(`  • Tier 2 Healed   : ${hybridResult.tier2RepairedCount} traces (${hybridResult.aggregateTelemetry.totalTokens.toLocaleString()} tokens, $${hybridResult.aggregateTelemetry.totalCostUsd.toFixed(6)} USD)`);
-        console.log(`  • Total Tokens    : ${hybridResult.aggregateTelemetry.totalTokens.toLocaleString()} tokens`);
-        console.log(`  • Total Cost      : $${hybridResult.aggregateTelemetry.totalCostUsd.toFixed(6)} USD`);
-        console.log(`  • Total Duration  : ${(hybridResult.aggregateTelemetry.totalDurationMs / 1000).toFixed(1)}s`);
+        console.log(`Total Duration      : ${(hybridResult.aggregateTelemetry.totalDurationMs / 1000).toFixed(1)}s`);
+
+        if (verbose) {
+          console.log(divider);
+          console.log('Telemetry & Spend Breakdown:');
+          console.log(`  • Fast-Path AST   : ${hybridResult.tier1RepairedCount} traces (0 tokens, $0.000000 USD)`);
+          console.log(`  • Semantic LLM    : ${hybridResult.tier2RepairedCount} traces (${hybridResult.aggregateTelemetry.totalTokens.toLocaleString()} tokens, $${hybridResult.aggregateTelemetry.totalCostUsd.toFixed(6)} USD)`);
+          console.log(`  • Total Tokens    : ${hybridResult.aggregateTelemetry.totalTokens.toLocaleString()} tokens`);
+          console.log(`  • Total Cost      : $${hybridResult.aggregateTelemetry.totalCostUsd.toFixed(6)} USD`);
+        }
+
         console.log(divider);
         console.log('Test Repair Summary:');
         for (const item of hybridResult.items) {
-          const icon = item.status === 'REPAIRED_AND_VERIFIED' ? '✅' : item.status === 'ABSTAINED' ? '⚠️' : item.status === 'PROPOSAL_READY' ? '💡' : '❌';
-          const tierTag = item.tier === 'tier1_deterministic' ? 'Tier 1: Fast-Path' : item.tier === 'tier2_llm' ? 'Tier 2: LLM' : 'Negative Control';
-          const spec = item.testFilePath ? path.basename(item.testFilePath) : path.basename(path.dirname(item.tracePath));
-          console.log(`  ${icon} [${item.status}] ${spec} (${tierTag})`);
+          const badge = item.status === 'REPAIRED_AND_VERIFIED' ? '✔ [REPAIRED]' : item.status === 'ABSTAINED' ? '⚠ [ABSTAINED]' : item.status === 'PROPOSAL_READY' ? '› [PROPOSED]' : '✖ [FAILED]';
+          const tierTag = item.tier === 'tier1_deterministic' ? 'Fast-Path AST' : item.tier === 'tier2_llm' ? 'Semantic LLM' : 'Negative Control';
+          const spec = item.testTitle || (item.testFilePath ? path.basename(item.testFilePath) : path.basename(path.dirname(item.tracePath)));
+          console.log(`  ${badge} ${spec} (${tierTag})`);
           if (item.targetFilePath) console.log(`     Target File   : ${path.relative(process.cwd(), item.targetFilePath)}`);
           if (item.healedLocator) console.log(`     Healed Locator: ${item.healedLocator}`);
           if (item.analysis) console.log(`     Analysis      : ${item.analysis}`);
           if (item.reason && item.status === 'ABSTAINED') console.log(`     Abstain Reason: ${item.reason}`);
-          if (item.telemetry.totalTokens > 0) {
+          if (verbose && item.telemetry.totalTokens > 0) {
             console.log(`     Telemetry     : ${item.telemetry.totalTokens} tokens | $${item.telemetry.costUsd.toFixed(6)} | ${(item.telemetry.totalMs / 1000).toFixed(1)}s`);
           }
         }
         console.log(divider);
         if (hybridResult.promotedFiles && hybridResult.promotedFiles.length > 0) {
-          console.log('Promoted Files:');
+          console.log('Updated Files:');
           for (const file of hybridResult.promotedFiles) {
-            console.log(`  🎉 ${file}`);
+            console.log(`  • ${file}`);
           }
           console.log(divider);
         }
         console.log(`Report JSON         : ${path.relative(process.cwd(), reportJsonPath)}`);
-        console.log('(Pass --json to view full machine-readable payload)');
+        if (!verbose) {
+          console.log('(Pass --verbose to view token counts and cost telemetry)');
+        }
       }
 
       if (hybridResult.failedCount > 0 && hybridResult.repairedCount === 0) process.exitCode = 1;

@@ -1,6 +1,7 @@
 import AdmZip from 'adm-zip';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import { ZipSlipSecurityError, TraceCorruptedError } from '../core/errors/engine-errors.js';
 
 export interface UnpackOptions {
@@ -152,6 +153,64 @@ export class ArchiveReader {
         const text = testTrace.getData().toString('utf8');
         const match = text.match(/["']([A-Za-z]:\\[^"'\n\r]+\.(?:spec|test)\.[tj]sx?|\/[^"'\n\r]+\.(?:spec|test)\.[tj]sx?)["']/);
         if (match && match[1]) return match[1].replace(/\\\\/g, '\\');
+      }
+    } catch {}
+    return undefined;
+  }
+
+  /**
+   * Extracts the specific test case title (e.g. "Bootstrap dropdown") associated with this trace.
+   * Enables precise test targeting with Playwright's -g / --grep flag to isolate multi-test spec files.
+   */
+  public static extractTestTitleFromArchive(zipPath: string, resolvedSpecPath?: string): string | undefined {
+    try {
+      const zip = new AdmZip(zipPath);
+
+      // Strategy 1: Look at 0-trace.stacks frame lines and scan enclosing test() in resolved spec file
+      const stacksEntry = zip.getEntries().find((e) => e.entryName.endsWith('.stacks'));
+      if (stacksEntry && resolvedSpecPath && fsSync.existsSync(resolvedSpecPath)) {
+        try {
+          const text = stacksEntry.getData().toString('utf8');
+          const firstLine = text.split(/\r?\n/)[0];
+          if (firstLine) {
+            const parsed = JSON.parse(firstLine);
+            if (Array.isArray(parsed.stacks)) {
+              let targetLine: number | undefined;
+              for (const s of parsed.stacks) {
+                if (Array.isArray(s) && Array.isArray(s[1])) {
+                  for (const frame of s[1]) {
+                    if (Array.isArray(frame) && typeof frame[1] === 'number') {
+                      targetLine = frame[1];
+                      break;
+                    }
+                  }
+                }
+                if (targetLine) break;
+              }
+
+              if (targetLine) {
+                const specCode = fsSync.readFileSync(resolvedSpecPath, 'utf8');
+                const lines = specCode.split(/\r?\n/);
+                for (let i = Math.min(targetLine - 1, lines.length - 1); i >= 0; i--) {
+                  const m = lines[i]?.match(/test(?:\.only|\.skip)?\s*\(\s*['"`]([^'"`]+)['"`]/);
+                  if (m && m[1]) {
+                    return m[1];
+                  }
+                }
+              }
+            }
+          }
+        } catch {}
+      }
+
+      // Strategy 2: Derive from trace folder name (e.g. dropdown-Bootstrap-dropdown-chromium -> "Bootstrap dropdown")
+      const parentDir = path.basename(path.dirname(zipPath));
+      const parts = parentDir.split('-');
+      if (parts.length >= 3) {
+        const middle = parts.slice(1, -1).join(' ').trim();
+        if (middle && !/^(?:chromium|firefox|webkit|desktop|mobile)$/i.test(middle)) {
+          return middle;
+        }
       }
     } catch {}
     return undefined;

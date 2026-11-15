@@ -25,6 +25,7 @@ export interface DirectCodeRepairTelemetry {
 export interface DirectCodeRepairResult {
   status: 'REPAIRED_AND_VERIFIED' | 'PROPOSAL_READY' | 'ABSTAINED' | 'VERIFICATION_FAILED' | 'FAILED';
   tracePath: string;
+  testTitle?: string | undefined;
   targetFilePath?: string | undefined;
   testFilePath?: string | undefined;
   analysis?: string | undefined;
@@ -198,7 +199,31 @@ export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise
 
   // 1. Determine target file to patch (targetFilePath)
   let targetFilePath: string | undefined;
-  if (failedAction.sourceFile) {
+
+  // Framework-level error detection (playwright.config.*, fixtures/*, global setup)
+  const isFrameworkConfig = failedAction.errorStack && /playwright\.config\.[tj]sx?/i.test(failedAction.errorStack);
+  const isFixtureError = failedAction.errorStack && /fixtures?[\\/].*\.[tj]sx?/i.test(failedAction.errorStack);
+
+  if (isFrameworkConfig) {
+    const cfgCandidates = ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs'];
+    for (const cfg of cfgCandidates) {
+      const full = path.resolve(workspaceRoot, cfg);
+      if (fsSync.existsSync(full)) {
+        targetFilePath = full;
+        break;
+      }
+    }
+  } else if (isFixtureError) {
+    const fixtureMatch = failedAction.errorStack?.match(/([A-Za-z0-9_.\-\\/]+fixtures?[\\/][A-Za-z0-9_.\-\\/]+\.[tj]sx?)/i);
+    if (fixtureMatch && fixtureMatch[1]) {
+      const full = path.resolve(workspaceRoot, fixtureMatch[1]);
+      if (fsSync.existsSync(full)) {
+        targetFilePath = full;
+      }
+    }
+  }
+
+  if (!targetFilePath && failedAction.sourceFile) {
     const candidate = path.resolve(workspaceRoot, failedAction.sourceFile);
     if (fsSync.existsSync(candidate)) {
       targetFilePath = candidate;
@@ -595,11 +620,13 @@ CRITICAL INVARIANTS:
     await fs.mkdir(path.dirname(worktreeTarget), { recursive: true });
     await fs.writeFile(worktreeTarget, repairedCode, 'utf8');
 
-    // Execute Playwright test targeting this spec
+    // Execute Playwright test targeting this spec (with precise -g grep isolation for multi-test specs)
     const relSpec = path.relative(workspaceRoot, testFilePath);
+    const testTitle = ArchiveReader.extractTestTitleFromArchive(tracePath, testFilePath);
     const execRes = await ExecutionRunner.runPlaywrightTest({
       cwd: worktree.worktreePath,
       testFilePath: relSpec,
+      grep: testTitle ? testTitle.trim() : undefined,
       configPath: input.configPath,
       timeoutMs: 60_000,
       env: { CI: '1', HEADLESS: '1' },
@@ -623,6 +650,7 @@ CRITICAL INVARIANTS:
   return {
     status: executionPassed ? 'REPAIRED_AND_VERIFIED' : 'VERIFICATION_FAILED',
     tracePath,
+    testTitle: ArchiveReader.extractTestTitleFromArchive(tracePath, testFilePath),
     testFilePath,
     targetFilePath,
     analysis: parsedProposal.analysis ?? 'Direct LLM Code Generation',

@@ -298,7 +298,7 @@ export async function runHybridRepair(input: HybridRepairInput): Promise<HybridR
 
     const title = item.testTitle ?? path.basename(item.tracePath);
 
-    if (item.status === 'VERIFIED') {
+    if (item.status === 'VERIFIED' || item.status === 'PROMOTED') {
       // Tier 1 succeeded!
       if (item.targetFilePath && input.autoPromote) {
         promotedFilesSet.add(path.relative(workspaceRoot, item.targetFilePath));
@@ -436,7 +436,7 @@ export async function runHybridRepair(input: HybridRepairInput): Promise<HybridR
           configPath: input.configPath,
         });
 
-        const testTitle = res.testFilePath ? path.basename(res.testFilePath) : (previousItem?.testTitle ?? path.basename(tracePath));
+        const testTitle = res.testTitle ?? (res.testFilePath ? path.basename(res.testFilePath) : (previousItem?.testTitle ?? path.basename(tracePath)));
         const isNeg = res.status === 'ABSTAINED' && isNegativeControl(res.reason);
 
         if (res.status === 'REPAIRED_AND_VERIFIED' && res.targetFilePath && input.autoPromote) {

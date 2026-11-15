@@ -24,6 +24,8 @@ export interface TraceEntryDiscovery {
   /** All streams, ordered with explicit failure streams first. */
   traceEntryNames?: string[] | undefined;
   networkEntryNames?: string[] | undefined;
+  hasFailure?: boolean | undefined;
+  failureScore?: number | undefined;
 }
 
 export class ArchiveReader {
@@ -88,11 +90,15 @@ export class ArchiveReader {
         bestNetwork = prefixMatch ? prefixMatch.entryName : networkCandidates.sort((a, b) => b.header.size - a.header.size)[0]?.entryName;
       }
 
+      const topFailureScore = traceCandidates[0]?.failureScore ?? 0;
+
       return {
         traceEntryName: bestTrace,
         networkEntryName: bestNetwork,
         traceEntryNames: orderedTraceNames,
         networkEntryNames,
+        hasFailure: topFailureScore > 0,
+        failureScore: topFailureScore,
       };
     } catch {
       return {};

@@ -56,7 +56,7 @@ function findTraceArchives(targetPath?: string): string[] {
     process.cwd(),
   ].filter(Boolean) as string[];
 
-  const found: { filePath: string; mtime: number }[] = [];
+  const found: { filePath: string; mtime: number; hasFailure: boolean; isTestResults: boolean }[] = [];
   const seen = new Set<string>();
 
   for (const dir of candidateDirs) {
@@ -70,7 +70,13 @@ function findTraceArchives(targetPath?: string): string[] {
             const stat = fs.statSync(fullPath);
             if (stat.isFile()) {
               seen.add(fullPath);
-              found.push({ filePath: fullPath, mtime: stat.mtimeMs });
+              let hasFailure = false;
+              try {
+                const discovery = ArchiveReader.findTraceFileEntries(fullPath);
+                hasFailure = Boolean(discovery.hasFailure || (discovery.failureScore && discovery.failureScore > 0));
+              } catch {}
+              const isTestResults = fullPath.includes('test-results');
+              found.push({ filePath: fullPath, mtime: stat.mtimeMs, hasFailure, isTestResults });
             }
           } catch {}
         }
@@ -78,7 +84,13 @@ function findTraceArchives(targetPath?: string): string[] {
     } catch {}
   }
 
-  return found.sort((a, b) => b.mtime - a.mtime).map((f) => f.filePath);
+  return found
+    .sort((a, b) => {
+      if (a.hasFailure !== b.hasFailure) return a.hasFailure ? -1 : 1;
+      if (a.isTestResults !== b.isTestResults) return a.isTestResults ? -1 : 1;
+      return b.mtime - a.mtime;
+    })
+    .map((f) => f.filePath);
 }
 
 export async function runCli(argv: string[]): Promise<void> {
@@ -341,21 +353,85 @@ export async function runCli(argv: string[]): Promise<void> {
         autoPromote: argv.includes('--promote'),
         execute: argv.includes('--execute'),
       });
-      console.log(JSON.stringify({
-        provenance: getRuntimeProvenance(process.cwd()),
-        status: result.status,
-        reason: result.reason,
-        agent: {
-          state: result.proposalRun.agent.state,
-          modelInvoked: result.proposalRun.agent.modelInvoked,
-          classification: result.proposalRun.agent.classification,
-          proposal: result.proposal,
-          errors: result.proposalRun.agent.errors,
-          steps: result.proposalRun.agent.steps,
-        },
-        verification: result.verification,
-        promotion: result.promotion,
-      }, null, 2));
+      if (argv.includes('--json')) {
+        console.log(JSON.stringify({
+          provenance: getRuntimeProvenance(process.cwd()),
+          status: result.status,
+          reason: result.reason,
+          agent: {
+            state: result.proposalRun.agent.state,
+            modelInvoked: result.proposalRun.agent.modelInvoked,
+            classification: result.proposalRun.agent.classification,
+            proposal: result.proposal,
+            errors: result.proposalRun.agent.errors,
+            steps: result.proposalRun.agent.steps,
+          },
+          verification: result.verification,
+          promotion: result.promotion,
+        }, null, 2));
+      } else {
+        const divider = '─'.repeat(72);
+        console.log('');
+        console.log('╔══════════════════════════════════════════════════════════════════════╗');
+        console.log('║        PLAYWRIGHT INTELLIGENCE ENGINE: AUTONOMOUS REPAIR             ║');
+        console.log('╚══════════════════════════════════════════════════════════════════════╝');
+        console.log('');
+        console.log(`Target Trace      : ${path.relative(process.cwd(), tracePath)}`);
+        console.log(`Repair Status     : ${result.status}`);
+        if (result.reason) {
+          console.log(`Status Reason     : ${result.reason}`);
+        }
+        console.log(divider);
+
+        console.log('Agent Diagnostic & Proposal:');
+        console.log(`  • Classification: ${result.proposalRun.agent.classification ?? 'N/A'}`);
+        console.log(`  • Model Invoked : ${result.proposalRun.agent.modelInvoked}`);
+        console.log(`  • Steps / Turns : ${result.proposalRun.agent.steps?.length ?? 0}`);
+        if (result.proposal) {
+          const primaryOp = result.proposal.operations[0];
+          console.log(`  • Decision      : ${result.proposal.decision}`);
+          console.log(`  • Confidence    : ${(result.proposal.confidence * 100).toFixed(1)}%`);
+          console.log(`  • Reasoning     : ${result.proposal.reasoningSummary}`);
+          if (primaryOp) {
+            console.log(`  • Operation     : ${primaryOp.kind}`);
+            if (primaryOp.kind === 'replace_locator') {
+              console.log(`  • Failed Target : ${primaryOp.target}`);
+              console.log(`  • Healed Locator: ${primaryOp.locator}`);
+            }
+          }
+        } else {
+          console.log('  • Repair Proposal: None (Abstained or No Proposal)');
+        }
+        console.log(divider);
+
+        if (result.verification) {
+          console.log('Isolated Worktree Verification:');
+          if (result.verification.worktree) {
+            console.log(`  • Worktree ID   : ${result.verification.worktree.id}`);
+          }
+          if (result.verification.verification) {
+            const passed = result.verification.verification.executionResult.exitCode === 0;
+            console.log(`  • Test Outcome  : ${passed ? '✅ PASSED' : '❌ FAILED'}`);
+            console.log(`  • Duration      : ${result.verification.verification.executionResult.durationMs}ms`);
+          } else {
+            console.log(`  • Status        : ${result.verification.status}`);
+          }
+          console.log(divider);
+        }
+
+        if (result.promotion) {
+          console.log('Workspace Promotion:');
+          console.log(`  • Status        : ${result.promotion.success ? '✅ PROMOTED TO REPOSITORY' : 'FAILED'}`);
+          console.log(`  • Target File   : ${result.promotion.targetFilePath}`);
+          console.log(`  • Bytes Written : ${result.promotion.bytesWritten}`);
+          console.log(`  • Content Hash  : ${result.promotion.finalHash.slice(0, 16)}...`);
+          console.log(divider);
+        } else if (result.verification?.verification?.executionResult.exitCode === 0 && !argv.includes('--promote')) {
+          console.log('Workspace Promotion:');
+          console.log('  • Status        : ⏸ VERIFIED IN WORKTREE (pass --promote to apply to main workspace)');
+          console.log(divider);
+        }
+      }
       if (result.status === 'PROPOSAL_REJECTED' || result.status === 'VERIFICATION_FAILED') process.exitCode = 1;
     } catch (err: any) {
       console.error(`Autonomous repair failed: ${err?.message ?? String(err)}`);

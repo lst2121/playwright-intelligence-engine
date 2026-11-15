@@ -1722,7 +1722,7 @@ function printHelp(): void {
   console.log(`
 Playwright Intelligence Engine CLI (pie / pw-intel)
 
-Core Workflows:
+Usage:
   pie repair [--apply] [--all]      Autonomous self-healing (Two-Tier Hybrid: AST fast-path -> LLM with worktree proof)
   pw-intel init [dir] [--api-key <k>] [--model <m>] Initializes PIE config & optional LLM credentials
   pw-intel doctor                   Inspects host environment, Node, Git, Playwright & workspace readiness

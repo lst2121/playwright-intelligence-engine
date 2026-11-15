@@ -180,6 +180,23 @@ export class WorktreeManager {
       throw new WorktreeOperationError('prepare-dependencies', err.message);
     }
 
+    // Step 4: Ensure headless execution in isolated worktree so browser windows never spawn on host desktop
+    const configCandidates = ['playwright.config.ts', 'playwright.config.js', 'playwright.config.mjs', 'playwright.config.cjs'];
+    for (const cfg of configCandidates) {
+      const cfgPath = path.resolve(worktreePath, cfg);
+      if (fsSync.existsSync(cfgPath)) {
+        try {
+          let content = fsSync.readFileSync(cfgPath, 'utf8');
+          if (/headless\s*:\s*false/i.test(content)) {
+            content = content.replace(/headless\s*:\s*false/gi, 'headless: true');
+            fsSync.writeFileSync(cfgPath, content, 'utf8');
+          }
+        } catch {
+          // Non-critical config update failure
+        }
+      }
+    }
+
     const info: WorktreeInfo = {
       id,
       worktreePath,

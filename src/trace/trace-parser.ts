@@ -141,14 +141,17 @@ export class TraceParser {
             domByCallId.set(event.snapshot.callId, resolvedEl);
           }
 
-          const isMain = isExplicitMainFrame || (frameId && frameId === mainFrameId) || (!frameId && !isExplicitChildFrame);
+          const frameUrl = event.snapshot.frameUrl ?? event.frameUrl ?? '';
+          const isRealUrl = frameUrl && !frameUrl.startsWith('about:') && !frameUrl.includes('consentcdn') && !frameUrl.includes('sitecontext');
+          const isMain = isExplicitMainFrame || (frameId && frameId === mainFrameId && !isExplicitChildFrame) || (isRealUrl && !isExplicitChildFrame);
 
-          if (isMain) {
+          if (isMain && (isRealUrl || !mainFrameDom)) {
             mainFrameDom = resolvedEl;
+            latestResolvedDom = resolvedEl;
+          } else if (isMain) {
             latestResolvedDom = resolvedEl;
           } else {
             latestChildFrameDom = resolvedEl;
-            // Child iframe snapshot: preserve mainFrameDom, update latestResolvedDom only if mainFrameDom not set
             if (!mainFrameDom) {
               latestResolvedDom = resolvedEl;
             }

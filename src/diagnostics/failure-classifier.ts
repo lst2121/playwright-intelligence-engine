@@ -83,6 +83,11 @@ export class FailureClassifier {
     /favicon\.ico/i,
     /hotjar/i,
     /segment\.io/i,
+    /docketai/i,
+    /intercom/i,
+    /clarity\.ms/i,
+    /optimizely/i,
+    /fullstory/i,
   ];
 
   /**
@@ -140,9 +145,15 @@ export class FailureClassifier {
       let isCausallyRelevant = false;
       let relevanceReason = '';
 
-      if (isTelemetry) {
+      const actionTime = context.failedAction.timestamp;
+      const hasActionTime = typeof net.timestamp === 'number' && typeof actionTime === 'number';
+      const temporallyConnected = !hasActionTime || (net.timestamp <= actionTime! + 2000);
+
+      if (isTelemetry || !temporallyConnected) {
         isCausallyRelevant = false;
-        relevanceReason = 'Ignored: background telemetry/analytics or non-critical resource';
+        relevanceReason = isTelemetry
+          ? 'Ignored: background telemetry/analytics or non-critical resource'
+          : 'Ignored: completed outside action causal window';
       } else if (isServerError || isAuthError || isClientApiError) {
         // Business endpoint returning 5xx, 401/403, or client API failure 400/404/429
         isCausallyRelevant = true;

@@ -1,11 +1,11 @@
 ---
-title: "How to Self-Heal Broken Playwright Tests from Traces with pw-intel"
+title: "PIE in Action: Self-Healing Broken Playwright Tests from Traces"
 published: false
-description: "A hands-on, step-by-step developer tutorial for diagnosing failing Playwright traces, repairing drifted locators, and using Cursor/Claude via MCP."
+description: "A hands-on, step-by-step developer tutorial for diagnosing failing Playwright traces, repairing drifted locators, and using Cursor/Claude via the PIE MCP server."
 tags: playwright, testing, typescript, automation
 ---
 
-# How to Self-Heal Broken Playwright Tests from Traces with pw-intel
+# PIE in Action: Self-Healing Broken Playwright Tests from Traces
 
 Every engineer who maintains a Playwright test suite knows this failure:
 
@@ -18,18 +18,18 @@ UI changes break tests all the time. But fixing them manually is tedious: you op
 
 Worse, sometimes the selector didn't break because of UI drift—it broke because a backend API threw an HTTP 500, a mock didn't load, or the session expired. Blindly updating the locator in those situations masks a real application regression.
 
-In this tutorial, you will learn how to use **`pw-intel` (Playwright Intelligence Engine)** to:
+In this tutorial, you will learn how to use **PIE (Playwright Intelligence Engine)**, invoked via the **`pw-intel`** CLI, to:
 1. Capture rich failure traces in Playwright.
 2. Run a causal diagnosis to distinguish UI drift from application bugs.
 3. Automatically heal drifted locators with isolated Git worktree verification.
-4. Verify that `pw-intel` safely abstains when the application itself is failing.
-5. Connect `pw-intel` to **Cursor** and **Claude Code** via the built-in **Model Context Protocol (MCP)** server.
+4. Verify that PIE safely abstains when the application itself is failing.
+5. Connect PIE directly to **Cursor** and **Claude Code** via its built-in **Model Context Protocol (MCP)** server.
 
 ---
 
-## What is `pw-intel`?
+## What is PIE?
 
-`pw-intel` is an open-source CLI companion for Microsoft Playwright. It reads failed Playwright trace archives (`trace.zip`) and runs a two-tier verification pipeline:
+**PIE (Playwright Intelligence Engine)** is an open-source CLI and AI companion for Microsoft Playwright. It reads failed Playwright trace archives (`trace.zip`) and runs a two-tier verification pipeline:
 
 ```text
 Trace (.zip)
@@ -53,12 +53,12 @@ Trace (.zip)
 Promote Reject patch & leave working tree clean
 ```
 
-### Key Capabilities:
+### Key Capabilities of PIE:
 - **Tier 1 ($0 Token Cost):** Instant, local TypeScript AST fixes (`ts-morph`) for renamed IDs, classes, and attributes.
-- **Tier 2 (AI Semantic Fallback):** Engages an LLM when DOM structure shifts significantly (e.g. converting native inputs to custom React comboboxes or modals), without ever touching assertions.
+- **Tier 2 (AI Semantic Fallback):** Engages an LLM only when DOM structure shifts significantly (e.g. converting native inputs to custom React comboboxes or modals), without ever touching assertions.
 - **Fail-Closed Safety (Gate 0):** Abstains from editing UI locators if the trace shows an HTTP 500 backend error or network timeout.
 - **Proof-Before-Promotion:** Re-runs the affected test in a disposable Git worktree sandbox before touching your active workspace.
-- **MCP Server:** Exposes full diagnostic, repair, and test generation capabilities to AI coding assistants.
+- **Native MCP Server:** Exposes full diagnostic, repair, and test generation capabilities to AI coding assistants like Cursor and Claude.
 
 ---
 
@@ -68,13 +68,15 @@ Promote Reject patch & leave working tree clean
 - **Git**: Installed and initialized in your repository (used for isolated worktree sandboxing)
 - **Playwright**: `@playwright/test` installed
 
-Install `playwright-intelligence-engine` as a development dependency:
+Install PIE in your Playwright project:
 
 ```bash
 npm install --save-dev playwright-intelligence-engine
 ```
 
-Run the built-in diagnostic healthcheck:
+*(Note: The primary CLI command is `pw-intel`. A convenient alias `pie` is also available).*
+
+Run PIE's built-in diagnostic healthcheck:
 
 ```bash
 npx pw-intel doctor
@@ -104,7 +106,7 @@ npx pw-intel init
 
 ## Step 1: Configure Trace Retention on Failure
 
-`pw-intel` requires Playwright’s trace archive to inspect DOM snapshots, network calls, and action timelines.
+PIE requires Playwright’s trace archive to inspect DOM snapshots, network calls, and action timelines.
 
 In your `playwright.config.ts`, ensure `trace` is enabled for failures:
 
@@ -157,9 +159,9 @@ waiting for locator('#login-button-v1')
 
 ---
 
-## Step 3: Diagnose the Trace with `pw-intel`
+## Step 3: Diagnose the Trace with PIE
 
-Before making any repairs, inspect what the engine sees inside the trace:
+Before making any repairs, inspect what PIE sees inside the trace:
 
 ```bash
 npx pw-intel diagnose test-results/auth-Should-login-successfully-chromium/trace.zip
@@ -198,13 +200,13 @@ Analysis:
 
 ## Step 4: Run Dry-Run Repair
 
-Execute the autonomous repair workflow in dry-run mode (default):
+Execute PIE's autonomous repair workflow in dry-run mode (default):
 
 ```bash
 npx pw-intel repair
 ```
 
-What `pw-intel` does during this step:
+What PIE does during this step:
 1. Locates all failure traces in `test-results/`.
 2. Matches the failed action against the AST of `tests/ui/auth.spec.ts`.
 3. Derives the accessible role replacement `page.getByRole('button', { name: 'Login' })`.
@@ -263,7 +265,7 @@ The test is completely fixed and verified!
 
 ## Step 6: Negative-Control Test (HTTP 500 Server Crash)
 
-Now test the safety guardrail: what happens if the test fails because the backend server crashed?
+Now test PIE's safety guardrail: what happens if the test fails because the backend server crashed?
 
 Add a mock route that returns an HTTP 500 when logging in:
 
@@ -297,7 +299,7 @@ promotedFiles: []
 - **Cost**: $0.00
 - **Modified files**: None
 
-`pw-intel` refrains from making changes because the failure is an application bug, not a broken test. You can even generate a bug report directly:
+PIE refrains from making changes because the failure is an application bug, not a broken test. You can even generate a bug report directly:
 
 ```bash
 npx pw-intel report-defect test-results/failed-trace/trace.zip
@@ -307,7 +309,7 @@ npx pw-intel report-defect test-results/failed-trace/trace.zip
 
 ## Step 7: Cursor & Claude Code IDE Integration via MCP
 
-Instead of running CLI commands manually, you can plug `pw-intel` directly into your AI coding assistant using the **Model Context Protocol (MCP)**.
+Instead of running CLI commands manually, you can plug PIE directly into your AI coding assistant using the **Model Context Protocol (MCP)**.
 
 ### Setting up in Cursor / Windsurf
 Add to your project's `.cursor/mcp.json`:
@@ -345,7 +347,7 @@ Add to `claude_desktop_config.json`:
 - **`run_qa_pipeline`**: Generates full E2E suites from natural language requirements (`pw-intel qa`).
 
 Now you can simply ask Cursor:
-> *"Cursor, run pw_intel_diagnose on my latest failure in `test-results/` and repair the Page Object if it passed worktree verification."*
+> *"Cursor, run pw_intel_diagnose on my latest failure in `test-results/` and use PIE to repair the Page Object if it passes worktree verification."*
 
 ---
 
@@ -366,7 +368,7 @@ Now you can simply ask Cursor:
 
 ## Summary
 
-`pw-intel` turns test maintenance from manual guesswork into a rigorous, evidence-driven process:
+**PIE** turns test maintenance from manual guesswork into a rigorous, evidence-driven process:
 - **Offline Fast-Path**: 100% deterministic AST repairs at $0 token cost.
 - **Fail-Closed Gate 0**: Abstains when the application or environment crashes.
 - **Sandbox Proof**: Never touches your working tree unless the repair passes in an isolated Git worktree.

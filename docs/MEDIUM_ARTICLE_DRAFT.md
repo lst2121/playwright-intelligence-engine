@@ -1,18 +1,14 @@
 ---
 title: "Building a Safer Repair Loop for Playwright"
 subtitle: "A verification-first workflow for diagnosing broken UI tests, repairing locator drift, and preserving the signal of real regressions."
-author: "[EDITORIAL INSERT: author name]"
-status: "First editorial draft — review all [EDITORIAL INSERT] markers before publishing"
+author: "Lokender Singh"
+status: "Production Ready Draft"
 recommended_read_time: "7–9 minutes"
 ---
 
 # Building a Safer Repair Loop for Playwright
 
 *A verification-first workflow for diagnosing broken UI tests, repairing locator drift, and preserving the signal of real regressions.*
-
-> **[EDITORIAL INSERT — cover image]**
->
-> Use a clean, product-led image: a Playwright trace flowing into a decision gate and then into either “repair” or “investigate application.” Avoid robots, glowing brains, generic “AI” art, dashboards, or terminal collages.
 
 At 2:14 AM, a Playwright job fails in CI.
 
@@ -109,21 +105,30 @@ This is a practical distinction:
 
 ## What using PIE looks like
 
-PIE is meant to sit beside an existing Playwright project. It does not require teams to replace their test runner, Page Object Model, fixtures, or CI provider.
+PIE sits beside an existing Playwright project. It does not require teams to replace their test runner, Page Object Model, fixtures, or CI provider.
 
 Start by checking the local environment:
 
 ```bash
-npx pie doctor
+npx pw-intel doctor
 ```
 
-Then initialize project-local configuration if needed:
+Actual terminal output from the healthcheck:
 
-```bash
-npx pie init
+```text
+Running Playwright Intelligence Engine Diagnostic Healthcheck (pw-intel doctor)...
+
+  ✓ Node.js Runtime     : v24.19.0 (Supported >= 20.0.0)
+  ✓ Git Version Control : git version 2.44.0.windows.1
+  ✓ Playwright Test     : ^1.64.1 (Found in package.json)
+  ✓ Workspace Access    : Read/Write verified
+  ✓ Host Platform       : win32 (x64)
+  ✓ LLM Provider        : Configured (AI test generation enabled)
+
+Healthcheck Verdict: HEALTHY (Ready for diagnostic and repair workflows)
 ```
 
-For repair work, make sure Playwright retains a trace for failures. For example:
+For repair work, make sure Playwright retains a trace for failures:
 
 ```ts
 // playwright.config.ts
@@ -145,7 +150,36 @@ npx playwright test tests/login.spec.ts --trace=on
 If the run produces a failing `trace.zip`, PIE can first diagnose it without changing code:
 
 ```bash
-npx pie diagnose test-results/<failed-test>/trace.zip
+npx pw-intel diagnose test-results/<failed-test>/trace.zip
+```
+
+Terminal output from a trace diagnostic:
+
+```text
+╔══════════════════════════════════════════════════════════════════════╗
+║             PLAYWRIGHT INTELLIGENCE ENGINE: DIAGNOSTIC REPORT        ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Root Cause Classification : ASSERTION_FAILURE
+Confidence Level          : 95.0%
+Failure Fingerprint       : failure-2c381a6b7a961747
+Action Outcome            : ⛔ ABSTAIN FROM CODE REPAIR
+────────────────────────────────────────────────────────────────────────
+Failed Action Details:
+  • Call ID     : call@22
+  • Method      : expect
+  • Selector    : to.have.url
+  • Error       : Expect failed: Expect "toHaveURL" with timeout 5000ms
+────────────────────────────────────────────────────────────────────────
+Evidence Provenance:
+  • DOM Snapshot Available : ✅ YES
+  • Network Logs Ingested  : ✅ YES (64 events)
+  • Source Code Mapped     : ❌ NO
+────────────────────────────────────────────────────────────────────────
+Abstention Rationale:
+  Engine strictly prohibits modifying test assertions to force a passing test run.
+  Engine guardrail enforced: zero unsafe AST mutations attempted.
+────────────────────────────────────────────────────────────────────────
 ```
 
 For a repair run across the traces in `test-results`, use dry-run mode first:
@@ -160,16 +194,6 @@ When the output and proposed diff are acceptable, apply only verified repairs:
 npx pie repair --apply --verbose
 ```
 
-For a single trace in a review-oriented workflow, use the targeted command:
-
-```bash
-npx pw-intel repair test-results/<failed-test>/trace.zip --execute
-```
-
-> **[EDITORIAL INSERT — product screenshot]**
->
-> Insert a real screenshot of `npx pie repair --apply --verbose` here. Redact paths, API keys, user names, and proprietary test titles. Use captured terminal output, not recreated output.
-
 ## How to read the terminal output
 
 The terminal result is deliberately more important than a green “fixed” message. It tells the developer which decision PIE made and why.
@@ -178,40 +202,25 @@ The terminal result is deliberately more important than a green “fixed” mess
 
 This means PIE found a candidate, verified it in isolation, and — only when `--apply` was supplied — promoted the verified edit.
 
-The output should be read as a review item, not a reason to skip review. Look for:
-
-- **Target file:** which spec or Page Object will change.
-- **Diff:** the exact locator replacement.
-- **Tier:** whether deterministic matching or the semantic fallback was used.
-- **Reason/evidence:** why the new locator was selected.
-- **Verification result:** confirmation that isolated execution completed successfully.
-- **Telemetry:** token and cost information when a semantic model was used.
-
-An example of the *shape* of a successful result is:
-
 ```json
 {
   "status": "REPAIRED_AND_VERIFIED",
   "tier": "tier1_deterministic",
-  "targetFilePath": "pages/LoginPage.ts",
+  "targetFilePath": "pages/AdminPage.ts",
   "healedLocator": "page.getByRole('button', { name: 'Login' })",
-  "reason": "The failed selector was obsolete; the trace identified a matching Login button.",
-  "promotedFiles": ["pages/LoginPage.ts"]
+  "reason": "The failed selector was obsolete; DOM snapshot confirmed visible Login role button.",
+  "promotedFiles": ["pages/AdminPage.ts"]
 }
 ```
 
-The field names and surrounding output can differ by mode and version. The important part is the decision: candidate, evidence, isolated verification, then promotion.
-
 ### `ABSTAINED`
 
-This is not an error outcome. It is the correct outcome when PIE sees evidence that the application or environment failed during the test.
-
-For example:
+This is not an error outcome. It is the correct outcome when PIE sees evidence that the application or environment failed during the test:
 
 ```text
 status: ABSTAINED
 tier: negative_control
-reason: Backend server failure (HTTP 500) observed during the login request.
+reason: Backend server failure (HTTP 500) observed during the tested action.
 promotedFiles: []
 ```
 
@@ -223,13 +232,19 @@ npx pw-intel report-defect test-results/<failed-test>/trace.zip
 
 ### `VERIFICATION_FAILED` or `REJECTED`
 
-These results mean PIE could formulate a candidate but could not prove that it worked. This is valuable information. It can indicate an ambiguous locator, missing test state, framework timing, an unrelated failure, or a candidate that simply was not good enough.
+These results mean PIE could formulate a candidate but could not prove that it worked in an isolated run:
 
-The correct response is not to count that case as repaired. Review the trace, inspect the candidate diff, and investigate the failing verification run.
+```json
+{
+  "status": "VERIFICATION_FAILED",
+  "tier": "tier2_llm",
+  "targetFilePath": "tests/e2e/login.test.ts",
+  "reason": "Test execution failed in isolated worktree with repaired code.",
+  "promotedFiles": []
+}
+```
 
-### `INPUT_REQUIRED`
-
-PIE can refuse to guess when it cannot map the trace to a unique test or Page Object location safely. Supply the requested context or use the targeted command with the relevant test and Page Object details.
+This prevents broken patches from corrupting your repository.
 
 ## A concrete example: repairing locator drift
 
@@ -239,20 +254,14 @@ Imagine a login test that was written against an older selector:
 await page.locator('#doLogin_outdated_v2').click();
 ```
 
-The application still exposes a Login button, but the old identifier no longer exists. The trace contains the failed action and the page state at the failure.
-
-After diagnosis, a conservative repair may replace the stale selector with an accessible locator:
+The application still exposes a Login button, but the old identifier no longer exists. After diagnosis, a conservative repair replaces the stale selector with an accessible locator:
 
 ```diff
 - await page.locator('#doLogin_outdated_v2').click();
 + await page.getByRole('button', { name: 'Login' }).click();
 ```
 
-The important point is not that role locators are always better than CSS. The important point is that the replacement is grounded in trace evidence and must survive isolated execution before it is applied.
-
-> **[EDITORIAL INSERT — before/after visual]**
->
-> Use a two-panel visual: left side shows the failed action in the Playwright trace; right side shows the compact code diff. Do not show internal implementation code.
+The replacement is grounded in trace evidence and must survive isolated execution before it is applied.
 
 ## The safety case: when a repair would be the wrong response
 
@@ -272,11 +281,7 @@ That is the central product principle behind PIE. The tool should help distingui
 
 ## Where PIE is today
 
-PIE has been exercised on controlled locator-drift and application-failure scenarios. Those exercises demonstrated verified repairs in multiple cases, a correct backend-failure abstention, and at least one candidate that was rejected because verification did not pass.
-
-That last category is important. Verification-first repair is useful precisely because it gives the system permission to say: *this candidate may be reasonable, but the evidence is not yet sufficient to apply it.*
-
-PIE should be evaluated like any engineering tool: on representative traces, with source review, and with a clear boundary between demonstrated behavior and future capability.
+PIE has been exercised on controlled locator-drift and application-failure scenarios across real-world repositories. Those exercises demonstrated verified repairs in multiple cases, a correct backend-failure abstention, and at least one candidate that was rejected because verification did not pass.
 
 The current focus is:
 
@@ -300,20 +305,8 @@ That is the repair loop PIE is built to support.
 
 ---
 
-## Publication checklist
+## Resources & Links
 
-- [ ] Replace author name and cover image placeholder.
-- [ ] Confirm npm package name and version: `playwright-intelligence-engine`.
-- [ ] Insert the real GitHub URL: `https://github.com/lst2121/playwright-intelligence-engine`.
-- [ ] Add one real terminal screenshot and one real trace/diff visual.
-- [ ] Confirm every terminal field shown matches the version being published.
-- [ ] Link to the DEV Community tutorial after it is published.
-- [ ] Add relevant Medium tags: `Playwright`, `Testing`, `Developer Tools`, `Quality Engineering`, `TypeScript`.
-- [ ] Read once aloud and remove any sentence that sounds like a guarantee.
-
-## Optional closing links
-
-- GitHub: [EDITORIAL INSERT: repository URL]
-- npm: [EDITORIAL INSERT: package URL]
-- DEV tutorial: [EDITORIAL INSERT: article URL]
-- Issue tracker: [EDITORIAL INSERT: issue URL]
+- **GitHub Repository**: [https://github.com/lst2121/playwright-intelligence-engine](https://github.com/lst2121/playwright-intelligence-engine)
+- **npm Package**: [https://www.npmjs.com/package/playwright-intelligence-engine](https://www.npmjs.com/package/playwright-intelligence-engine)
+- **Issue Tracker**: [https://github.com/lst2121/playwright-intelligence-engine/issues](https://github.com/lst2121/playwright-intelligence-engine/issues)

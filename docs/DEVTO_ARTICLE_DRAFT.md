@@ -1,7 +1,7 @@
 ---
 title: "How to Self-Heal Broken Playwright Tests from Traces with pw-intel"
 published: false
-description: "A hands-on, step-by-step developer tutorial for diagnosing failing Playwright traces, repairing drifted locators, and enforcing negative-control safety with pw-intel."
+description: "A hands-on, step-by-step developer tutorial for diagnosing failing Playwright traces, repairing drifted locators, and using Cursor/Claude via MCP."
 tags: playwright, testing, typescript, automation
 ---
 
@@ -23,12 +23,13 @@ In this tutorial, you will learn how to use **`pw-intel` (Playwright Intelligenc
 2. Run a causal diagnosis to distinguish UI drift from application bugs.
 3. Automatically heal drifted locators with isolated Git worktree verification.
 4. Verify that `pw-intel` safely abstains when the application itself is failing.
+5. Connect `pw-intel` to **Cursor** and **Claude Code** via the built-in **Model Context Protocol (MCP)** server.
 
 ---
 
 ## What is `pw-intel`?
 
-`pw-intel` is an open-source CLI companion for Microsoft Playwright. It reads failed Playwright trace archives (`trace.zip`) and runs a five-stage verification pipeline:
+`pw-intel` is an open-source CLI companion for Microsoft Playwright. It reads failed Playwright trace archives (`trace.zip`) and runs a two-tier verification pipeline:
 
 ```text
 Trace (.zip)
@@ -51,6 +52,13 @@ Trace (.zip)
   ▼     ▼
 Promote Reject patch & leave working tree clean
 ```
+
+### Key Capabilities:
+- **Tier 1 ($0 Token Cost):** Instant, local TypeScript AST fixes (`ts-morph`) for renamed IDs, classes, and attributes.
+- **Tier 2 (AI Semantic Fallback):** Engages an LLM when DOM structure shifts significantly (e.g. converting native inputs to custom React comboboxes or modals), without ever touching assertions.
+- **Fail-Closed Safety (Gate 0):** Abstains from editing UI locators if the trace shows an HTTP 500 backend error or network timeout.
+- **Proof-Before-Promotion:** Re-runs the affected test in a disposable Git worktree sandbox before touching your active workspace.
+- **MCP Server:** Exposes full diagnostic, repair, and test generation capabilities to AI coding assistants.
 
 ---
 
@@ -297,14 +305,47 @@ npx pw-intel report-defect test-results/failed-trace/trace.zip
 
 ---
 
-## Step 7: Restoring Controlled Mutations
+## Step 7: Cursor & Claude Code IDE Integration via MCP
 
-To clean up any experimental code changes and verify your original test suite:
+Instead of running CLI commands manually, you can plug `pw-intel` directly into your AI coding assistant using the **Model Context Protocol (MCP)**.
 
-```bash
-git restore tests/ui/auth.spec.ts
-npx playwright test tests/ui/auth.spec.ts
+### Setting up in Cursor / Windsurf
+Add to your project's `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "playwright-intelligence": {
+      "command": "npx",
+      "args": ["-y", "playwright-intelligence-engine", "mcp"]
+    }
+  }
+}
 ```
+
+### Setting up in Claude Desktop / Claude Code
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "pw-intel": {
+      "command": "npx",
+      "args": ["-y", "playwright-intelligence-engine", "mcp"]
+    }
+  }
+}
+```
+
+### Available MCP Tools for Your Assistant:
+- **`pw_intel_diagnose`**: Diagnoses `trace.zip` archives with DOM, network, and error evidence directly in your chat prompt.
+- **`pw_intel_autonomous_repair`**: Formulates a repair, spins up a headless sandbox, verifies the patch, and promotes it cleanly.
+- **`pw_intel_batch_repair`**: Analyzes all failing traces across the repo in parallel and promotes passing fixes in one go.
+- **`pw_intel_profile`**: Discovers your project's Page Objects, fixtures, and locator patterns so generated code looks native.
+- **`run_qa_pipeline`**: Generates full E2E suites from natural language requirements (`pw-intel qa`).
+
+Now you can simply ask Cursor:
+> *"Cursor, run pw_intel_diagnose on my latest failure in `test-results/` and repair the Page Object if it passed worktree verification."*
 
 ---
 
@@ -319,6 +360,7 @@ npx playwright test tests/ui/auth.spec.ts
 | `repair --apply` | `npx pw-intel repair --apply` | Applies only sandbox-verified repairs to your workspace |
 | `report-defect` | `npx pw-intel report-defect <trace.zip>` | Emits an issue-ready bug report with HAR & network telemetry |
 | `qa` | `npx pw-intel qa <featureName>` | Evidence-driven test generation matching repository conventions |
+| `mcp` | `npx pw-intel mcp` | Starts the Model Context Protocol stdio server for Cursor/Claude |
 
 ---
 
@@ -329,6 +371,7 @@ npx playwright test tests/ui/auth.spec.ts
 - **Fail-Closed Gate 0**: Abstains when the application or environment crashes.
 - **Sandbox Proof**: Never touches your working tree unless the repair passes in an isolated Git worktree.
 - **Assertion Safety**: Asserts remain strictly immutable.
+- **First-Class MCP**: Direct native integration into Cursor, Windsurf, and Claude.
 
 Give it a try in your repository and let us know what you think!
 

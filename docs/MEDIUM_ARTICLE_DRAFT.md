@@ -3,7 +3,7 @@ title: "Building a Safer Repair Loop for Playwright"
 subtitle: "A practical guide to diagnosing broken UI tests, repairing locator drift, and preserving real regression signals with pw-intel."
 author: "Lokender Singh"
 status: "Production Ready Draft"
-recommended_read_time: "8–10 minutes"
+recommended_read_time: "9–11 minutes"
 ---
 
 # Building a Safer Repair Loop for Playwright
@@ -33,19 +33,17 @@ A missing button is frequently the visible downstream symptom of something else 
 
 In those cases, if an automated tool or an engineer hastily rewrites the locator to whatever matches on the screen, **it does not repair the test—it destroys regression signal.** You turn an alert about a broken application into a silently passing test.
 
-To solve this dilemma, we built **PIE (Playwright Intelligence Engine)**, invoked via the **`pw-intel`** CLI.
+To solve this dilemma, we built **PIE (Playwright Intelligence Engine)**, invoked via the **`pw-intel`** CLI and exposed to IDEs through the **Model Context Protocol (MCP)**.
 
-This article explains why naive test healing is dangerous, how `pw-intel` enforces isolated proof and safety gates, and how you can use it in your own Playwright projects today.
+This article explains how PIE acts as an intelligent AI-assisted testing engine, why naive test healing is dangerous, how `pw-intel` enforces isolated proof, and how Cursor/Claude Code can leverage PIE natively via MCP.
 
 ---
 
-## The Core Philosophy: Verification Before Promotion
+## What Makes PIE Different: Two-Tier Intelligence
 
-Most "self-healing" test tools make a fatal assumption: *if a selector failed and a model suggests a replacement, apply it to the codebase.*
+Most "self-healing" test tools make a fatal assumption: *if a selector failed, ask an LLM for a new one and overwrite the file.*
 
-PIE operates under the exact opposite principle: **Treat every proposed repair as unverified until proven otherwise in an isolated environment.**
-
-Here is the five-stage verification pipeline executed whenever you run `pw-intel repair`:
+PIE operates under an architectural pipeline designed to minimize token waste, guarantee safety, and prove fixes before applying them:
 
 ```text
 Failed Trace (trace.zip)
@@ -54,10 +52,10 @@ Failed Trace (trace.zip)
 [Gate 0: Negative Controls] ─── Server 500 / Network Error? ───► ABSTAIN (Zero False Repairs)
          │ No
          ▼
-[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ────► Propose Deterministic Fix ($0 Token Cost)
+[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ────► Deterministic Local Fix ($0 Token Cost)
          │ Complex DOM Shift
          ▼
-[Tier 2: Semantic LLM] ───────── Semantic intent match ─────────► Propose Structural Fix (Preserving Assertions)
+[Tier 2: Semantic LLM] ───────── Semantic intent match ─────────► Propose Structural Fix (Assertions Immutable)
          │
          ▼
 [Isolated Git Worktree Sandbox] ── Run Headless Playwright ────► Re-execute exact test in isolation
@@ -71,16 +69,78 @@ Promote     Reject candidate & leave
 to branch   source code untouched
 ```
 
-Let’s break down the three fundamental guardrails:
-
 ### 1. Gate 0: Fail-Closed Negative Controls
 Before touching any code or calling any AI models, `pw-intel` parses the trace’s network log and console events. If the failed action was accompanied by an HTTP 500 server crash, a 401 unauthenticated redirect, or a DNS failure, the engine **immediately halts and abstains**. It reports the backend failure directly, consuming **0 tokens and $0.00**.
 
-### 2. Tier 1 AST Fast-Path vs. Tier 2 Semantic Fallback
-Simple locator changes (e.g., an element’s ID changed, but its accessible role, test ID, or label remains intact) are resolved **deterministically and 100% offline** using TypeScript AST matching. Only complex DOM restructuring triggers the semantic model. In all cases, **test assertions (`expect(...)`) are strictly immutable**. PIE will never weaken an assertion to make a test pass.
+### 2. Tier 1 AST Fast-Path ($0 Token Cost)
+For standard locator drift (e.g., an element’s ID changed, but its accessible role, test ID, or label remains intact in the DOM snapshot), PIE repairs the code **100% offline and locally** using TypeScript AST manipulation (`ts-morph`). It executes in milliseconds with zero LLM API calls.
 
-### 3. Headless Git Worktree Verification
+### 3. Tier 2: Adaptive Semantic AI Authoring
+When DOM layout shifts dramatically—such as transitioning from native select elements to custom React/Vue comboboxes, nested modals, or Shadow DOM components—PIE engages its Tier 2 Semantic Agent. The agent inspects the full DOM delta and historical repository patterns to generate clean, accessible locators.
+
+**The Golden Rule:** In all tiers, **test assertions (`expect(...)`) are strictly immutable**. PIE will never alter, weaken, or remove an assertion to make a test pass.
+
+### 4. Headless Git Worktree Sandbox Proof
 Even if a proposed locator looks perfect on paper, `pw-intel` never touches your working directory directly. Instead, it spins up an isolated, temporary Git worktree, applies the candidate diff, and runs Playwright against the specific test title (`-g "^testTitle$"`). Only if the test passes completely in isolation is the change promoted to your active repository.
+
+---
+
+## Beyond Repair: Evidence-Driven Test Generation (`pw-intel qa`)
+
+PIE is not just a locator patcher—it is a full AI quality engineering suite.
+
+Writing end-to-end tests from scratch usually involves copy-pasting boilerplate, guessing locators, and manually assembling Page Objects. With `pw-intel qa`, you generate production-grade Playwright tests grounded in live browser exploration:
+
+```bash
+npx pw-intel qa "Checkout Flow" --url http://localhost:3000 --author hybrid --out-dir tests/e2e
+```
+
+### The 4-Phase Generation Pipeline:
+1. **Explore:** An autonomous agent crawls the target URL, inspects interactive elements, and maps user flows.
+2. **Brownfield Synthesis:** PIE inspects your existing codebase (`pw-intel profile`). It reuses your existing Page Objects, auth states, and custom fixtures rather than generating redundant duplicates.
+3. **Draft & Compile:** Tests are written conforming to your repository's naming conventions with web-first assertions.
+4. **Falsification & Verification:** PIE compiles the generated TypeScript and validates that tests pass against real browser states before saving them.
+
+---
+
+## Native IDE Integration via Model Context Protocol (MCP)
+
+If you use **Cursor**, **Windsurf**, or **Claude Code**, you don't even need to leave your editor to diagnose and heal tests.
+
+PIE includes a built-in MCP server that exposes its intelligence directly to AI coding assistants as first-class tools:
+
+```bash
+npx pw-intel mcp
+```
+
+### Setup in Cursor (`.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "playwright-intelligence": {
+      "command": "npx",
+      "args": ["-y", "playwright-intelligence-engine", "mcp"]
+    }
+  }
+}
+```
+
+### Setup in Claude Desktop (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "pw-intel": {
+      "command": "npx",
+      "args": ["-y", "playwright-intelligence-engine", "mcp"]
+    }
+  }
+}
+```
+
+### What You Can Ask Your IDE:
+- *"Diagnose this failed trace at `test-results/login/trace.zip`."* &rarr; Claude/Cursor calls `pw_intel_diagnose` and explains the root cause.
+- *"Fix the broken selector in CartPage.ts and verify it in a sandbox."* &rarr; Cursor calls `pw_intel_autonomous_repair`, runs the isolated worktree proof, and applies the verified patch.
+- *"Scan this repo and generate a new E2E test for the billing settings."* &rarr; Cursor calls `run_qa_pipeline`, respecting your repository's POM structure.
 
 ---
 
@@ -295,8 +355,9 @@ This is the ultimate safety guarantee: **`pw-intel` never promotes an unproven f
 | `npx pw-intel diagnose <trace>` | Ingests a trace and outputs causal diagnosis without modifying code. |
 | `npx pw-intel repair` | Dry-run repair: diagnoses traces and verifies patches in a sandbox. |
 | `npx pw-intel repair --apply` | Promotes only patches that pass isolated worktree execution. |
-| `npx pw-intel report-defect <trace>` | Emits a structured bug report for backend/network failures. |
+| `npx pw-intel report-defect <trace>` | Emits an issue-ready bug report for backend/network failures. |
 | `npx pw-intel qa <feature>` | Evidence-driven brownfield/greenfield test generation. |
+| `npx pw-intel mcp` | Starts the Model Context Protocol stdio server for Cursor and Claude. |
 
 ---
 
@@ -307,6 +368,7 @@ Self-healing in UI test automation should not mean guessing new selectors or mas
 2. Formulating targeted locator repairs using accessible roles.
 3. Proving that the fix works in a clean, isolated sandbox before committing.
 4. Preserving test assertions without compromise.
+5. Empowering developers inside their IDE via MCP.
 
 By grounding repairs in Playwright trace evidence and isolated Git execution, `pw-intel` provides a trustworthy maintenance assistant that respects the integrity of your test suite.
 

@@ -1,11 +1,11 @@
 ---
-title: "PIE in Action: Self-Healing Broken Playwright Tests from Traces"
+title: "How to Self-Heal Broken Playwright Tests from Traces with PIE"
 published: false
 description: "A hands-on, step-by-step developer tutorial for diagnosing failing Playwright traces, repairing drifted locators, and using Cursor/Claude via the PIE MCP server."
-tags: playwright, testing, typescript, automation
+tags: playwright, ai, testing, typescript
 ---
 
-# PIE in Action: Self-Healing Broken Playwright Tests from Traces
+# How to Self-Heal Broken Playwright Tests from Traces with PIE
 
 Every engineer who maintains a Playwright test suite knows this failure:
 

@@ -6,20 +6,18 @@ describe('first-party PIE skill pack', () => {
   it('ships the core agent workflows with safety instructions', async () => {
     const root = path.resolve('skills');
     const files = [
-      'pie-quality-engineer/SKILL.md',
-      'pie-failure-investigation/SKILL.md',
-      'pie-repair-review/SKILL.md',
-      'pie-trace-to-repair/SKILL.md',
-      'pie-release-readiness/SKILL.md',
+      'pie-setup/SKILL.md',
+      'pie-self-heal/SKILL.md',
+      'pie-stabilize/SKILL.md',
     ];
     for (const file of files) {
       const content = await fs.readFile(path.join(root, file), 'utf8');
       expect(content).toContain('---');
       expect(content).toContain('PIE');
     }
-    const quality = await fs.readFile(path.join(root, files[0]!), 'utf8');
-    expect(quality).toContain('Never:');
-    expect(quality).toContain('human approval');
-    expect(quality).toContain('ABSTAIN');
+    const selfHeal = await fs.readFile(path.join(root, 'pie-self-heal/SKILL.md'), 'utf8');
+    expect(selfHeal).toContain('Gate 0');
+    expect(selfHeal).toContain('DO NOT REWRITE TEST CODE');
+    expect(selfHeal).toContain('worktree');
   });
 });

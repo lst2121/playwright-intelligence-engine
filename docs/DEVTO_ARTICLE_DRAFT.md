@@ -34,25 +34,28 @@ In this tutorial, you will learn how to use **PIE**, invoked via the **`pw-intel
 **PIE (Playwright Intelligence Engine)** is an open-source CLI and AI companion for Microsoft Playwright. It reads failed Playwright trace archives (`trace.zip`) and runs a two-tier verification pipeline:
 
 ```text
-Trace (.zip)
-     │
-     ▼
-[Gate 0: Negative Controls] ─── Server 500 / API Failure? ───► ABSTAIN (No code modified)
-     │ No (UI Drift)
-     ▼
-[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ──► Deterministic Repair ($0 Cost)
-     │ Dynamic / Complex DOM
-     ▼
-[Tier 2: Semantic LLM] ───────── Semantic role match ────────► Adaptive Fallback (Assertions Structurally Immutable)
-     │
-     ▼
-[Headless Git Worktree Sandbox] ─ Isolated Execution ────────► Run exact test in sandbox
-     │
-  ┌──┴──┐
- Pass  Fail
-  │     │
-  ▼     ▼
-Promote Reject patch & leave working tree clean
+Playwright Trace (.zip)
+  │
+  ▼
+[1. Gate 0: Negative Controls]
+  │── Server 500 / Network Error? ──► ABSTAIN (0 Tokens, 0 Changes)
+  │
+  ▼ (UI Drift Verified)
+[2. Tier 1: Deterministic AST]
+  │── Stable DOM snapshot match?   ──► Local Fast-Path ($0 Cost, <50ms)
+  │
+  ▼ (Complex Shift)
+[3. Evidence Redactor & Slicer]
+  │── Redacts secrets & extracts minimal target bounding box
+  │
+  ▼
+[4. Tier 2: Semantic AI Agent]
+  │── Intent-Preserving Candidate (Assertions Immutable)
+  │
+  ▼
+[5. Headless Git Sandbox]
+  ├── Test Passes  ──► Atomically Promote to Workspace
+  └── Test Fails   ──► Discard & Leave Working Tree Clean
 ```
 
 ### Key Capabilities of PIE:
@@ -75,8 +78,6 @@ Install PIE in your Playwright project:
 ```bash
 npm install --save-dev playwright-intelligence-engine
 ```
-
-*(Legend: `PIE` = Product Name · `pw-intel` = Canonical CLI Command · `pie` = Alias).*
 
 Run PIE's built-in diagnostic healthcheck:
 

@@ -3,7 +3,7 @@ title: "Why We Built PIE: The Problem with Naive Self-Healing in Playwright"
 subtitle: "How we combined deterministic AST parsing, bounded AI context, and isolated Git sandboxing to fix broken UI tests without masking real bugs."
 author: "Lokender Singh"
 status: "Production Ready Editorial"
-recommended_read_time: "9–11 minutes"
+recommended_read_time: "8–10 minutes"
 ---
 
 # Why We Built PIE: The Problem with Naive Self-Healing in Playwright
@@ -31,9 +31,9 @@ A missing button is frequently the visible downstream symptom of something else 
 - A database fixture failed to populate.
 - The page failed to transition because of an unhandled runtime error.
 
-If an AI tool or an engineer hastily rewrites the locator to whatever else happens to be clickable on the screen, **it does not repair the test—it destroys regression signal.** You turn an alert about a broken application into a silently passing green checkmark.
+If an automated tool or an engineer hastily rewrites the locator to whatever else happens to be clickable on the screen, **it does not repair the test—it destroys regression signal.** You turn an alert about a broken application into a silently passing green checkmark.
 
-That distinction is why we built **PIE (Playwright Intelligence Engine)**, invoked in your terminal as `pw-intel`. PIE reads a failed Playwright trace, decides whether the app or the test is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree sandbox before touching your code.
+That distinction is why we built **PIE (Playwright Intelligence Engine)**, invoked via `pw-intel`. PIE reads a failed Playwright trace, decides whether the app or the test is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree sandbox before touching your code.
 
 Here is an inside look at why naive self-healing fails, how we engineered PIE as a dependable product, and how to get started in your own project today.
 
@@ -44,15 +44,13 @@ Here is an inside look at why naive self-healing fails, how we engineered PIE as
 PIE is published on npm as `playwright-intelligence-engine`. It requires **Node.js >= 20** and **Git** (which it uses for isolated execution sandboxing).
 
 ### Installation
-Run directly with `npx` or install as a development dependency:
 
 ```bash
 npm install --save-dev playwright-intelligence-engine
 ```
 
-*(Legend: `PIE` = Product Name · `pw-intel` = Canonical CLI Command · `pie` = Alias).*
-
 ### Verify Readiness
+
 Check that your local environment has the required prerequisites:
 
 ```bash
@@ -75,6 +73,7 @@ Healthcheck Verdict: HEALTHY (Ready for diagnostic and repair workflows)
 *(Note: If an LLM API key is configured in your environment, `pw-intel doctor` displays `Configured (AI test generation enabled)`).*
 
 ### Initialize Project Configuration
+
 Run `init` to discover your workspace structure and configure your settings:
 
 ```bash
@@ -84,6 +83,7 @@ npx pw-intel init
 This creates a project-local `.pie/config.json` that records your package manager, test directories, and locator preferences without touching any test code.
 
 ### Enable Tracing in Playwright
+
 PIE operates on Playwright trace files (`trace.zip`). In your `playwright.config.ts`, ensure `retain-on-failure` is active:
 
 ```ts
@@ -114,42 +114,40 @@ To make self-healing trustworthy for production teams, we established strict non
 - **Rule 3:** Never promote a fix to your source code without proving it in an isolated Git worktree sandbox first.
 
 ### What PIE Will NOT Do
-- ❌ It will **never** alter, weaken, or delete test assertions.
-- ❌ It will **never** mask backend 500s, auth redirects, or network drops.
-- ❌ It will **never** dump unpruned DOMs, cookies, or authorization tokens into an LLM.
-- ❌ It will **never** mutate your working files without passing an isolated proof run.
+- It will **never** alter, weaken, or delete test assertions.
+- It will **never** mask backend 500s, auth redirects, or network drops.
+- It will **never** dump unpruned DOMs, cookies, or authorization tokens into an LLM.
+- It will **never** mutate your working files without passing an isolated proof run.
 
 ---
 
 ## 3. The Architecture: Two-Tier Intelligence
 
-PIE uses a dual-pass pipeline designed to balance deterministic speed with semantic AI flexibility:
+PIE uses a sequential pipeline designed to balance deterministic speed with semantic AI flexibility:
 
 ```text
 Playwright Trace (.zip)
-         │
-         ▼
-[Gate 0: Negative Controls] ─── Server 500 / Network Error? ───► ABSTAIN ($0 Tokens, 0 Code Changes)
-         │ No (Pure UI Drift)
-         ▼
-[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ────► Deterministic Local Fix ($0 Cost, <50ms AST edit)
-         │ Complex DOM Shift
-         ▼
-[Evidence Redactor & Slicer] ─── Filter & sanitize context ─────► Minimal Targeted Evidence Bundle
-         │
-         ▼
-[Tier 2: Semantic AI Agent] ──── Structural Intent Reasoning ───► Proposed Patch (Assertions Structurally Immutable)
-         │
-         ▼
-[Headless Git Worktree Sandbox] ── Isolated Playwright Run ─────► Re-execute exact test in disposable branch
-         │
-    ┌────┴────┐
-    │         │
-  Passed    Failed
-    │         │
-    ▼         ▼
-Promote     Reject candidate & leave
-to branch   source code untouched
+  │
+  ▼
+[1. Gate 0: Negative Controls]
+  │── Server 500 / Network Error? ──► ABSTAIN (0 Tokens, 0 Changes)
+  │
+  ▼ (UI Drift Verified)
+[2. Tier 1: Deterministic AST]
+  │── Stable DOM snapshot match?   ──► Local Fast-Path ($0 Cost, <50ms)
+  │
+  ▼ (Complex Shift)
+[3. Evidence Redactor & Slicer]
+  │── Redacts secrets & extracts minimal target bounding box
+  │
+  ▼
+[4. Tier 2: Semantic AI Agent]
+  │── Intent-Preserving Candidate (Assertions Immutable)
+  │
+  ▼
+[5. Headless Git Sandbox]
+  ├── Test Passes  ──► Atomically Promote to Workspace
+  └── Test Fails   ──► Discard & Leave Working Tree Clean
 ```
 
 ### Gate 0: Fail-Closed Negative Controls

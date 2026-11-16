@@ -208,6 +208,15 @@ Add to `claude_desktop_config.json`:
 - `generate_playwright_test`: Generates tests matching your repository's conventions.
 - `ingest_playwright_report`: Analyzes test run failures and flakiness.
 
+### First-Party Agent Skills Pack
+For AI coding assistants that support Agent Skills (Cursor, Claude Code, Antigravity, Cline), PIE bundles 3 first-party skills in the `skills/` directory:
+
+- **`pie-setup`**: Automated workspace readiness audit, diagnostic healthcheck (`pw-intel doctor`), and `playwright.config.ts` trace retention verification.
+- **`pie-self-heal`**: Autonomous end-to-end trace diagnosis and repair pipeline with Gate 0 negative control protection and isolated Git worktree proofs.
+- **`pie-stabilize`**: Flaky test auto-stabilizer. Scans specification files for arbitrary `waitForTimeout` calls and refactors them into deterministic event-driven awaits with multi-trial validation.
+
+To use them in your AI assistant, copy the desired skill folder from `node_modules/playwright-intelligence-engine/skills/` into your workspace's `.agents/skills/` (or `.cursor/skills/`).
+
 ---
 
 ## 5. CLI Command Cheat Sheet
@@ -218,6 +227,7 @@ Add to `claude_desktop_config.json`:
 | `diagnose` | `npx pw-intel diagnose <trace.zip>` | Ingests trace and outputs causal root cause |
 | `doctor` | `npx pw-intel doctor` | Verifies Node, Git, Playwright & LLM readiness |
 | `init` | `npx pw-intel init [--api-key <k>]` | Initializes `.pie/config.json` & optional LLM credentials |
+| `stabilize` | `npx pw-intel stabilize <spec.ts> [--trials=3] [--apply]` | Refactors flaky arbitrary sleeps (`waitForTimeout`) into event-driven awaits |
 | `profile` | `npx pw-intel profile [dir]` | Scans repository conventions, Page Objects, and preferred locators |
 | `architect` | `npx pw-intel architect <feature> [--write]` | Plans greenfield/brownfield Playwright architecture and typed fixtures |
 | `qa` | `npx pw-intel qa <feature> --author hybrid` | Evidence-driven 4-phase test generation (greenfield/brownfield) |

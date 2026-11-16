@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIE — Playwright Intelligence Engine | Deterministic Self-Healing & Verification</title>
+  <meta name="description" content="Fast, verification-first failure diagnosis, autonomous self-healing, and intent-preserving test verification for Microsoft Playwright suites.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%22 fill=%22none%22 stroke=%22%2338bdf8%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polygon points=%225 3 19 12 5 21 5 3%22></polygon></svg>">
+  
+  <!-- Tailwind CSS CDN & Inter Font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+          },
+          colors: {
+            brand: {
+              dark: '#080c14',
+              card: '#0f172a',
+              border: '#1e293b',
+              accent: '#06b6d4',
+              neon: '#10b981',
+              violet: '#8b5cf6',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .neon-glow {
+      box-shadow: 0 0 50px -10px rgba(6, 182, 212, 0.25);
+    }
+    .text-glow {
+      text-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+    }
+    pre code {
+      font-family: 'Fira Code', monospace;
+    }
+  </style>
+</head>
+<body class="bg-brand-dark text-slate-200 font-sans selection:bg-cyan-500 selection:text-black min-h-screen">
+
+  <!-- Background decorative glows -->
+  <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-cyan-500/10 via-violet-500/5 to-transparent blur-3xl pointer-events-none -z-10"></div>
+
+  <!-- Navbar -->
+  <nav class="sticky top-0 z-50 border-b border-slate-800/80 bg-brand-dark/80 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-cyan-500 to-emerald-400 flex items-center justify-center font-black text-black text-lg shadow-lg shadow-cyan-500/20">
+          π
+        </div>
+        <div>
+          <span class="font-bold text-white text-lg tracking-tight">PIE</span>
+          <span class="text-xs text-slate-400 ml-1.5 hidden sm:inline-block font-mono px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700">v2.3.3</span>
+        </div>
+      </div>
+      
+      <div class="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-300">
+        <a href="#features" class="hover:text-cyan-400 transition">Architecture</a>
+        <a href="#terminal" class="hover:text-cyan-400 transition">How It Works</a>
+        <a href="#comparison" class="hover:text-cyan-400 transition">Why PIE?</a>
+        <a href="#skills" class="hover:text-cyan-400 transition">Agent Skills</a>
+        <a href="https://dev.to/lokender_singh_8258958b86/how-to-self-heal-broken-playwright-tests-from-traces-with-pie-22nh" target="_blank" class="hover:text-cyan-400 transition flex items-center gap-1">Tutorial ↗</a>
+        <a href="https://medium.com/@lokender2121/why-we-built-pie-the-problem-with-naive-self-healing-in-playwright-0d4f8b6b8cd2" target="_blank" class="hover:text-cyan-400 transition flex items-center gap-1">Deep Dive ↗</a>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <a href="https://www.npmjs.com/package/playwright-intelligence-engine" target="_blank" class="px-3 py-1.5 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 text-xs font-mono font-medium hover:bg-red-900/40 transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M0 0v24h24V0H0zm19.5 19.5h-4.5v-10.5h-3v10.5H4.5V4.5h15v15z"/></svg>
+          npm v2.3.3
+        </a>
+        <a href="https://github.com/lst2121/playwright-intelligence-engine" target="_blank" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="pt-16 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 text-xs font-mono font-medium mb-8">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      Two-Tier Hybrid Architecture · $0.00 Fast-Path AST · Gate 0 Safety
+    </div>
+    
+    <h1 class="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-tight max-w-4xl mx-auto">
+      Autonomous Self-Healing for <br/>
+      <span class="bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">Playwright Tests</span>
+    </h1>
+
+    <p class="mt-6 text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto font-normal leading-relaxed">
+      PIE fixes broken UI locators from failed trace archives without hallucinating, weakening assertions, or masking real backend bugs.
+    </p>
+
+    <!-- CLI Install Pill -->
+    <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+      <div class="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl px-4 py-2.5 font-mono text-sm shadow-inner group">
+        <span class="text-slate-500 mr-2 select-none">$</span>
+        <span id="install-cmd" class="text-cyan-300">npm install --save-dev playwright-intelligence-engine</span>
+        <button onclick="navigator.clipboard.writeText('npm install --save-dev playwright-intelligence-engine'); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy', 2000)" class="ml-4 px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition font-sans">
+          Copy
+        </button>
+      </div>
+      <a href="https://dev.to/lokender_singh_8258958b86/how-to-self-heal-broken-playwright-tests-from-traces-with-pie-22nh" target="_blank" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-black font-semibold text-sm shadow-lg shadow-cyan-500/20 transition">
+        5-Minute Tutorial 🚀
+      </a>
+    </div>
+
+    <!-- Hero Image Showcase -->
+    <div class="mt-14 relative max-w-5xl mx-auto rounded-2xl overflow-hidden glass-card neon-glow border border-slate-700/60 p-2 sm:p-3">
+      <div class="rounded-xl overflow-hidden bg-slate-950 border border-slate-800">
+        <img src="assets/hero.jpg" alt="Playwright Intelligence Engine Architecture Pipeline" class="w-full object-cover">
+      </div>
+      <div class="p-3 text-xs text-slate-400 font-mono flex items-center justify-between">
+        <span class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          Gate 0 Negative Controls ➔ Deterministic AST Fast-Path ($0) ➔ Redactor ➔ Semantic AI ➔ Git Worktree Sandbox
+        </span>
+        <span class="hidden sm:inline-block text-slate-500">Autonomous Test Verification</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Interactive Terminal Simulation -->
+  <section id="terminal" class="py-16 bg-slate-950/70 border-y border-slate-800/80">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-10">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Three Graduated Modes of Execution</h2>
+        <p class="mt-2 text-slate-400 text-sm">You control exactly when and how changes touch your workspace.</p>
+      </div>
+
+      <!-- Terminal Window -->
+      <div class="rounded-xl overflow-hidden border border-slate-800 bg-[#070b14] shadow-2xl font-mono text-sm">
+        <div class="bg-slate-900/90 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+            <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+            <span class="text-slate-400 text-xs ml-2">pw-intel autonomous-repair</span>
+          </div>
+          <div class="text-xs text-slate-500">pw-intel v2.3.3</div>
+        </div>
+
+        <div class="p-5 text-slate-300 space-y-3 leading-relaxed overflow-x-auto">
+          <p><span class="text-emerald-400 font-bold">$ npx pw-intel repair</span> <span class="text-slate-500"># 1. Inspection Mode (Dry-Run)</span></p>
+          <p class="text-cyan-400">[1/1] › Ingesting trace: test-results/checkout-trace.zip</p>
+          <p class="text-slate-400">      › Gate 0: Checking network logs... <span class="text-emerald-400">PASS</span> (No HTTP 5xx / Auth drops)</p>
+          <p class="text-slate-400">      › Evaluating deterministic AST locator match...</p>
+          <p class="text-emerald-300">      ✓ [Tier 1] Deterministic AST match found: <span class="text-white font-bold">#login-button</span> (confidence: 0.98)</p>
+          <p class="text-yellow-400">Status : PROPOSAL_READY (Workspace untouched)</p>
+          
+          <div class="p-3 bg-slate-900/80 rounded border border-slate-800 text-xs my-2 text-slate-300">
+            <span class="text-cyan-400 font-bold">Telemetry & Spend Breakdown:</span><br/>
+            &nbsp;&nbsp;• Fast-Path AST &nbsp;: 1 trace (0 tokens, <span class="text-emerald-400 font-bold">$0.000000 USD</span>)<br/>
+            &nbsp;&nbsp;• Semantic LLM &nbsp;&nbsp;: 0 traces (0 tokens, $0.000000 USD)<br/>
+            &nbsp;&nbsp;• Total Cost &nbsp;&nbsp;&nbsp;&nbsp;: <span class="text-emerald-400 font-bold">$0.000000 USD</span>
+          </div>
+
+          <p class="pt-2"><span class="text-emerald-400 font-bold">$ npx pw-intel repair --execute</span> <span class="text-slate-500"># 2. Worktree Sandbox Verification</span></p>
+          <p class="text-slate-400">      › Created isolated headless Git worktree: <span class="text-cyan-300">.git/worktrees/pie-sandbox-a1</span></p>
+          <p class="text-slate-400">      › Running Playwright in sandbox: <span class="text-white">1 passed (1.8s)</span></p>
+          <p class="text-emerald-400">      ✓ VERIFIED in isolation. Pruned sandbox. Working files untouched.</p>
+
+          <p class="pt-2"><span class="text-emerald-400 font-bold">$ npx pw-intel repair --apply</span> <span class="text-slate-500"># 3. Promote Fix to Workspace</span></p>
+          <p class="text-slate-400">      ✓ Applied verified patch to <span class="text-cyan-300">pages/checkout.page.ts</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Pillars -->
+  <section id="features" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl font-extrabold text-white tracking-tight">Engineered for Production Testing</h2>
+      <p class="mt-3 text-slate-400 max-w-xl mx-auto text-base">Why senior quality teams trust PIE over naive LLM wrappers.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      
+      <!-- Feature 1 -->
+      <div class="glass-card p-6 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition">
+        <div class="w-10 h-10 rounded-lg bg-cyan-950 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-800/50">
+          🛡️
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Gate 0: Fail-Closed Negative Controls</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          If a test fails because a backend API threw an HTTP 500, a session expired, or the database crashed, PIE immediately <strong>abstains</strong>. Zero masked bugs.
+        </p>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="glass-card p-6 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition">
+        <div class="w-10 h-10 rounded-lg bg-emerald-950 flex items-center justify-center text-emerald-400 mb-4 border border-emerald-800/50">
+          ⚡
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Tier 1: Deterministic AST ($0 Spend)</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          100% offline and sub-second. Inspects DOM action snapshots inside <code class="text-emerald-400">trace.zip</code> and updates Page Object AST trees with zero token cost.
+        </p>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="glass-card p-6 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition">
+        <div class="w-10 h-10 rounded-lg bg-violet-950 flex items-center justify-center text-violet-400 mb-4 border border-violet-800/50">
+          📦
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Headless Git Worktree Sandboxing</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          Every proposed patch is compiled and re-executed against Playwright inside an isolated Git worktree. PIE never touches your working files without sandbox proof.
+        </p>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="glass-card p-6 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition">
+        <div class="w-10 h-10 rounded-lg bg-yellow-950 flex items-center justify-center text-yellow-400 mb-4 border border-yellow-800/50">
+          🔒
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Strict Assertion Immutability</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          Test assertions (<code class="text-yellow-300">expect(...)</code>) are structurally immutable. PIE will never alter, weaken, or delete assertions to make a failing test pass.
+        </p>
+      </div>
+
+      <!-- Feature 5 -->
+      <div class="glass-card p-6 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition">
+        <div class="w-10 h-10 rounded-lg bg-blue-950 flex items-center justify-center text-blue-400 mb-4 border border-blue-800/50">
+          🧠
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Compounding Stability Ledger</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          Records verified locator successes and penalizes brittle selectors using 30-day time-decayed Bayesian scoring stored in <code class="text-blue-300">.pw-intelligence/</code>.
+        </p>
+      </div>
+
+      <!-- Feature 6 -->
+      <div class="glass-card p-6 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition">
+        <div class="w-10 h-10 rounded-lg bg-pink-950 flex items-center justify-center text-pink-400 mb-4 border border-pink-800/50">
+          🤖
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Model Context Protocol (MCP)</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">
+          Native MCP server (<code class="text-pink-300">pw-intel mcp</code>) allows Cursor, Windsurf, and Claude Code to diagnose traces and fix tests directly inside your IDE.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section id="comparison" class="py-16 bg-slate-950/50 border-t border-slate-800">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-12">
+        <h2 class="text-3xl font-extrabold text-white tracking-tight">The Problem with Naive Self-Healing</h2>
+        <p class="mt-2 text-slate-400 text-sm">How PIE provides enterprise-grade safety vs. first-generation AI tools.</p>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-800 glass-card">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-900/90 text-xs text-slate-400 uppercase tracking-wider font-mono border-b border-slate-800">
+            <tr>
+              <th class="px-6 py-4">Capability</th>
+              <th class="px-6 py-4 text-red-400">Naive AI Healers</th>
+              <th class="px-6 py-4 text-cyan-400 bg-cyan-950/20">Playwright Intelligence Engine (PIE)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800/60 font-medium">
+            <tr>
+              <td class="px-6 py-4 text-white">Backend 500 / Network Drop</td>
+              <td class="px-6 py-4 text-red-400">Blindly changes UI selector ❌</td>
+              <td class="px-6 py-4 text-emerald-400 bg-cyan-950/10">Gate 0 Abstains; generates bug ticket ✅</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 text-white">Assertion Invariance</td>
+              <td class="px-6 py-4 text-red-400">Weakens or deletes <code class="text-xs">expect()</code> ❌</td>
+              <td class="px-6 py-4 text-emerald-400 bg-cyan-950/10">Structurally immutable invariant ✅</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 text-white">Workspace Verification</td>
+              <td class="px-6 py-4 text-red-400">Mutates active branch directly ❌</td>
+              <td class="px-6 py-4 text-emerald-400 bg-cyan-950/10">Isolated headless Git worktree sandbox ✅</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 text-white">Execution Cost</td>
+              <td class="px-6 py-4 text-red-400">$0.05 – $0.20 per failure ❌</td>
+              <td class="px-6 py-4 text-emerald-400 bg-cyan-950/10">$0.000000 USD (Tier 1 AST Fast-Path) ✅</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 text-white">Security & Privacy</td>
+              <td class="px-6 py-4 text-red-400">Dumps entire raw DOM to cloud LLM ❌</td>
+              <td class="px-6 py-4 text-emerald-400 bg-cyan-950/10">Local offline AST; redacts auth cookies ✅</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Agent Skills Pack -->
+  <section id="skills" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-12">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-950 border border-violet-500/30 text-violet-400 text-xs font-mono mb-4">
+        Official Skill Pack
+      </div>
+      <h2 class="text-3xl font-extrabold text-white tracking-tight">Shipped with 3 First-Party Agent Skills</h2>
+      <p class="mt-2 text-slate-400 text-sm max-w-lg mx-auto">Native skills that AI coding assistants (Cursor, Claude Code, Antigravity, Cline) can execute directly.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="glass-card p-6 rounded-xl border border-slate-800">
+        <div class="text-xs font-mono text-cyan-400 mb-2">skills/pie-setup</div>
+        <h3 class="text-lg font-bold text-white mb-2">pie-setup</h3>
+        <p class="text-sm text-slate-400 mb-4">
+          Runs diagnostic healthcheck (<code class="text-xs text-slate-300">pw-intel doctor</code>), initializes <code class="text-xs text-slate-300">.pie/config.json</code>, and audits trace retention in <code class="text-xs text-slate-300">playwright.config.ts</code> in under 4 seconds.
+        </p>
+      </div>
+
+      <div class="glass-card p-6 rounded-xl border border-slate-800">
+        <div class="text-xs font-mono text-emerald-400 mb-2">skills/pie-self-heal</div>
+        <h3 class="text-lg font-bold text-white mb-2">pie-self-heal</h3>
+        <p class="text-sm text-slate-400 mb-4">
+          Autonomous end-to-end trace diagnosis, Gate 0 negative control enforcement, Git worktree sandbox verification (<code class="text-xs text-slate-300">--execute</code>), and atomic file promotion.
+        </p>
+      </div>
+
+      <div class="glass-card p-6 rounded-xl border border-slate-800">
+        <div class="text-xs font-mono text-yellow-400 mb-2">skills/pie-stabilize</div>
+        <h3 class="text-lg font-bold text-white mb-2">pie-stabilize</h3>
+        <p class="text-sm text-slate-400 mb-4">
+          Eliminates flaky tests by detecting arbitrary sleeps (<code class="text-xs text-slate-300">waitForTimeout</code>) and refactoring them into deterministic event-driven awaits with multi-trial validation.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 py-12 bg-slate-950/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm text-slate-500">
+      <div class="flex items-center space-x-3">
+        <span class="font-bold text-white tracking-tight">PIE</span>
+        <span>•</span>
+        <span>Apache-2.0 Open Source</span>
+        <span>•</span>
+        <span>Built by <a href="https://github.com/lst2121" target="_blank" class="text-slate-400 hover:text-white transition">lst2121</a></span>
+      </div>
+
+      <div class="flex items-center space-x-6">
+        <a href="https://www.npmjs.com/package/playwright-intelligence-engine" target="_blank" class="hover:text-cyan-400 transition">npm Registry</a>
+        <a href="https://github.com/lst2121/playwright-intelligence-engine" target="_blank" class="hover:text-cyan-400 transition">GitHub Repo</a>
+        <a href="https://dev.to/lokender_singh_8258958b86/how-to-self-heal-broken-playwright-tests-from-traces-with-pie-22nh" target="_blank" class="hover:text-cyan-400 transition">DEV.to Tutorial</a>
+        <a href="https://medium.com/@lokender2121/why-we-built-pie-the-problem-with-naive-self-healing-in-playwright-0d4f8b6b8cd2" target="_blank" class="hover:text-cyan-400 transition">Medium Deep-Dive</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

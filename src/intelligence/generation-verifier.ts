@@ -366,13 +366,23 @@ ${pomMethods.length > 0 ? `\n${pomMethods.join('\n\n')}\n` : ''}}
   const pomImportForSpec = relPomFromSpec.startsWith('.') ? relPomFromSpec : `./${relPomFromSpec}`;
 
   // Adaptive Convention Mirroring:
-  // If repository profile detects NO custom fixtures (e.g. pure @playwright/test brownfield), respect it.
-  const isBrownfieldWithoutFixtures = Boolean(
-    repoGraph &&
-    repoGraph.fixtureExports.length === 0 &&
-    repoGraph.testImport === '@playwright/test'
+  // If the repository already has an established POM/test suite that intentionally does NOT use fixtures,
+  // or uses an internal custom test harness (e.g. #tests/playwright-utils.ts) without a dedicated POM fixtures folder, respect it.
+  // Otherwise (greenfield or repos with dedicated POM fixtures), scaffold and compose into modern Playwright fixtures.
+  const hasDedicatedPomFixtures = Boolean(
+    repoGraph?.fixtureExports?.some((f) => /fixtures?[/\\]/i.test(f.sourceFile) || /fixtures?\.ts$/i.test(f.sourceFile))
+    || (workspaceRoot && fsSync.existsSync(path.join(workspaceRoot, `${fixtureDir}/test.ts`)))
+    || (workspaceRoot && fsSync.existsSync(path.join(workspaceRoot, `${fixtureDir}/app.fixtures.ts`)))
   );
-  const usesCustomFixtures = !isBrownfieldWithoutFixtures;
+
+  const hasEstablishedSuiteWithoutFixtures = Boolean(
+    repoGraph &&
+    (
+      (repoGraph.pomExports.length > 0 && !hasDedicatedPomFixtures && repoGraph.testImport === '@playwright/test') ||
+      (repoGraph.testImport && repoGraph.testImport !== '@playwright/test' && !hasDedicatedPomFixtures)
+    )
+  );
+  const usesCustomFixtures = !hasEstablishedSuiteWithoutFixtures;
 
   const candidateFiles: CandidateFile[] = [
     {
@@ -390,10 +400,9 @@ ${pomMethods.length > 0 ? `\n${pomMethods.join('\n\n')}\n` : ''}}
   if (usesCustomFixtures) {
     const defaultFixturePath = `${fixtureDir}/test.ts`;
 
-    if (repoGraph?.testImport && repoGraph.testImport !== '@playwright/test') {
-      targetFixtureRel = repoGraph.testImport;
-    } else if (repoGraph?.fixtureExports?.[0]?.sourceFile) {
-      targetFixtureRel = repoGraph.fixtureExports[0]!.sourceFile;
+    const dedicatedFixture = repoGraph?.fixtureExports?.find((f) => /fixtures?[/\\]/i.test(f.sourceFile) || /fixtures?\.ts$/i.test(f.sourceFile));
+    if (dedicatedFixture) {
+      targetFixtureRel = dedicatedFixture.sourceFile;
     } else if (workspaceRoot && fsSync.existsSync(path.join(workspaceRoot, `${fixtureDir}/test.ts`))) {
       targetFixtureRel = `${fixtureDir}/test.ts`;
     } else if (workspaceRoot && fsSync.existsSync(path.join(workspaceRoot, `${fixtureDir}/app.fixtures.ts`))) {
@@ -598,7 +607,9 @@ ${checks.join('\n')}
 
   const specImports = usesCustomFixtures
     ? `import { test, expect } from ${JSON.stringify(fixtureImportForSpec)};`
-    : `import { test, expect } from '@playwright/test';\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`;
+    : repoGraph?.testImport && repoGraph.testImport !== '@playwright/test'
+      ? `import { test, expect } from ${JSON.stringify(repoGraph.testImport)};\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`
+      : `import { test, expect } from '@playwright/test';\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`;
 
   const specContent = `${specImports}
 

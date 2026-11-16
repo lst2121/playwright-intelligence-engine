@@ -42,10 +42,8 @@ export function composeFixtureAst(
     }
 
     // 2. Find and update the Fixture Type definition (type or interface)
-    const typeAlias = sourceFile.getTypeAliases().find((t) => /fixtures?$/i.test(t.getName()))
-      ?? sourceFile.getTypeAliases()[0];
-    const iface = sourceFile.getInterfaces().find((i) => /fixtures?$/i.test(i.getName()))
-      ?? sourceFile.getInterfaces()[0];
+    const typeAlias = sourceFile.getTypeAliases().find((t) => /fixtures?$/i.test(t.getName()));
+    const iface = sourceFile.getInterfaces().find((i) => /fixtures?$/i.test(i.getName()));
 
     if (typeAlias) {
       const typeNode = typeAlias.getTypeNode();
@@ -68,11 +66,30 @@ export function composeFixtureAst(
         });
       }
     } else {
-      // Create AppFixtures if none existed
-      sourceFile.addTypeAlias({
-        name: `${pageClassName}Fixtures`,
-        type: `{\n  ${pageVar}: ${pageClassName};\n}`,
+      // Check if base.extend<{ ... }> has an inline type literal
+      const extendCalls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => {
+        const exprText = c.getExpression().getText();
+        return exprText.endsWith('.extend');
       });
+      const targetExtendCall = extendCalls[0];
+      const typeArgs = targetExtendCall?.getTypeArguments() ?? [];
+      const inlineTypeLiteral = typeArgs.find((ta) => ta.getKind() === SyntaxKind.TypeLiteral)?.asKind(SyntaxKind.TypeLiteral);
+
+      if (inlineTypeLiteral) {
+        const hasProp = inlineTypeLiteral.getProperties().some((p) => p.getName() === pageVar);
+        if (!hasProp) {
+          inlineTypeLiteral.addProperty({
+            name: pageVar,
+            type: pageClassName,
+          });
+        }
+      } else {
+        // Create AppFixtures if none existed
+        sourceFile.addTypeAlias({
+          name: `${pageClassName}Fixtures`,
+          type: `{\n  ${pageVar}: ${pageClassName};\n}`,
+        });
+      }
     }
 
     // 3. Find base.extend / test.extend call and add the fixture setup

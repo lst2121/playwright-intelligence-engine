@@ -19,6 +19,8 @@ locator.click: Test timeout exceeded
 waiting for locator('#login-button-old')
 ```
 
+> **TL;DR:** **PIE (Playwright Intelligence Engine)**, invoked via the CLI as `pw-intel`, reads a failed Playwright `trace.zip`, decides whether the **app** or the **test** is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree before touching your code. Tier 1 is offline AST (**$0 tokens**); Gate 0 refuses to repair when the backend returns HTTP 500s or network drops.
+
 Every engineer who maintains browser automation suites knows the drill. You download the artifact from CI, open the trace viewer, find where a frontend engineer renamed the button ID or wrapped it in a new container, edit the selector in your Page Object, push a commit, and wait 15 minutes for CI to turn green again.
 
 Sometimes, changing that selector is the right fix.
@@ -50,7 +52,7 @@ Run directly with `npx` or install as a development dependency:
 npm install --save-dev playwright-intelligence-engine
 ```
 
-*(Note: The primary CLI command is `pw-intel`. A convenient alias `pie` is also available).*
+*(Legend: `PIE` = Product Name · `pw-intel` = Canonical CLI Command · `pie` = Alias).*
 
 ### Verify Readiness
 Check that your local environment has the required prerequisites:
@@ -65,12 +67,14 @@ Running Playwright Intelligence Engine Diagnostic Healthcheck (pw-intel doctor).
   ✓ Node.js Runtime     : v24.19.0 (Supported >= 20.0.0)
   ✓ Git Version Control : git version 2.44.0.windows.1
   ✓ Playwright Test     : ^1.64.1 (Found in package.json)
-  ✓ Workspace Access    : Read/Write verified
+  ✓ Workspace Access    : Read/Write verified for '<cwd>'
   ✓ Host Platform       : win32 (x64)
-  ✓ LLM Provider        : Configured (AI test generation enabled)
+  ✓ LLM Provider        : None configured (100% offline deterministic mode active)
 
 Healthcheck Verdict: HEALTHY (Ready for diagnostic and repair workflows)
 ```
+
+*(Note: If an LLM API key is configured in your environment, `pw-intel doctor` displays `Configured (AI test generation enabled)`).*
 
 ### Initialize Project Configuration
 Run `init` to discover your workspace structure and configure your settings:
@@ -106,10 +110,16 @@ This naive approach suffers from three fatal engineering flaws:
 2. **Security & Privacy Leaks:** Raw traces contain authorization headers, session cookies, passwords, and user PII.
 3. **Assertion Dilution:** When an LLM struggles to find an exact match, it frequently "fixes" the problem by modifying or removing the failing `expect(...)` assertion.
 
-To make self-healing trustworthy for production teams, we established three strict non-negotiable rules:
-- **Rule 1:** Never attempt a UI repair if the trace contains an application or environment failure.
-- **Rule 2:** Assertions are cryptographically immutable. PIE will never alter, weaken, or remove an assertion.
-- **Rule 3:** Never promote a fix directly to the codebase without proving it in an isolated sandbox first.
+To make self-healing trustworthy for production teams, we established strict non-negotiable rules:
+- **Rule 1:** Never attempt a UI repair if the trace contains an application or environment failure (HTTP 5xx, 401/403, 404, or network drops).
+- **Rule 2:** Assertions are **structurally immutable** — the repair planner refuses any patch that alters, weakens, or deletes an `expect(...)`. (Promotion via MCP is additionally cryptographically bound to the exact patch hash).
+- **Rule 3:** Never promote a fix to your source code without proving it in an isolated Git worktree sandbox first.
+
+### What PIE Will NOT Do
+- ❌ It will **never** alter, weaken, or delete test assertions.
+- ❌ It will **never** mask backend 500s, auth redirects, or network drops.
+- ❌ It will **never** dump unpruned DOMs, cookies, or authorization tokens into an LLM.
+- ❌ It will **never** mutate your working files without passing an isolated proof run.
 
 ---
 
@@ -124,13 +134,13 @@ Playwright Trace (.zip)
 [Gate 0: Negative Controls] ─── Server 500 / Network Error? ───► ABSTAIN ($0 Tokens, 0 Code Changes)
          │ No (Pure UI Drift)
          ▼
-[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ────► Deterministic Local Fix ($0 Cost, <50ms)
+[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ────► Deterministic Local Fix ($0 Cost, <50ms AST edit)
          │ Complex DOM Shift
          ▼
 [Evidence Redactor & Slicer] ─── Filter & sanitize context ─────► Minimal Targeted Evidence Bundle
          │
          ▼
-[Tier 2: Semantic AI Agent] ──── Structural Intent Reasoning ───► Proposed Patch (Assertions Strictly Immutable)
+[Tier 2: Semantic AI Agent] ──── Structural Intent Reasoning ───► Proposed Patch (Assertions Structurally Immutable)
          │
          ▼
 [Headless Git Worktree Sandbox] ── Isolated Playwright Run ─────► Re-execute exact test in disposable branch
@@ -148,17 +158,28 @@ to branch   source code untouched
 Before touching any code or calling any AI models, `pw-intel` parses the trace’s network log and console events. If the failed action was accompanied by an HTTP 500 server crash, a 401 unauthenticated redirect, or a DNS failure, the engine **immediately halts and abstains**. It reports the backend failure directly, consuming **0 tokens and $0.00**.
 
 ### Tier 1: Deterministic AST Fast-Path ($0 Token Cost)
-For standard locator drift (e.g., an element’s ID changed, but its accessible role, test ID, or label remains intact in the DOM snapshot), PIE repairs the code **100% offline and locally** using TypeScript AST manipulation (`ts-morph`). It executes in milliseconds with zero LLM API calls.
+For standard locator drift (e.g., an element’s ID changed, but its accessible role, test ID, or label remains intact in the DOM snapshot), PIE repairs the code **100% offline and locally** using TypeScript AST manipulation (`ts-morph`). The AST edit itself is sub-50ms and completely offline; the proof-run is a normal Playwright execution.
 
 ### Tier 2: Adaptive Semantic AI (The "Need-to-Know" Principle)
-Not everything in UI automation is deterministic. When a frontend evolves from a standard `<select>` dropdown into a dynamic React combobox with nested ARIA dialogs, deterministic AST matching is not enough. You need semantic reasoning.
+Not everything in UI automation is a simple attribute change. When a frontend refactors from a native select element to a custom accessible combobox:
+
+```ts
+// Before (native HTML select)
+await page.locator('#country').selectOption('US');
+
+// After (custom accessible combobox + ARIA listbox) — Tier 2 territory
+await page.getByRole('combobox', { name: 'Country' }).click();
+await page.getByRole('option', { name: 'United States' }).click();
+```
+
+Deterministic AST matching is not enough here; you need semantic intent understanding.
 
 However, PIE enforces strict **context isolation**:
 - **Privacy Redaction:** PIE’s `EvidenceRedactor` strips Bearer tokens, cookies, JWTs, card numbers, and passwords.
 - **Targeted Slicing:** Instead of sending 2 MB of HTML, the model receives only the exact failing statement, the immediate before/action/after snapshot diff, and the accessible subtree of the interactive target.
 
 ### Headless Git Worktree Sandbox Proof
-Even if a proposed locator looks perfect on paper, `pw-intel` never touches your working directory directly. Instead, it spins up an isolated, temporary Git worktree, applies the candidate diff, and runs Playwright against the specific test title (`-g "^testTitle$"`). Only if the test passes completely in isolation is the change promoted to your active repository.
+Even if a proposed locator looks perfect on paper, `pw-intel` never mutates your source or test files directly. Instead, it spins up an isolated, temporary Git worktree, applies the candidate diff, and runs Playwright against the specific test title (`-g "^testTitle$"`). Only if the test passes completely in isolation is the change promoted to your active repository.
 
 ---
 
@@ -172,7 +193,7 @@ When a button ID drifts, run `diagnose`:
 npx pw-intel diagnose ./test-results/login-failure/trace.zip
 ```
 
-Output:
+*(Illustrative diagnosis output):*
 ```text
 ╔══════════════════════════════════════════════════════════════════════╗
 ║             PLAYWRIGHT INTELLIGENCE ENGINE: DIAGNOSTIC REPORT        ║
@@ -201,15 +222,12 @@ Analysis:
 ────────────────────────────────────────────────────────────────────────
 ```
 
-### Scenario B: Dry-Run and Verified Repair
+### Scenario B: Inspection, Sandbox Verification, and Applied Repairs
 
-To inspect proposed changes without modifying your files:
-
-```bash
-npx pw-intel repair
-```
-
-When you are ready to apply verified fixes:
+Understanding the repair workflow flags:
+- `npx pw-intel repair`: Inspection only (emits a dry-run proposal without executing tests).
+- `npx pw-intel repair --execute`: Verifies the proposed repair in an isolated Git worktree sandbox without modifying active source files.
+- `npx pw-intel repair --apply --verbose`: Verifies in the sandbox AND atomically promotes passing repairs to your workspace, displaying spend telemetry.
 
 ```bash
 npx pw-intel repair --apply --verbose
@@ -233,6 +251,14 @@ Terminal output:
     "tests/pages/LoginPage.ts"
   ]
 }
+```
+
+When run with `--verbose`, PIE prints its token and cost telemetry:
+```text
+Repair Telemetry:
+  • Fast-Path AST   : 1 trace (0 tokens, $0.000000 USD)
+  • Semantic LLM    : 0 traces (0 tokens, $0.000000 USD)
+  • Worktree Sandboxes: 1 created, 1 verified, 1 pruned
 ```
 
 Git diff in `LoginPage.ts`:
@@ -305,6 +331,7 @@ npx pw-intel mcp
 ### Available MCP Tools:
 - **`pw_intel_diagnose`**: Ingests `trace.zip` and explains root causes directly in chat.
 - **`pw_intel_autonomous_repair`**: Repairs Page Objects and runs isolated Git sandbox proofs.
+- **`pw_intel_batch_repair`**: Discovers all failing traces across the repo in parallel, verifies them in isolated worktrees, and promotes verified fixes in one pass.
 - **`pw_intel_profile`**: Teaches the AI your repository’s specific Page Object conventions.
 - **`run_qa_pipeline`**: Generates full E2E test suites from natural language specifications (`pw-intel qa`).
 

@@ -78,6 +78,7 @@ interface RawDomElementInfo {
   accessibleName: string;
   placeholder?: string | undefined;
   label?: string | undefined;
+  name?: string | undefined;
   testId?: string | undefined;
   type?: string | undefined;
   visible: boolean;
@@ -96,6 +97,13 @@ function buildLocatorPlanFromDom(el: RawDomElementInfo): {
       plan: { kind: 'getByTestId', testId: el.testId },
     };
   }
+  if (el.label && (el.tag === 'input' || el.tag === 'textarea' || el.tag === 'select')) {
+    return {
+      strategy: 'label',
+      expression: `page.getByLabel(${JSON.stringify(el.label)})`,
+      plan: { kind: 'getByLabel', label: el.label },
+    };
+  }
   if (el.placeholder) {
     return {
       strategy: 'placeholder',
@@ -103,11 +111,11 @@ function buildLocatorPlanFromDom(el: RawDomElementInfo): {
       plan: { kind: 'getByPlaceholder', placeholder: el.placeholder },
     };
   }
-  if (el.label && (el.tag === 'input' || el.tag === 'textarea' || el.tag === 'select')) {
+  if (el.name && (el.tag === 'input' || el.tag === 'textarea' || el.tag === 'select')) {
     return {
-      strategy: 'label',
-      expression: `page.getByLabel(${JSON.stringify(el.label)})`,
-      plan: { kind: 'getByLabel', label: el.label },
+      strategy: 'css',
+      expression: `page.locator(${JSON.stringify(`${el.tag}[name="${el.name}"]`)})`,
+      plan: { kind: 'locator', selector: `${el.tag}[name="${el.name}"]` },
     };
   }
   if (el.role && el.accessibleName) {
@@ -158,11 +166,21 @@ async function collectInteractiveControls(page: any): Promise<RawDomElementInfo[
           else if (/^h[1-3]$/.test(tag)) role = 'heading';
         }
         const placeholder = el.getAttribute('placeholder') || undefined;
-        const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
+        let associatedLabel = '';
+        if (el.labels && el.labels[0]) {
+          associatedLabel = (el.labels[0].innerText || '').trim();
+        } else if (el.id) {
+          const doc = el.ownerDocument || (globalThis as any).document;
+          const lbl = doc ? doc.querySelector(`label[for="${el.id}"]`) : null;
+          if (lbl) associatedLabel = (lbl.innerText || '').trim();
+        }
+        const ariaLabel = (el.getAttribute('aria-label') || '').trim();
+        const label = (associatedLabel || ariaLabel) ? (associatedLabel || ariaLabel) : undefined;
+        const name = el.getAttribute('name') || undefined;
         const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
-        const accessibleName = (el.getAttribute('aria-label') || el.innerText || placeholder || '').trim().slice(0, 120);
+        const accessibleName = (ariaLabel || associatedLabel || el.innerText || placeholder || name || '').trim().slice(0, 120);
         const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-        return { tag, role, accessibleName, placeholder, label, testId, type, visible };
+        return { tag, role, accessibleName, placeholder, label, name, testId, type, visible };
       });
 
     const raw = typeof page.locator === 'function'
@@ -183,11 +201,21 @@ async function collectInteractiveControls(page: any): Promise<RawDomElementInfo[
               else if (/^h[1-3]$/.test(tag)) role = 'heading';
             }
             const placeholder = el.getAttribute('placeholder') || undefined;
-            const label = el.getAttribute('aria-label') || el.getAttribute('name') || undefined;
+            let associatedLabel = '';
+            if (el.labels && el.labels[0]) {
+              associatedLabel = (el.labels[0].innerText || '').trim();
+            } else if (el.id) {
+              const doc = el.ownerDocument || (globalThis as any).document;
+              const lbl = doc ? doc.querySelector(`label[for="${el.id}"]`) : null;
+              if (lbl) associatedLabel = (lbl.innerText || '').trim();
+            }
+            const ariaLabel = (el.getAttribute('aria-label') || '').trim();
+            const label = (associatedLabel || ariaLabel) ? (associatedLabel || ariaLabel) : undefined;
+            const name = el.getAttribute('name') || undefined;
             const testId = el.getAttribute('data-testid') || el.getAttribute('data-test') || undefined;
-            const accessibleName = (el.getAttribute('aria-label') || el.innerText || placeholder || '').trim().slice(0, 120);
+            const accessibleName = (ariaLabel || associatedLabel || el.innerText || placeholder || name || '').trim().slice(0, 120);
             const visible = Boolean(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-            return { tag, role, accessibleName, placeholder, label, testId, type, visible };
+            return { tag, role, accessibleName, placeholder, label, name, testId, type, visible };
           });
         }, selector);
     return raw.filter((r: RawDomElementInfo) => r.visible);

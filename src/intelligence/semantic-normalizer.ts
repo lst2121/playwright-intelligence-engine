@@ -31,7 +31,7 @@ const THIRD_PARTY_SSO_PATTERN = /\b(google|github|apple|facebook|twitter|microso
 const DEVTOOLS_PATTERN = /\b(dev ?tools|turbopack|webpack|inspect|debug)\b/i;
 const DESTRUCTIVE_ACTION_PATTERN = /\b(delete|remove|destroy|cancel|close|dismiss|clear|reset|back)\b/i;
 const NAVIGATION_TOGGLE_PATTERN = /\b(toggle menu|sidebar|collapse|expand|notification|profile|avatar|theme|dark mode|light mode)\b/i;
-const PRIMARY_SUBMIT_PATTERN = /^(log ?in|sign ?in|sign ?up|register|submit|save|create|send|continue|confirm|next|add|search|done|finish)$/i;
+const PRIMARY_SUBMIT_PATTERN = /^(log ?in|sign ?in|sign ?up|register|submit|save|create|send|continue|confirm|next|add|done|finish)$/i;
 const SUBMIT_VERBS_PATTERN = /\b(submit|send|save|create|continue|confirm|log ?in|sign ?in|sign ?up|register|next|add)\b/i;
 
 function cleanText(text: string): string {

@@ -605,11 +605,37 @@ ${checks.join('\n')}
     addUiState(`should present interactive controls in ready and accessible state`);
   }
 
+  let resolvedTestImport = repoGraph?.testImport ?? '@playwright/test';
+  if (resolvedTestImport !== '@playwright/test' && !resolvedTestImport.startsWith('.') && !resolvedTestImport.startsWith('#')) {
+    // Check if it matches a package.json subpath import
+    const pkgJsonPath = workspaceRoot ? path.join(workspaceRoot, 'package.json') : undefined;
+    let subpathImport: string | undefined;
+    if (pkgJsonPath && fsSync.existsSync(pkgJsonPath)) {
+      try {
+        const pkg = JSON.parse(fsSync.readFileSync(pkgJsonPath, 'utf8'));
+        if (pkg.imports) {
+          for (const [alias, target] of Object.entries(pkg.imports as Record<string, string>)) {
+            const cleanTarget = target.replace(/^\.\//, '').replace(/\*$/, '');
+            const cleanAlias = alias.replace(/\*$/, '');
+            if (resolvedTestImport.startsWith(cleanTarget)) {
+              subpathImport = resolvedTestImport.replace(cleanTarget, cleanAlias);
+              break;
+            }
+          }
+        }
+      } catch {}
+    }
+    if (subpathImport) {
+      resolvedTestImport = subpathImport;
+    } else {
+      const rel = path.posix.relative(specDir, resolvedTestImport);
+      resolvedTestImport = rel.startsWith('.') ? rel : `./${rel}`;
+    }
+  }
+
   const specImports = usesCustomFixtures
     ? `import { test, expect } from ${JSON.stringify(fixtureImportForSpec)};`
-    : repoGraph?.testImport && repoGraph.testImport !== '@playwright/test'
-      ? `import { test, expect } from ${JSON.stringify(repoGraph.testImport)};\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`
-      : `import { test, expect } from '@playwright/test';\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`;
+    : `import { test, expect } from ${JSON.stringify(resolvedTestImport)};\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`;
 
   const specContent = `${specImports}
 

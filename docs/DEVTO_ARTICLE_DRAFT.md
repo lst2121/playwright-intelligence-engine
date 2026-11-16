@@ -14,13 +14,13 @@ locator.click: Test timeout exceeded
 waiting for locator('#login-button-old')
 ```
 
-> **TL;DR:** **PIE (Playwright Intelligence Engine)**, invoked via the CLI as `pw-intel`, reads a failed Playwright `trace.zip`, decides whether the **app** or the **test** is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree sandbox before touching your code. Tier 1 is offline AST (**$0 tokens**); Gate 0 refuses to repair when the backend returns HTTP 500s.
-
 UI changes break tests all the time. But fixing them manually is tedious: you open the Playwright trace viewer, inspect DOM snapshots, find the renamed selector, update your Page Object or spec file, and rerun the test.
 
 Worse, sometimes the selector didn't break because of UI drift—it broke because a backend API threw an HTTP 500, a mock didn't load, or the session expired. Blindly updating the locator in those situations masks a real application regression.
 
-In this tutorial, you will learn how to use **PIE (Playwright Intelligence Engine)**, invoked via the **`pw-intel`** CLI, to:
+That distinction is why we built **PIE (Playwright Intelligence Engine)**, invoked via `pw-intel`. PIE reads a failed Playwright trace, decides whether the app or the test is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree sandbox before touching your code. Tier 1 is offline AST (**$0 tokens**); Gate 0 refuses to repair when the backend returns HTTP 500s.
+
+In this tutorial, you will learn how to use **PIE**, invoked via the **`pw-intel`** CLI, to:
 1. Capture rich failure traces in Playwright.
 2. Run a causal diagnosis to distinguish UI drift from application bugs.
 3. Automatically heal drifted locators with isolated Git worktree verification.
@@ -97,6 +97,8 @@ Running Playwright Intelligence Engine Diagnostic Healthcheck (pw-intel doctor).
 
 Healthcheck Verdict: HEALTHY (Ready for diagnostic and repair workflows)
 ```
+
+*(Note: If an LLM API key is configured in your environment, `pw-intel doctor` displays `Configured (AI test generation enabled)`).*
 
 Initialize your repository:
 
@@ -209,7 +211,7 @@ PIE offers granular control over repair execution:
 ```bash
 npx pw-intel repair
 ```
-*Emits the proposed diff and diagnostic analysis without modifying your workspace.*
+*Emits the proposed diff and diagnostic analysis without executing tests or modifying your workspace.*
 
 ### B. Isolated Worktree Execution (No Local Changes)
 ```bash
@@ -227,32 +229,13 @@ When you are ready to apply verified repairs atomically:
 npx pw-intel repair --apply --verbose
 ```
 
-Terminal output:
-```json
-{
-  "status": "REPAIRED_AND_VERIFIED",
-  "tier": "tier1_deterministic",
-  "targetFilePath": "tests/ui/auth.spec.ts",
-  "healedLocator": "page.getByRole('button', { name: 'Login' })",
-  "reason": "Obsolete selector replaced with stable accessible role locator verified in DOM snapshot.",
-  "verification": {
-    "sandbox": "git-worktree",
-    "testsExecuted": 1,
-    "testsPassed": 1,
-    "exitCode": 0
-  },
-  "promotedFiles": [
-    "tests/ui/auth.spec.ts"
-  ]
-}
-```
-
-PIE prints its spend telemetry:
+Terminal output *(illustrative telemetry breakdown)*:
 ```text
-Repair Telemetry:
+Telemetry & Spend Breakdown:
   • Fast-Path AST   : 1 trace (0 tokens, $0.000000 USD)
   • Semantic LLM    : 0 traces (0 tokens, $0.000000 USD)
-  • Worktree Sandboxes: 1 created, 1 verified, 1 pruned
+  • Total Tokens    : 0 tokens
+  • Total Cost      : $0.000000 USD
 ```
 
 Check `git diff`:
@@ -273,15 +256,17 @@ npx playwright test tests/ui/auth.spec.ts
 
 ---
 
-## Step 6: Negative-Control Test (HTTP 500 Server Crash)
+## Step 6: Negative-Control Test on Your Own Application
 
-Now test PIE's safety guardrail: what happens if the test fails because the backend server crashed?
+> **Note on Scoping:** Step 2 used the public `saucedemo.com` demo app for client-side login. However, client-side static apps do not have backend API endpoints that throw real HTTP 500 errors.
+> To test PIE's Gate 0 abstention, point `baseURL` at your own staging/local application and intercept its actual authentication or data route.
+> *(Alternatively, the PIE repository ships `benchmarks/controlled-app/app-server.ts`, which returns real 401, 404, and 500 responses).*
 
-Simulate a backend 500 crash on your application's actual auth or data endpoint:
+Example against your application's real auth route:
 
 ```ts
 test('Should handle backend failure', async ({ page }) => {
-  // Injected server failure (replace URL with your application's real auth/data route):
+  // Injected server failure against your app's real endpoint:
   await page.route('**/api/v1/auth', route =>
     route.fulfill({
       status: 500,
@@ -341,7 +326,7 @@ Add to your project's `.cursor/mcp.json`:
 }
 ```
 
-### Setting up in Claude Desktop / Claude Code
+### Setting up in Claude Desktop
 Add to `claude_desktop_config.json`:
 
 ```json
@@ -354,6 +339,7 @@ Add to `claude_desktop_config.json`:
   }
 }
 ```
+*(For Claude Code CLI, add via `claude mcp add pw-intel -- npx -y playwright-intelligence-engine mcp`).*
 
 ### Available MCP Tools for Your Assistant:
 - **`pw_intel_diagnose`**: Diagnoses `trace.zip` archives with DOM, network, and error evidence directly in your chat prompt.
@@ -361,9 +347,6 @@ Add to `claude_desktop_config.json`:
 - **`pw_intel_batch_repair`**: Discovers all failing traces across the repo in parallel, verifies them in isolated worktrees, and promotes verified fixes in one pass.
 - **`pw_intel_profile`**: Discovers your project's Page Objects, fixtures, and locator patterns so generated code looks native.
 - **`run_qa_pipeline`**: Generates full E2E suites from natural language requirements (`pw-intel qa`).
-
-Now you can simply ask Cursor:
-> *"Cursor, diagnose the failing trace in `test-results/` and use PIE to repair the Page Object if it passes worktree verification."*
 
 ---
 

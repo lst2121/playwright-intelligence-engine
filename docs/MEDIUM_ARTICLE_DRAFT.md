@@ -3,7 +3,7 @@ title: "Why We Built PIE: The Problem with Naive Self-Healing in Playwright"
 subtitle: "How we combined deterministic AST parsing, bounded AI context, and isolated Git sandboxing to fix broken UI tests without masking real bugs."
 author: "Lokender Singh"
 status: "Production Ready Editorial"
-recommended_read_time: "9–11 minutes"
+recommended_read_time: "8–10 minutes"
 ---
 
 # Why We Built PIE: The Problem with Naive Self-Healing in Playwright
@@ -19,8 +19,6 @@ locator.click: Test timeout exceeded
 waiting for locator('#login-button-old')
 ```
 
-> **TL;DR:** **PIE (Playwright Intelligence Engine)**, invoked via the CLI as `pw-intel`, reads a failed Playwright `trace.zip`, decides whether the **app** or the **test** is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree before touching your code. Tier 1 is offline AST (**$0 tokens**); Gate 0 refuses to repair when the backend returns HTTP 500s or network drops.
-
 Every engineer who maintains browser automation suites knows the drill. You download the artifact from CI, open the trace viewer, find where a frontend engineer renamed the button ID or wrapped it in a new container, edit the selector in your Page Object, push a commit, and wait 15 minutes for CI to turn green again.
 
 Sometimes, changing that selector is the right fix.
@@ -35,72 +33,11 @@ A missing button is frequently the visible downstream symptom of something else 
 
 If an AI tool or an engineer hastily rewrites the locator to whatever else happens to be clickable on the screen, **it does not repair the test—it destroys regression signal.** You turn an alert about a broken application into a silently passing green checkmark.
 
-To solve this, we spent months designing, building, and verifying **PIE (Playwright Intelligence Engine)**, invoked via the **`pw-intel`** CLI.
-
-Here is an inside look at why naive self-healing fails, how we engineered PIE's two-tier architecture, and how to get started in your own project today.
+That distinction is why we built **PIE (Playwright Intelligence Engine)**, invoked via `pw-intel`. PIE reads a failed Playwright trace, decides whether the app or the test is broken, and only if it is the test does it rewrite the locator — proving the fix in a throwaway Git worktree sandbox before touching your code.
 
 ---
 
-## 1. Quickstart: Getting Started with PIE in 60 Seconds
-
-PIE is published on npm as `playwright-intelligence-engine`. It requires **Node.js >= 20** and **Git** (which it uses for isolated execution sandboxing).
-
-### Installation
-Run directly with `npx` or install as a development dependency:
-
-```bash
-npm install --save-dev playwright-intelligence-engine
-```
-
-*(Legend: `PIE` = Product Name · `pw-intel` = Canonical CLI Command · `pie` = Alias).*
-
-### Verify Readiness
-Check that your local environment has the required prerequisites:
-
-```bash
-npx pw-intel doctor
-```
-
-```text
-Running Playwright Intelligence Engine Diagnostic Healthcheck (pw-intel doctor)...
-
-  ✓ Node.js Runtime     : v24.19.0 (Supported >= 20.0.0)
-  ✓ Git Version Control : git version 2.44.0.windows.1
-  ✓ Playwright Test     : ^1.64.1 (Found in package.json)
-  ✓ Workspace Access    : Read/Write verified for '<cwd>'
-  ✓ Host Platform       : win32 (x64)
-  ✓ LLM Provider        : None configured (100% offline deterministic mode active)
-
-Healthcheck Verdict: HEALTHY (Ready for diagnostic and repair workflows)
-```
-
-*(Note: If an LLM API key is configured in your environment, `pw-intel doctor` displays `Configured (AI test generation enabled)`).*
-
-### Initialize Project Configuration
-Run `init` to discover your workspace structure and configure your settings:
-
-```bash
-npx pw-intel init
-```
-
-This creates a project-local `.pie/config.json` that records your package manager, test directories, and locator preferences without touching any test code.
-
-### Enable Tracing in Playwright
-PIE operates on Playwright trace files (`trace.zip`). In your `playwright.config.ts`, ensure `retain-on-failure` is active:
-
-```ts
-import { defineConfig } from '@playwright/test';
-
-export default defineConfig({
-  use: {
-    trace: 'retain-on-failure',
-  },
-});
-```
-
----
-
-## 2. The Trap of Naive Self-Healing
+## 1. The Trap of Naive Self-Healing
 
 Most "AI self-healing" tools take an overly simplistic approach: grab the failing error message, dump the entire page HTML into an LLM prompt, and ask it to write a new selector.
 
@@ -123,7 +60,7 @@ To make self-healing trustworthy for production teams, we established strict non
 
 ---
 
-## 3. The Architecture: Two-Tier Intelligence
+## 2. The Architecture: Two-Tier Intelligence
 
 PIE uses a dual-pass pipeline designed to minimize token cost, guarantee safety, and prove fixes before applying them:
 
@@ -155,7 +92,7 @@ to branch   source code untouched
 ```
 
 ### Gate 0: Fail-Closed Negative Controls
-Before touching any code or calling any AI models, `pw-intel` parses the trace’s network log and console events. If the failed action was accompanied by an HTTP 500 server crash, a 401 unauthenticated redirect, or a DNS failure, the engine **immediately halts and abstains**. It reports the backend failure directly, consuming **0 tokens and $0.00**.
+Before touching any code or calling any AI models, `pw-intel` parses the trace’s network log and console events. If the failed action was accompanied by an HTTP 500 server crash, a 401 unauthenticated redirect, or a network disconnection, the engine **immediately halts and abstains**. It reports the backend failure directly, consuming **0 tokens and $0.00**.
 
 ### Tier 1: Deterministic AST Fast-Path ($0 Token Cost)
 For standard locator drift (e.g., an element’s ID changed, but its accessible role, test ID, or label remains intact in the DOM snapshot), PIE repairs the code **100% offline and locally** using TypeScript AST manipulation (`ts-morph`). The AST edit itself is sub-50ms and completely offline; the proof-run is a normal Playwright execution.
@@ -183,46 +120,9 @@ Even if a proposed locator looks perfect on paper, `pw-intel` never mutates your
 
 ---
 
-## 4. Seeing It in Action: Real Terminal Workflows
+## 3. Seeing It in Action
 
-### Scenario A: Diagnosing a Stale Locator
-
-When a button ID drifts, run `diagnose`:
-
-```bash
-npx pw-intel diagnose ./test-results/login-failure/trace.zip
-```
-
-*(Illustrative diagnosis output):*
-```text
-╔══════════════════════════════════════════════════════════════════════╗
-║             PLAYWRIGHT INTELLIGENCE ENGINE: DIAGNOSTIC REPORT        ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-Root Cause Classification : LOCATOR_DRIFT
-Confidence Level          : 94.0%
-Failure Fingerprint       : failure-9c41a7d2e0811b33
-Action Outcome            : 🟢 REPAIRABLE
-────────────────────────────────────────────────────────────────────────
-Failed Action Details:
-  • Call ID     : call@14
-  • Method      : page.click
-  • Selector    : #doLogin_outdated_v2
-  • Error       : locator.click: Timeout 5000ms exceeded waiting for locator('#doLogin_outdated_v2')
-────────────────────────────────────────────────────────────────────────
-Evidence Provenance:
-  • DOM Snapshot Available : ✅ YES
-  • Network Logs Ingested  : ✅ YES (28 events)
-  • Source Code Mapped     : ✅ tests/pages/LoginPage.ts:24
-────────────────────────────────────────────────────────────────────────
-Analysis:
-  Target element with ID '#doLogin_outdated_v2' was removed from the DOM.
-  Snapshot analysis identified accessible candidate button matching role:
-  page.getByRole('button', { name: 'Log in' })
-────────────────────────────────────────────────────────────────────────
-```
-
-### Scenario B: Inspection, Sandbox Verification, and Applied Repairs
+### Inspection, Sandbox Verification, and Applied Repairs
 
 Understanding the repair workflow flags:
 - `npx pw-intel repair`: Inspection only (emits a dry-run proposal without executing tests).
@@ -233,32 +133,13 @@ Understanding the repair workflow flags:
 npx pw-intel repair --apply --verbose
 ```
 
-Terminal output:
-```json
-{
-  "status": "REPAIRED_AND_VERIFIED",
-  "tier": "tier1_deterministic",
-  "targetFilePath": "tests/pages/LoginPage.ts",
-  "healedLocator": "page.getByRole('button', { name: 'Log in' })",
-  "reason": "Stale ID selector replaced with stable accessible role locator verified in DOM snapshot.",
-  "verification": {
-    "sandbox": "git-worktree",
-    "testsExecuted": 1,
-    "testsPassed": 1,
-    "exitCode": 0
-  },
-  "promotedFiles": [
-    "tests/pages/LoginPage.ts"
-  ]
-}
-```
-
-When run with `--verbose`, PIE prints its token and cost telemetry:
+Terminal output *(telemetry breakdown)*:
 ```text
-Repair Telemetry:
+Telemetry & Spend Breakdown:
   • Fast-Path AST   : 1 trace (0 tokens, $0.000000 USD)
   • Semantic LLM    : 0 traces (0 tokens, $0.000000 USD)
-  • Worktree Sandboxes: 1 created, 1 verified, 1 pruned
+  • Total Tokens    : 0 tokens
+  • Total Cost      : $0.000000 USD
 ```
 
 Git diff in `LoginPage.ts`:
@@ -267,7 +148,7 @@ Git diff in `LoginPage.ts`:
 + this.loginButton = this.page.getByRole('button', { name: 'Log in' });
 ```
 
-### Scenario C: Backend Crashes (The Negative Control Abstention)
+### Backend Crashes (The Negative Control Abstention)
 
 If your test fails because an API returned an HTTP 500:
 
@@ -294,38 +175,12 @@ npx pw-intel report-defect ./test-results/failed-trace/trace.zip
 
 ---
 
-## 5. Integrating with Cursor & Claude Code via MCP
+## 4. Native IDE Integration via Model Context Protocol (MCP)
 
-Developers shouldn't have to leave their IDE to leverage PIE.
-
-PIE includes a built-in **Model Context Protocol (MCP)** server. This allows AI assistants like **Cursor**, **Windsurf**, and **Claude Code** to directly call PIE's diagnostic and repair engines:
+Developers shouldn't have to leave their IDE to leverage PIE. PIE includes a built-in **Model Context Protocol (MCP)** server for **Cursor**, **Windsurf**, and **Claude**:
 
 ```bash
 npx pw-intel mcp
-```
-
-### Setup in Cursor (`.cursor/mcp.json`)
-```json
-{
-  "mcpServers": {
-    "playwright-intelligence": {
-      "command": "npx",
-      "args": ["-y", "playwright-intelligence-engine", "mcp"]
-    }
-  }
-}
-```
-
-### Setup in Claude Desktop (`claude_desktop_config.json`)
-```json
-{
-  "mcpServers": {
-    "pw-intel": {
-      "command": "npx",
-      "args": ["-y", "playwright-intelligence-engine", "mcp"]
-    }
-  }
-}
 ```
 
 ### Available MCP Tools:
@@ -335,12 +190,9 @@ npx pw-intel mcp
 - **`pw_intel_profile`**: Teaches the AI your repository’s specific Page Object conventions.
 - **`run_qa_pipeline`**: Generates full E2E test suites from natural language specifications (`pw-intel qa`).
 
-Now, you can prompt Cursor:
-> *"Cursor, diagnose the failing trace in `test-results/` and run `pw_intel_autonomous_repair` to fix CartPage.ts if the test passes in the sandbox."*
-
 ---
 
-## 6. Summary: Safety and Trust Over Hype
+## 5. Summary: Safety and Trust Over Hype
 
 Test automation tools earn adoption not through flashy demos, but through **dependability**. If a developer has to spend 20 minutes double-checking whether an automated fix broke another test or masked a real bug, they will turn the tool off.
 
@@ -355,7 +207,14 @@ By grounding repairs in trace evidence and isolated verification, PIE transforms
 
 ---
 
-### Links & Resources
+### Quickstart & Links
+
+Install PIE in your Playwright repository:
+
+```bash
+npm install --save-dev playwright-intelligence-engine
+npx pw-intel doctor
+```
 
 - **npm Package**: [https://www.npmjs.com/package/playwright-intelligence-engine](https://www.npmjs.com/package/playwright-intelligence-engine)
 - **GitHub Repository**: [https://github.com/lst2121/playwright-intelligence-engine](https://github.com/lst2121/playwright-intelligence-engine)

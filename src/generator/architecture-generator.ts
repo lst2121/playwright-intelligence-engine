@@ -5,6 +5,7 @@ import type { RepositoryConventionProfile } from '../intelligence/repository-pro
 import { NamePlanner, NamingLinter, type NamePlan, type NamingLintReport } from '../authoring/naming/index.js';
 import type { AppModel } from '../perception/app-model.js';
 import { AssertionQualityGate } from './assertion-quality-gate.js';
+import { composeFixtureAst } from '../intelligence/fixture-composer.js';
 
 export type ArchitectureMode = 'greenfield' | 'brownfield';
 export type ArchitecturePlanStatus = 'READY' | 'PARTIAL' | 'ABSTAIN' | 'NEEDS_INPUT';
@@ -368,7 +369,28 @@ export { expect } from '@playwright/test';
 `;
 }
 
-function renderPlaywrightConfig(baseUrl: string, testDirectory: string): string {
+function renderPlaywrightConfig(
+  baseUrl: string,
+  testDirectory: string,
+  options?: { authProject?: boolean }
+): string {
+  const projectsConfig = options?.authProject
+    ? `projects: [
+    {
+      name: 'setup',
+      testMatch: /.*\\.setup\\.ts/,
+    },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+  ],`
+    : `projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],`;
+
   return `import { defineConfig, devices } from '@playwright/test';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -385,7 +407,20 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  ${projectsConfig}
+});
+`;
+}
+
+function renderAuthSetup(baseUrl: string): string {
+  return `import { test as setup } from '@playwright/test';
+import path from 'node:path';
+
+const authFile = path.posix.join('.auth', 'user.json');
+
+setup('authenticate', async ({ page }) => {
+  await page.goto(${quote(baseUrl === '/' ? 'http://localhost:3000' : baseUrl)});
+  await page.context().storageState({ path: authFile });
 });
 `;
 }
@@ -509,9 +544,19 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   files.push(makeFile(pagePath, renderPageObject(className, baseUrl, steps, preferredLocator, namePlan), 'Feature Page Object with explicit locators and actions.', existingFiles));
   files.push(makeFile(testPath, renderSpec(featureName, className, normalizedPageImport, normalizedFixtureImport, steps, namePlan, input.requirements, usesCustomFixtures), 'Workflow spec with web-first assertions.', existingFiles));
 
+  const authRequired = Boolean(
+    profile?.structure.usesStorageState ||
+    /login|auth|sign-?in|credentials|session|account/i.test(input.requirements ?? '') ||
+    /login|sign-?in|auth/i.test(featureName)
+  );
+
   if (input.mode === 'greenfield') {
-    files.push(makeFile('playwright.config.ts', renderPlaywrightConfig(baseUrl, testDirectory), 'Minimal reproducible Playwright configuration.', existingFiles));
+    files.push(makeFile('playwright.config.ts', renderPlaywrightConfig(baseUrl, testDirectory, { authProject: authRequired }), 'Minimal reproducible Playwright configuration.', existingFiles));
     files.push(makeFile(fixtureFileRelative, renderFixtureFile(className, normalizedPageImportFromFixture), 'Composable fixture entry point.', existingFiles));
+    if (authRequired) {
+      files.push(makeFile('.auth/user.json', '{\n  "cookies": [],\n  "origins": []\n}\n', 'Storage state container for project authentication.', existingFiles));
+      files.push(makeFile(`${testDirectory}/auth.setup.ts`, renderAuthSetup(baseUrl), 'Project-level authentication setup.', existingFiles));
+    }
     if (input.includeCi !== false) files.push(makeFile('.github/workflows/playwright.yml', renderCiWorkflow(), 'Pull-request Playwright execution workflow.', existingFiles));
   } else if (profile?.structure.usesCustomFixtures) {
     files.push(makeFile(fixtureFileRelative, renderFixtureFile(className, normalizedPageImportFromFixture), 'Fixture extension point matching the profiled repository layout.', existingFiles));
@@ -569,6 +614,27 @@ export async function writeArchitecturePlan(
     const relative = path.relative(projectRoot, target);
     if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error(`Architecture output path escapes project root: '${file.relativePath}'`);
     if (file.action === 'SKIP_EXISTING') {
+      // If it is an existing fixture file, compose into it via AST Fixture Composition
+      if (file.relativePath.includes('fixture') || file.relativePath.endsWith('test.ts')) {
+        try {
+          const existing = await fs.readFile(target, 'utf8');
+          const pageName = plan.namePlan?.pageClassName ?? toClassName(plan.featureName);
+          const pageVar = pageName[0]!.toLowerCase() + pageName.slice(1);
+          const pageFile = plan.files.find((f) => f.relativePath.endsWith('.ts') && !f.relativePath.includes('.spec') && !f.relativePath.includes('fixture') && !f.relativePath.includes('config') && !f.relativePath.includes('setup'));
+          if (pageFile) {
+            const relPomFromFixture = path.posix.relative(path.posix.dirname(file.relativePath), pageFile.relativePath).replace(/\.ts$/, '');
+            const normalizedPomImport = relPomFromFixture.startsWith('.') ? relPomFromFixture : `./${relPomFromFixture}`;
+            const composed = composeFixtureAst(existing, pageName, pageVar, normalizedPomImport);
+            if (composed !== existing) {
+              await fs.writeFile(target, composed, 'utf8');
+              written.push(file.relativePath);
+              continue;
+            }
+          }
+        } catch {
+          // ignore error and proceed to skip
+        }
+      }
       skipped.push(file.relativePath);
       continue;
     }

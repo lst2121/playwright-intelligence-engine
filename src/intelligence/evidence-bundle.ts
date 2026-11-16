@@ -103,6 +103,7 @@ export const VerifiedLocatorEvidenceSchema = z.object({
   route: z.string().min(1),
   strategy: z.enum(['role', 'label', 'placeholder', 'testId', 'text', 'css', 'frame']),
   expression: z.string().min(1),
+  type: z.string().optional(),
   role: z.string().optional(),
   accessibleName: z.string().optional(),
   label: z.string().optional(),

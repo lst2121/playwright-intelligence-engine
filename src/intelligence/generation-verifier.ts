@@ -26,6 +26,8 @@ import {
   VerificationLayerStatus,
 } from './evidence-bundle.js';
 import { buildBrownfieldRepositoryGraph, BrownfieldRepositoryGraph } from './repository-profile.js';
+import { normalizeFormFieldName, findPrimarySubmitButton } from './semantic-normalizer.js';
+import { composeFixtureAst } from './fixture-composer.js';
 import {
   buildWorkflowPlan,
   exportWorkflowToGherkin,
@@ -240,6 +242,7 @@ function synthesizeGroundedCandidateFromBundle(
   workflowPlan: GenerationWorkflowPlan,
   bundle: ExplorationContextBundle,
   repoGraph?: BrownfieldRepositoryGraph,
+  workspaceRoot?: string,
 ): CandidateChange {
   const slug = toSlug(featureName);
   const rawBase = toClassName(featureName);
@@ -264,35 +267,18 @@ function synthesizeGroundedCandidateFromBundle(
   const routeLocators = bundle.locators.filter((l) => !l.route || l.route === navUrl);
   const scopedLocators = routeLocators.length > 0 ? routeLocators : bundle.locators;
 
-  const allInputs = scopedLocators.filter((l) => (l.strategy === 'placeholder' || l.role === 'textbox' || l.role === 'combobox') && l.visible);
-  const submitLoc = scopedLocators.find((l) => l.role === 'button' && /submit|send|save|create|continue|confirm|log ?in|sign ?in|register|next/i.test(l.accessibleName ?? '') && l.visible)
-    ?? scopedLocators.find((l) => l.role === 'button' && !/delete|remove|cancel|close/i.test(l.accessibleName ?? '') && l.visible);
+  // Filter out readonly inputs, Flatpickr floating inputs, and devtools controls
+  const allInputs = scopedLocators.filter((l) =>
+    (l.strategy === 'placeholder' || l.role === 'textbox' || l.role === 'combobox') &&
+    l.visible &&
+    !/flatpickr-input|dev ?tools/i.test(l.expression ?? '')
+  );
+  const submitLoc = findPrimarySubmitButton(scopedLocators);
   const toggleLoc = scopedLocators.find((l) => l.role === 'checkbox' && l.visible);
 
   const usedPropNames = new Set<string>();
   const inputEntries = allInputs.map((loc, idx) => {
-    let base = '';
-    if (loc.testId) {
-      base = loc.testId.replace(/^[Cc]ontact|^form|^input/i, '');
-      base = base ? base[0]!.toLowerCase() + base.slice(1) : loc.testId;
-    } else if (loc.placeholder) {
-      base = toSlug(loc.placeholder).replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
-    } else if (loc.label) {
-      base = toSlug(loc.label).replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
-    } else if (loc.accessibleName) {
-      base = toSlug(loc.accessibleName).replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
-    }
-    base = base.replace(/[^a-zA-Z0-9]/g, '');
-    if (!base || /^\d/.test(base)) base = `inputField${idx + 1}`;
-    if (!/input|field|textbox|box|textarea|select/i.test(base)) {
-      base = `${base}Input`;
-    }
-    let finalName = base;
-    let count = 1;
-    while (usedPropNames.has(finalName)) {
-      finalName = `${base}${++count}`;
-    }
-    usedPropNames.add(finalName);
+    const finalName = normalizeFormFieldName(loc, idx, usedPropNames);
     const synthValue = synthesizeValueForLocator(loc, 'verify');
     return { identifier: finalName, loc, synthValue };
   });
@@ -307,19 +293,19 @@ function synthesizeGroundedCandidateFromBundle(
   if (inputEntries.length > 1) {
     for (const entry of inputEntries) {
       pomLocators.push(`  readonly ${entry.identifier}: Locator;`);
-      pomAssigns.push(`    this.${entry.identifier} = ${locatorExpr(entry.loc.expression)};`);
+      pomAssigns.push(`    this.${entry.identifier} = ${locatorExpr(entry.loc.expression ?? '')};`);
     }
   } else if (inputEntries.length === 1) {
-    pomLocators.push('  readonly primaryInput: Locator;');
-    pomAssigns.push(`    this.primaryInput = ${locatorExpr(inputEntries[0]!.loc.expression)};`);
+    pomLocators.push(`  readonly ${inputEntries[0]!.identifier}: Locator;`);
+    pomAssigns.push(`    this.${inputEntries[0]!.identifier} = ${locatorExpr(inputEntries[0]!.loc.expression ?? '')};`);
   }
   if (submitLoc) {
     pomLocators.push('  readonly submitButton: Locator;');
-    pomAssigns.push(`    this.submitButton = ${locatorExpr(submitLoc.expression)};`);
+    pomAssigns.push(`    this.submitButton = ${locatorExpr(submitLoc.expression ?? '')};`);
   }
   if (toggleLoc) {
     pomLocators.push('  readonly itemToggle: Locator;');
-    pomAssigns.push(`    this.itemToggle = ${locatorExpr(toggleLoc.expression)};`);
+    pomAssigns.push(`    this.itemToggle = ${locatorExpr(toggleLoc.expression ?? '')};`);
   }
 
   if (inputEntries.length > 1) {
@@ -336,7 +322,7 @@ ${inputEntries.map((e) => `    if (data.${e.identifier} !== undefined) await thi
     }
   } else if (inputEntries.length === 1 && submitLoc) {
     pomMethods.push(`  async submitItem(value: string): Promise<void> {
-    await this.primaryInput.fill(value);
+    await this.${inputEntries[0]!.identifier}.fill(value);
     await this.submitButton.click();
   }`);
     pomMethods.push(`  async submitEmpty(): Promise<void> {
@@ -344,8 +330,8 @@ ${inputEntries.map((e) => `    if (data.${e.identifier} !== undefined) await thi
   }`);
   } else if (inputEntries.length === 1) {
     pomMethods.push(`  async submitItem(value: string): Promise<void> {
-    await this.primaryInput.fill(value);
-    await this.primaryInput.press('Enter');
+    await this.${inputEntries[0]!.identifier}.fill(value);
+    await this.${inputEntries[0]!.identifier}.press('Enter');
   }`);
   } else if (submitLoc) {
     pomMethods.push(`  async clickPrimaryAction(): Promise<void> {
@@ -372,19 +358,22 @@ ${pomMethods.length > 0 ? `\n${pomMethods.join('\n\n')}\n` : ''}}
   const pageObjDir = repoGraph?.pageObjectDirectory ?? 'tests/pages';
   const fixtureDir = repoGraph?.fixtureDirectory ?? 'tests/fixtures';
 
-  const hasExistingFixture = Boolean(repoGraph?.testImport && repoGraph.testImport !== '@playwright/test');
-  const fixturePath = `${fixtureDir}/app.fixtures.ts`;
-  const specPath = `${testDir}/${slug}${testExt}`;
   const pomPath = `${pageObjDir}/${pageClassName}.ts`;
-
+  const specPath = `${testDir}/${slug}${testExt}`;
   const specDir = path.posix.dirname(specPath);
+
   const relPomFromSpec = path.posix.relative(specDir, pomPath).replace(/\.ts$/, '.js');
   const pomImportForSpec = relPomFromSpec.startsWith('.') ? relPomFromSpec : `./${relPomFromSpec}`;
 
-  const relPomFromFixture = path.posix.relative(fixtureDir, pomPath).replace(/\.ts$/, '.js');
-  const pomImportForFixture = relPomFromFixture.startsWith('.') ? relPomFromFixture : `./${relPomFromFixture}`;
+  // Adaptive Convention Mirroring:
+  // If repository profile detects NO custom fixtures (e.g. pure @playwright/test brownfield), respect it.
+  const isBrownfieldWithoutFixtures = Boolean(
+    repoGraph &&
+    repoGraph.fixtureExports.length === 0 &&
+    repoGraph.testImport === '@playwright/test'
+  );
+  const usesCustomFixtures = !isBrownfieldWithoutFixtures;
 
-  let fixtureImportForSpec = '@playwright/test';
   const candidateFiles: CandidateFile[] = [
     {
       relativePath: pomPath,
@@ -395,14 +384,59 @@ ${pomMethods.length > 0 ? `\n${pomMethods.join('\n\n')}\n` : ''}}
     },
   ];
 
-  const fixtureContent = `import { test as base } from '@playwright/test';
+  let fixtureImportForSpec = '@playwright/test';
+  let targetFixtureRel: string | undefined;
+
+  if (usesCustomFixtures) {
+    const defaultFixturePath = `${fixtureDir}/test.ts`;
+
+    if (repoGraph?.testImport && repoGraph.testImport !== '@playwright/test') {
+      targetFixtureRel = repoGraph.testImport;
+    } else if (repoGraph?.fixtureExports?.[0]?.sourceFile) {
+      targetFixtureRel = repoGraph.fixtureExports[0]!.sourceFile;
+    } else if (workspaceRoot && fsSync.existsSync(path.join(workspaceRoot, `${fixtureDir}/test.ts`))) {
+      targetFixtureRel = `${fixtureDir}/test.ts`;
+    } else if (workspaceRoot && fsSync.existsSync(path.join(workspaceRoot, `${fixtureDir}/app.fixtures.ts`))) {
+      targetFixtureRel = `${fixtureDir}/app.fixtures.ts`;
+    }
+
+    const relPomFromFixture = path.posix.relative(
+      path.posix.dirname(targetFixtureRel ?? defaultFixturePath),
+      pomPath
+    ).replace(/\.ts$/, '.js');
+    const pomImportForFixture = relPomFromFixture.startsWith('.') ? relPomFromFixture : `./${relPomFromFixture}`;
+
+    if (targetFixtureRel) {
+      // Compose into existing fixture via AST Fixture Composition
+      try {
+        const fullFixturePath = workspaceRoot ? path.join(workspaceRoot, targetFixtureRel) : targetFixtureRel;
+        const existingContent = fsSync.existsSync(fullFixturePath)
+          ? fsSync.readFileSync(fullFixturePath, 'utf8')
+          : '';
+        if (existingContent) {
+          const composed = composeFixtureAst(existingContent, pageClassName, pageVar, pomImportForFixture);
+          candidateFiles.push({
+            relativePath: targetFixtureRel,
+            action: 'MODIFY',
+            content: composed,
+            purpose: `Compose ${pageClassName} into existing fixture.`,
+          });
+        }
+      } catch {
+        // Fallback safely if fixture read/composition fails
+      }
+      const relFixtureFromSpec = path.posix.relative(specDir, targetFixtureRel).replace(/\.ts$/, '.js');
+      fixtureImportForSpec = relFixtureFromSpec.startsWith('.') ? relFixtureFromSpec : `./${relFixtureFromSpec}`;
+    } else {
+      // Create initial fixture entry point
+      const fixtureContent = `import { test as base } from '@playwright/test';
 import { ${pageClassName} } from ${JSON.stringify(pomImportForFixture)};
 
-type ${pageClassName}Fixtures = {
+type AppFixtures = {
   ${pageVar}: ${pageClassName};
 };
 
-export const test = base.extend<${pageClassName}Fixtures>({
+export const test = base.extend<AppFixtures>({
   ${pageVar}: async ({ page }, use) => {
     const ${pageVar} = new ${pageClassName}(page);
     await ${pageVar}.goto();
@@ -412,19 +446,15 @@ export const test = base.extend<${pageClassName}Fixtures>({
 
 export { expect } from '@playwright/test';
 `;
-
-  if (!hasExistingFixture) {
-    candidateFiles.push({
-      relativePath: fixturePath,
-      action: 'CREATE',
-      content: fixtureContent,
-      purpose: 'Composable fixture injecting feature Page Object.',
-    });
-    const relFixtureFromSpec = path.posix.relative(specDir, fixturePath).replace(/\.ts$/, '.js');
-    fixtureImportForSpec = relFixtureFromSpec.startsWith('.') ? relFixtureFromSpec : `./${relFixtureFromSpec}`;
-  } else {
-    const relFromSpec = path.posix.relative(specDir, repoGraph!.testImport).replace(/\.ts$/, '.js');
-    fixtureImportForSpec = relFromSpec.startsWith('.') ? relFromSpec : `./${relFromSpec}`;
+      candidateFiles.push({
+        relativePath: defaultFixturePath,
+        action: 'CREATE',
+        content: fixtureContent,
+        purpose: 'Composable fixture entry point injecting feature Page Object.',
+      });
+      const relFixtureFromSpec = path.posix.relative(specDir, defaultFixturePath).replace(/\.ts$/, '.js');
+      fixtureImportForSpec = relFixtureFromSpec.startsWith('.') ? relFixtureFromSpec : `./${relFixtureFromSpec}`;
+    }
   }
 
   const mutAction = bundle.actions.find((a) => a.action === 'fill-and-click' || a.action === 'click-action');
@@ -445,20 +475,20 @@ export { expect } from '@playwright/test';
         : targetRouteAfter
           ? `    await expect(page).toHaveURL(new RegExp(${JSON.stringify(targetRouteAfter)}));`
           : submitLoc
-            ? `    await expect(${hasExistingFixture ? 'pageObj' : pageVar}.submitButton).toBeVisible();`
+            ? `    await expect(${pageVar}.submitButton).toBeVisible();`
             : `    await expect(page.locator('body')).toBeVisible();`;
 
-      testBlocks.push(hasExistingFixture
-        ? `  test(${JSON.stringify(title)}, async ({ page }) => {
-    const pageObj = new ${pageClassName}(page);
-    await pageObj.goto();
-    await pageObj.fillForm({
+      testBlocks.push(usesCustomFixtures
+        ? `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+    await ${pageVar}.fillForm({
 ${fillEntries}
     });
-    await pageObj.submit();
+    await ${pageVar}.submit();
 ${assertLine}
   });`
-        : `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+        : `  test(${JSON.stringify(title)}, async ({ page }) => {
+    const ${pageVar} = new ${pageClassName}(page);
+    await ${pageVar}.goto();
     await ${pageVar}.fillForm({
 ${fillEntries}
     });
@@ -471,14 +501,14 @@ ${assertLine}
         ? `    await expect(page.getByText(${JSON.stringify(verifiedHeadingOrText)})).toBeVisible();`
         : `    await expect(page.getByText(${JSON.stringify(itemTitle)})).toBeVisible();`;
 
-      testBlocks.push(hasExistingFixture
-        ? `  test(${JSON.stringify(title)}, async ({ page }) => {
-    const pageObj = new ${pageClassName}(page);
-    await pageObj.goto();
-    await pageObj.submitItem(${JSON.stringify(itemTitle)});
+      testBlocks.push(usesCustomFixtures
+        ? `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+    await ${pageVar}.submitItem(${JSON.stringify(itemTitle)});
 ${assertLine}
   });`
-        : `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+        : `  test(${JSON.stringify(title)}, async ({ page }) => {
+    const ${pageVar} = new ${pageClassName}(page);
+    await ${pageVar}.goto();
     await ${pageVar}.submitItem(${JSON.stringify(itemTitle)});
 ${assertLine}
   });`);
@@ -489,25 +519,25 @@ ${assertLine}
           ? `    await expect(page).toHaveURL(new RegExp(${JSON.stringify(targetRouteAfter)}));`
           : `    await expect(page.locator('main, body').first()).toBeVisible();`;
 
-      testBlocks.push(hasExistingFixture
-        ? `  test(${JSON.stringify(title)}, async ({ page }) => {
-    const pageObj = new ${pageClassName}(page);
-    await pageObj.goto();
-    await pageObj.clickPrimaryAction();
+      testBlocks.push(usesCustomFixtures
+        ? `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+    await ${pageVar}.clickPrimaryAction();
 ${assertLine}
   });`
-        : `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+        : `  test(${JSON.stringify(title)}, async ({ page }) => {
+    const ${pageVar} = new ${pageClassName}(page);
+    await ${pageVar}.goto();
     await ${pageVar}.clickPrimaryAction();
 ${assertLine}
   });`);
     } else {
-      testBlocks.push(hasExistingFixture
-        ? `  test(${JSON.stringify(title)}, async ({ page }) => {
-    const pageObj = new ${pageClassName}(page);
-    await pageObj.goto();
+      testBlocks.push(usesCustomFixtures
+        ? `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
     await expect(page.locator('body')).toBeVisible();
   });`
-        : `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+        : `  test(${JSON.stringify(title)}, async ({ page }) => {
+    const ${pageVar} = new ${pageClassName}(page);
+    await ${pageVar}.goto();
     await expect(page.locator('body')).toBeVisible();
   });`);
     }
@@ -515,25 +545,20 @@ ${assertLine}
 
   const addValidation = (title: string) => {
     if (!submitLoc) return;
-    const submitCall = inputEntries.length > 1
-      ? `await ${hasExistingFixture ? 'pageObj' : pageVar}.submitEmpty();`
-      : inputEntries.length === 1
-        ? `await ${hasExistingFixture ? 'pageObj' : pageVar}.submitEmpty();`
-        : `await ${hasExistingFixture ? 'pageObj' : pageVar}.clickPrimaryAction();`;
-
+    const submitCall = `await ${pageVar}.submitEmpty();`;
     const inputCheck = inputEntries.length > 0
-      ? `    await expect(${hasExistingFixture ? 'pageObj' : pageVar}.${inputEntries[0]!.identifier}).toBeVisible();\n`
+      ? `    await expect(${pageVar}.${inputEntries[0]!.identifier}).toBeVisible();\n`
       : '';
 
-    testBlocks.push(hasExistingFixture
-      ? `  test(${JSON.stringify(title)}, async ({ page }) => {
-    const pageObj = new ${pageClassName}(page);
-    await pageObj.goto();
+    testBlocks.push(usesCustomFixtures
+      ? `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
     ${submitCall}
     await expect(page).toHaveURL(new RegExp(${JSON.stringify(navUrl)}));
-${inputCheck}    await expect(pageObj.submitButton).toBeVisible();
+${inputCheck}    await expect(${pageVar}.submitButton).toBeVisible();
   });`
-      : `  test(${JSON.stringify(title)}, async ({ ${pageVar}, page }) => {
+      : `  test(${JSON.stringify(title)}, async ({ page }) => {
+    const ${pageVar} = new ${pageClassName}(page);
+    await ${pageVar}.goto();
     ${submitCall}
     await expect(page).toHaveURL(new RegExp(${JSON.stringify(navUrl)}));
 ${inputCheck}    await expect(${pageVar}.submitButton).toBeVisible();
@@ -542,23 +567,22 @@ ${inputCheck}    await expect(${pageVar}.submitButton).toBeVisible();
 
   const addUiState = (title: string) => {
     const checks: string[] = [];
-    const targetObj = hasExistingFixture ? 'pageObj' : pageVar;
     for (const e of inputEntries.slice(0, 4)) {
-      checks.push(`    await expect(${targetObj}.${e.identifier}).toBeVisible();`);
-      checks.push(`    await expect(${targetObj}.${e.identifier}).toBeEditable();`);
+      checks.push(`    await expect(${pageVar}.${e.identifier}).toBeVisible();`);
+      checks.push(`    await expect(${pageVar}.${e.identifier}).toBeEditable();`);
     }
     if (submitLoc) {
-      checks.push(`    await expect(${targetObj}.submitButton).toBeVisible();`);
-      checks.push(`    await expect(${targetObj}.submitButton).toBeEnabled();`);
+      checks.push(`    await expect(${pageVar}.submitButton).toBeVisible();`);
+      checks.push(`    await expect(${pageVar}.submitButton).toBeEnabled();`);
     }
     if (checks.length > 0) {
-      testBlocks.push(hasExistingFixture
-        ? `  test(${JSON.stringify(title)}, async ({ page }) => {
-    const pageObj = new ${pageClassName}(page);
-    await pageObj.goto();
+      testBlocks.push(usesCustomFixtures
+        ? `  test(${JSON.stringify(title)}, async ({ ${pageVar} }) => {
 ${checks.join('\n')}
   });`
-        : `  test(${JSON.stringify(title)}, async ({ ${pageVar} }) => {
+        : `  test(${JSON.stringify(title)}, async ({ page }) => {
+    const ${pageVar} = new ${pageClassName}(page);
+    await ${pageVar}.goto();
 ${checks.join('\n')}
   });`);
     }
@@ -572,17 +596,11 @@ ${checks.join('\n')}
     addUiState(`should present interactive controls in ready and accessible state`);
   }
 
-  // Ensure non-empty behavioral spec only when we had verified controls
-  const specContent = hasExistingFixture
-    ? `import { test } from ${JSON.stringify(fixtureImportForSpec)};
-import { expect } from '@playwright/test';
-import { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};
+  const specImports = usesCustomFixtures
+    ? `import { test, expect } from ${JSON.stringify(fixtureImportForSpec)};`
+    : `import { test, expect } from '@playwright/test';\nimport { ${pageClassName} } from ${JSON.stringify(pomImportForSpec)};`;
 
-test.describe(${JSON.stringify(`${featureName} verified workflows`)}, () => {
-${testBlocks.join('\n\n')}
-});
-`
-    : `import { test, expect } from ${JSON.stringify(fixtureImportForSpec)};
+  const specContent = `${specImports}
 
 test.describe(${JSON.stringify(`${featureName} verified workflows`)}, () => {
 ${testBlocks.join('\n\n')}
@@ -597,11 +615,37 @@ ${testBlocks.join('\n\n')}
     scenarioIds: validScenarios.map((s) => s.id),
   });
 
+  // Greenfield Project-Level Authentication & Config Scaffolding
   if (!existingFilesSet.has('playwright.config.ts') && (repoGraph?.configPaths.length ?? 0) === 0) {
-    candidateFiles.push({
-      relativePath: 'playwright.config.ts',
-      action: 'CREATE',
-      content: `import { defineConfig, devices } from '@playwright/test';
+    const isAuthRoute = /login|signin|join|register|account|auth/i.test(navUrl) || /login|sign ?in|join|auth/i.test(featureName);
+    const configContent = isAuthRoute
+      ? `import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: false,
+  reporter: [['list']],
+  use: {
+    baseURL: ${JSON.stringify(bundle.baseUrl ?? 'http://localhost:3000')},
+    trace: 'on',
+  },
+  projects: [
+    {
+      name: 'setup',
+      testMatch: /.*\\.setup\\.ts/,
+    },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+  ],
+});
+`
+      : `import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
@@ -612,9 +656,38 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
-`,
-      purpose: 'Greenfield Playwright configuration.',
+`;
+
+    candidateFiles.push({
+      relativePath: 'playwright.config.ts',
+      action: 'CREATE',
+      content: configContent,
+      purpose: 'Greenfield Playwright configuration with project setup.',
     });
+
+    if (isAuthRoute) {
+      candidateFiles.push({
+        relativePath: '.auth/user.json',
+        action: 'CREATE',
+        content: `{\n  "cookies": [],\n  "origins": []\n}\n`,
+        purpose: 'Storage state placeholder for authenticated projects.',
+      });
+      candidateFiles.push({
+        relativePath: `${testDir}/auth.setup.ts`,
+        action: 'CREATE',
+        content: `import { test as setup } from '@playwright/test';
+import path from 'node:path';
+
+const authFile = path.posix.join('.auth', 'user.json');
+
+setup('authenticate', async ({ page }) => {
+  await page.goto(${JSON.stringify(navUrl)});
+  await page.context().storageState({ path: authFile });
+});
+`,
+        purpose: 'Playwright 1.31+ project-level authentication setup.',
+      });
+    }
   }
 
   const canBuild = testBlocks.length > 0;
@@ -633,7 +706,7 @@ export default defineConfig({
     authorKind: 'hybrid',
     featureName,
     slug,
-    mode: hasExistingFixture ? 'brownfield' : 'greenfield',
+    mode: usesCustomFixtures ? (targetFixtureRel ? 'brownfield' : 'greenfield') : 'brownfield',
     status: canBuild ? 'GENERATE' : 'ABSTAIN',
     fullCodeAuthoring: true,
     usedFallback: true,
@@ -850,7 +923,7 @@ export async function runEvidenceDrivenGeneration(
       fullCodeProvider: input.fullCodeProvider,
     });
     if (rawCandidate.usedFallback) {
-      candidate = synthesizeGroundedCandidateFromBundle(featureTitle, workflowPlan, explorationBundle, repoGraph);
+      candidate = synthesizeGroundedCandidateFromBundle(featureTitle, workflowPlan, explorationBundle, repoGraph, workspaceRoot);
       candidate.usedFallback = true;
       candidate.authorKind = rawCandidate.authorKind;
       candidate.rationale = `${rawCandidate.rationale} (synthesized via exploration-grounded fallback)`;
@@ -858,7 +931,7 @@ export async function runEvidenceDrivenGeneration(
       candidate = rawCandidate;
     }
   } else if (explorationBundle.locators.length > 0) {
-    candidate = synthesizeGroundedCandidateFromBundle(featureTitle, workflowPlan, explorationBundle, repoGraph);
+    candidate = synthesizeGroundedCandidateFromBundle(featureTitle, workflowPlan, explorationBundle, repoGraph, workspaceRoot);
   } else {
     const hybrid = new HybridAuthor();
     candidate = await hybrid.propose({

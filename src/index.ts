@@ -82,6 +82,8 @@ export * from './intelligence/autonomous-repair-workflow.js';
 export * from './intelligence/batch-repair-workflow.js';
 export * from './intelligence/generation-agent.js';
 export * from './intelligence/generation-verifier.js';
+export * from './intelligence/semantic-normalizer.js';
+export * from './intelligence/fixture-composer.js';
 export * from './intelligence/repository-profile.js';
 export * from './intelligence/project-intelligence.js';
 export * from './intelligence/failure-clustering.js';

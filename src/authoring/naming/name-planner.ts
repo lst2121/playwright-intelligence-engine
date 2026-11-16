@@ -119,6 +119,33 @@ export function extractPageName(featureOrTitle: string): { className: string; va
 
 export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string): { property: string; isFallback: boolean } {
   const rawName = step.name ?? step.placeholder ?? step.selector;
+
+  // Semantic normalization for common input fields to avoid literal placeholder naming (e.g. infoGmailComInput)
+  if (step.action === 'fill' || roleSuffix.toLowerCase().includes('input')) {
+    const hints = [step.name, step.placeholder, step.selector].filter(Boolean).join(' ').toLowerCase();
+    if (/[^@\s]+@[^@\s]+\.[^@\s]+/.test(hints) || /\bemail\b/i.test(hints)) {
+      return { property: 'emailInput', isFallback: false };
+    }
+    if (/\b(password|passwd|pwd)\b/i.test(hints)) {
+      if (/confirm|repeat|verify|re-?enter/i.test(hints)) {
+        return { property: 'confirmPasswordInput', isFallback: false };
+      }
+      return { property: 'passwordInput', isFallback: false };
+    }
+    if (/\b(first\s*name|fname)\b/i.test(hints)) {
+      return { property: 'firstNameInput', isFallback: false };
+    }
+    if (/\b(last\s*name|lname|surname)\b/i.test(hints)) {
+      return { property: 'lastNameInput', isFallback: false };
+    }
+    if (/\b(phone|mobile|tel)\b/i.test(hints)) {
+      return { property: 'phoneInput', isFallback: false };
+    }
+    if (/\b(search)\b/i.test(hints)) {
+      return { property: 'searchInput', isFallback: false };
+    }
+  }
+
   if (rawName) {
     const stripped = stripArticles(rawName);
     const words = stripped

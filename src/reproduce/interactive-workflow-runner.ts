@@ -475,6 +475,7 @@ export class InteractiveWorkflowRunner {
               route: sweepPathname,
               strategy: built.strategy,
               expression: built.expression,
+              ...(ctrl.type ? { type: ctrl.type } : {}),
               ...(ctrl.role ? { role: ctrl.role } : {}),
               ...(ctrl.accessibleName ? { accessibleName: ctrl.accessibleName } : {}),
               ...(ctrl.label ? { label: ctrl.label } : {}),

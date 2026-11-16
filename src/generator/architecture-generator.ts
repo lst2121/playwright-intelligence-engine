@@ -21,6 +21,7 @@ export interface ArchitectureGenerationInput {
   includeCi?: boolean | undefined;
   namePlan?: NamePlan | undefined;
   appModel?: AppModel | undefined;
+  authScaffolding?: boolean | undefined;
 }
 
 export interface ArchitectureFile {
@@ -545,9 +546,10 @@ export function planArchitecture(input: ArchitectureGenerationInput): Architectu
   files.push(makeFile(testPath, renderSpec(featureName, className, normalizedPageImport, normalizedFixtureImport, steps, namePlan, input.requirements, usesCustomFixtures), 'Workflow spec with web-first assertions.', existingFiles));
 
   const authRequired = Boolean(
-    profile?.structure.usesStorageState ||
-    /login|auth|sign-?in|credentials|session|account/i.test(input.requirements ?? '') ||
-    /login|sign-?in|auth/i.test(featureName)
+    input.authScaffolding ?? (
+      profile?.structure.usesStorageState ||
+      (input.requirements && /storageState|auth\.setup/i.test(input.requirements))
+    )
   );
 
   if (input.mode === 'greenfield') {

@@ -118,11 +118,10 @@ export function extractPageName(featureOrTitle: string): { className: string; va
 }
 
 export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string): { property: string; isFallback: boolean } {
-  const rawName = step.name ?? step.placeholder ?? step.selector;
-
-  // Semantic normalization for common input fields to avoid literal placeholder naming (e.g. infoGmailComInput)
-  if (step.action === 'fill' || roleSuffix.toLowerCase().includes('input')) {
-    const hints = [step.name, step.placeholder, step.selector].filter(Boolean).join(' ').toLowerCase();
+  // If only a placeholder, email dummy value, or selector is present without an explicit human-readable step.name,
+  // apply semantic normalization to avoid literal placeholder naming (e.g. info@gmail.com -> infoGmailComInput)
+  if (!step.name && (step.placeholder || step.selector) && (step.action === 'fill' || roleSuffix.toLowerCase().includes('input'))) {
+    const hints = [step.placeholder, step.selector].filter(Boolean).join(' ').toLowerCase();
     if (/[^@\s]+@[^@\s]+\.[^@\s]+/.test(hints) || /\bemail\b/i.test(hints)) {
       return { property: 'emailInput', isFallback: false };
     }
@@ -146,6 +145,7 @@ export function derivePropertyIdentifier(step: GeneratedStep, roleSuffix: string
     }
   }
 
+  const rawName = step.name ?? step.placeholder ?? step.selector;
   if (rawName) {
     const stripped = stripArticles(rawName);
     const words = stripped

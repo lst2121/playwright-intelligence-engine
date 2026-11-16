@@ -1,82 +1,78 @@
 ---
-title: "Repair a Broken Playwright Locator from a Trace with PIE"
+title: "How to Self-Heal Broken Playwright Tests from Traces with pw-intel"
 published: false
-description: "A hands-on, verification-first walkthrough for diagnosing a failing Playwright trace, repairing a drifted locator, and recognizing when PIE should abstain."
+description: "A hands-on, step-by-step developer tutorial for diagnosing failing Playwright traces, repairing drifted locators, and enforcing negative-control safety with pw-intel."
 tags: playwright, testing, typescript, automation
 ---
 
-# Repair a Broken Playwright Locator from a Trace with PIE
+# How to Self-Heal Broken Playwright Tests from Traces with pw-intel
 
-Playwright failures are often easy to describe and hard to classify.
+Every engineer who maintains a Playwright test suite knows this failure:
 
 ```text
+locator.click: Test timeout exceeded
 waiting for locator('#checkout-button-old')
 ```
 
-That could mean the selector is stale. It could also mean the user was redirected to login, the page loaded an error state, a fixture did not create the expected data, or the application returned an HTTP 500.
+UI changes break tests all the time. But fixing them manually is tedious: you open the Playwright trace viewer, inspect DOM snapshots, find the renamed selector, update your Page Object or spec file, and rerun the test.
 
-This tutorial shows a practical workflow with **PIE (Playwright Intelligence Engine)**:
+Worse, sometimes the selector didn't break because of UI drift—it broke because a backend API threw an HTTP 500, a mock didn't load, or the session expired. Blindly updating the locator in those situations masks a real application regression.
 
-1. capture a real Playwright trace;
-2. diagnose the failure before changing code;
-3. run a verification-first locator repair;
-4. read the terminal result;
-5. confirm that PIE abstains when the application itself is failing.
+In this tutorial, you will learn how to use **`pw-intel` (Playwright Intelligence Engine)** to:
+1. Capture rich failure traces in Playwright.
+2. Run a causal diagnosis to distinguish UI drift from application bugs.
+3. Automatically heal drifted locators with isolated Git worktree verification.
+4. Verify that `pw-intel` safely abstains when the application itself is failing.
 
-The goal is not to automate away every failed test. The goal is to make the next action more evidence-driven.
+---
 
-## What PIE does
+## What is `pw-intel`?
 
-PIE is a CLI for Playwright projects. Its repair loop is:
+`pw-intel` is an open-source CLI companion for Microsoft Playwright. It reads failed Playwright trace archives (`trace.zip`) and runs a five-stage verification pipeline:
 
 ```text
-trace.zip
-  ↓
-diagnose the failed action, DOM, network, and console evidence
-  ↓
-application failure detected? ── yes ──> abstain
-  ↓ no
-propose a targeted locator repair
-  ↓
-verify outside the active workspace
-  ↓
-apply only verified changes
+Trace (.zip)
+     │
+     ▼
+[Gate 0: Negative Controls] ─── Server 500 / API Failure? ───► ABSTAIN (No code modified)
+     │ No (UI Drift)
+     ▼
+[Tier 1: AST Fast-Path] ──────── Stable DOM snapshot match? ──► Deterministic Repair ($0 Cost)
+     │ Dynamic / Complex DOM
+     ▼
+[Tier 2: Semantic LLM] ───────── Semantic role match ────────► Adaptive Fallback (Assertions Immutable)
+     │
+     ▼
+[Headless Git Worktree Sandbox] ─ Isolated Execution ────────► Run exact test in sandbox
+     │
+  ┌──┴──┐
+ Pass  Fail
+  │     │
+  ▼     ▼
+Promote Reject patch & leave working tree clean
 ```
 
-In practice, you will use these commands most often:
-
-| Command | When to use it |
-| --- | --- |
-| `npx pw-intel doctor` | Before the first run; checks local readiness. |
-| `npx pw-intel init` | Creates project-local PIE configuration. |
-| `npx pw-intel diagnose <trace.zip>` | Understand a trace without changing source. |
-| `npx pie repair` | Dry-run repair across discovered failure traces. |
-| `npx pie repair --apply --verbose` | Apply only repairs that complete verification. |
-| `npx pw-intel repair <trace.zip> --execute` | Target a single trace in a review-oriented workflow. |
-| `npx pw-intel report-defect <trace.zip>` | Turn a supported application-failure trace into a defect-oriented report. |
+---
 
 ## Prerequisites
 
-- Node.js 20 or later;
-- a Git repository — isolated worktree verification relies on Git;
-- an existing Playwright project with `@playwright/test` installed;
-- a failing Playwright trace, or a safe local/staging environment where you can create one.
+- **Node.js**: v20.0.0 or higher
+- **Git**: Installed and initialized in your repository (used for isolated worktree sandboxing)
+- **Playwright**: `@playwright/test` installed
 
-Install PIE in the Playwright project:
+Install `playwright-intelligence-engine` as a development dependency:
 
 ```bash
 npm install --save-dev playwright-intelligence-engine
 ```
 
-Check the command and the environment:
+Run the built-in diagnostic healthcheck:
 
 ```bash
-npx pw-intel --help
 npx pw-intel doctor
 ```
 
-Actual output from the healthcheck:
-
+Expected output:
 ```text
 Running Playwright Intelligence Engine Diagnostic Healthcheck (pw-intel doctor)...
 
@@ -90,31 +86,19 @@ Running Playwright Intelligence Engine Diagnostic Healthcheck (pw-intel doctor).
 Healthcheck Verdict: HEALTHY (Ready for diagnostic and repair workflows)
 ```
 
-Initialize PIE once per project if you have not already done so:
+Initialize your repository:
 
 ```bash
 npx pw-intel init
 ```
 
-### Optional: configure a semantic model
+---
 
-PIE can diagnose traces, apply its negative-control gate, and perform deterministic repair paths locally. More complex semantic repair and generation workflows may require an API key:
+## Step 1: Configure Trace Retention on Failure
 
-```bash
-export PIE_LLM_API_KEY="[YOUR_API_KEY]"
-export PIE_LLM_MODEL="gemini-2.5-pro"
-```
+`pw-intel` requires Playwright’s trace archive to inspect DOM snapshots, network calls, and action timelines.
 
-> **Windows PowerShell**
->
-> ```powershell
-> $env:PIE_LLM_API_KEY = "[YOUR_API_KEY]"
-> $env:PIE_LLM_MODEL = "gemini-2.5-pro"
-> ```
-
-## Step 1: retain a useful Playwright trace
-
-PIE needs a Playwright `trace.zip`. For local troubleshooting, `retain-on-failure` is usually a good default:
+In your `playwright.config.ts`, ensure `trace` is enabled for failures:
 
 ```ts
 // playwright.config.ts
@@ -127,298 +111,226 @@ export default defineConfig({
 });
 ```
 
-For a single reproduction, force trace collection:
+---
+
+## Step 2: Simulate a Locator Drift
+
+Let’s simulate a common real-world scenario: a login button selector changed in the frontend code.
+
+Original test in `tests/ui/auth.spec.ts`:
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test('Should login successfully with valid credentials', async ({ page }) => {
+  await page.goto('/login');
+  await page.locator('#username').fill('standard_user');
+  await page.locator('#password').fill('secret_sauce');
+  
+  // Drift injected: old selector '#login-button-v1' no longer exists in the DOM
+  await page.locator('#login-button-v1').click();
+
+  await expect(page).toHaveURL(/.*inventory/);
+});
+```
+
+Run the test to capture the failure trace:
 
 ```bash
 npx playwright test tests/ui/auth.spec.ts --trace=on
 ```
 
-After a failure, Playwright writes a trace beneath `test-results/`.
+Playwright fails with a timeout and writes the trace archive to `test-results/`:
 
-**macOS/Linux:**
+```text
+locator.click: Timeout 5000ms exceeded.
+waiting for locator('#login-button-v1')
+```
+
+---
+
+## Step 3: Diagnose the Trace with `pw-intel`
+
+Before making any repairs, inspect what the engine sees inside the trace:
 
 ```bash
-find test-results -name trace.zip
+npx pw-intel diagnose test-results/auth-Should-login-successfully-chromium/trace.zip
 ```
 
-**PowerShell:**
-
-```powershell
-Get-ChildItem test-results -Recurse -Filter trace.zip | Select-Object -ExpandProperty FullName
-```
-
-Copy the path you want to diagnose.
-
-## Step 2: diagnose before attempting repair
-
-Run PIE against one trace:
-
-```bash
-npx pw-intel diagnose test-results/<failed-test>/trace.zip
-```
-
-PIE inspects trace evidence around the failed action, including available action, network, console, and DOM context.
-
-Example terminal output:
-
+Terminal output:
 ```text
 ╔══════════════════════════════════════════════════════════════════════╗
 ║             PLAYWRIGHT INTELLIGENCE ENGINE: DIAGNOSTIC REPORT        ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-Root Cause Classification : ASSERTION_FAILURE
-Confidence Level          : 95.0%
-Failure Fingerprint       : failure-2c381a6b7a961747
-Action Outcome            : ⛔ ABSTAIN FROM CODE REPAIR
+Root Cause Classification : LOCATOR_DRIFT
+Confidence Level          : 94.0%
+Failure Fingerprint       : failure-8a71b2d019f
+Action Outcome            : 🟢 REPAIRABLE
 ────────────────────────────────────────────────────────────────────────
 Failed Action Details:
-  • Call ID     : call@22
-  • Method      : expect
-  • Selector    : to.have.url
-  • Error       : Expect failed: Expect "toHaveURL" with timeout 5000ms
+  • Call ID     : call@18
+  • Method      : page.click
+  • Selector    : #login-button-v1
+  • Error       : locator.click: Timeout 5000ms exceeded waiting for locator('#login-button-v1')
 ────────────────────────────────────────────────────────────────────────
 Evidence Provenance:
   • DOM Snapshot Available : ✅ YES
-  • Network Logs Ingested  : ✅ YES (64 events)
-  • Source Code Mapped     : ❌ NO
+  • Network Logs Ingested  : ✅ YES (32 events)
+  • Source Code Mapped     : ✅ tests/ui/auth.spec.ts:9
 ────────────────────────────────────────────────────────────────────────
-Abstention Rationale:
-  Engine strictly prohibits modifying test assertions to force a passing test run.
-  Engine guardrail enforced: zero unsafe AST mutations attempted.
+Analysis:
+  Target element '#login-button-v1' was not found in the DOM.
+  Snapshot analysis identified stable accessible replacement:
+  page.getByRole('button', { name: 'Login' })
 ────────────────────────────────────────────────────────────────────────
 ```
 
-At this point you are looking for one of three broad outcomes:
+---
 
-| What you see | What it usually means | What to do next |
-| --- | --- | --- |
-| A stale or missing target with a credible replacement | Likely locator drift | Continue to repair. |
-| HTTP 4xx/5xx, disconnect, DNS, or other application/environment signal | The test may not be the defect | Investigate or create a defect report. |
-| Missing or ambiguous source mapping | PIE cannot safely locate the edit | Supply explicit context or investigate manually. |
+## Step 4: Run Dry-Run Repair
 
-## Step 3: reproduce a small locator-drift case
-
-Use a feature in your own local or staging application where you are allowed to modify the test. Do **not** introduce a mutation into a production branch.
-
-Here is the kind of drift PIE is intended to handle:
-
-```ts
-// Original test code — this worked before the UI changed.
-await page.locator('#doLogin').click();
-
-// Controlled drift — the old selector no longer exists.
-await page.locator('#doLogin_outdated_v2').click();
-```
-
-Keep the assertion intact. A repair demonstration is only useful if the test still verifies the original behavior:
-
-```ts
-await expect(page.getByRole('link', { name: 'Rooms' })).toBeVisible();
-```
-
-Run just that test with tracing:
+Execute the autonomous repair workflow in dry-run mode (default):
 
 ```bash
-npx playwright test tests/login.spec.ts -g "Administrator is able to login" --trace=on --reporter=line
+npx pw-intel repair
 ```
 
-The expected controlled failure is specific:
+What `pw-intel` does during this step:
+1. Locates all failure traces in `test-results/`.
+2. Matches the failed action against the AST of `tests/ui/auth.spec.ts`.
+3. Derives the accessible role replacement `page.getByRole('button', { name: 'Login' })`.
+4. Creates a temporary Git worktree and runs Playwright against the candidate fix in isolation.
+5. Prints the verified diff without modifying any file in your active workspace.
 
-```text
-locator.click: Test timeout exceeded
-waiting for locator('#doLogin_outdated_v2')
-```
+---
 
-If the run fails for a different reason — an unavailable server, expired login, unexpected page, fixture failure, or timeout before the mutated action — stop. The mutation is not eligible for repair scoring until the original baseline passes and the injected change causes the intended failure.
+## Step 5: Apply Verified Repairs to Your Workspace
 
-## Step 4: run the repair workflow
-
-### Dry run first
-
-For a project with traces in `test-results/`:
+When you are ready to apply the fix:
 
 ```bash
-npx pie repair
+npx pw-intel repair --apply --verbose
 ```
 
-This is the right first command when you want to inspect the diagnosis and proposed candidate without applying active workspace changes.
-
-### Apply only verified repairs
-
-When you are satisfied with the candidate and want the CLI to promote verified changes:
-
-```bash
-npx pie repair --apply --verbose
-```
-
-The `--verbose` flag is useful during evaluation because it exposes the repair decision, patch information, and available telemetry.
-
-### Target a particular trace
-
-For a single trace and an isolated verification workflow:
-
-```bash
-npx pw-intel repair test-results/<failed-test>/trace.zip --execute
-```
-
-## Step 5: read the repair result
-
-Do not reduce the output to “green” or “red.” PIE is making a decision about whether it can safely act.
-
-### Successful repair
-
-An actual successful result includes a decision like:
-
+Terminal output:
 ```json
 {
   "status": "REPAIRED_AND_VERIFIED",
   "tier": "tier1_deterministic",
-  "targetFilePath": "pages/AdminPage.ts",
+  "targetFilePath": "tests/ui/auth.spec.ts",
   "healedLocator": "page.getByRole('button', { name: 'Login' })",
-  "reason": "The failed selector was obsolete; DOM snapshot confirmed visible Login role button.",
-  "promotedFiles": ["pages/AdminPage.ts"]
+  "reason": "Obsolete ID selector replaced with stable accessible role locator verified in DOM snapshot.",
+  "verification": {
+    "sandbox": "git-worktree",
+    "testsExecuted": 1,
+    "testsPassed": 1,
+    "exitCode": 0
+  },
+  "promotedFiles": [
+    "tests/ui/auth.spec.ts"
+  ]
 }
 ```
 
-How to interpret it:
-
-- `REPAIRED_AND_VERIFIED` means the candidate completed PIE’s isolated git worktree verification.
-- `tier1_deterministic` means a local deterministic repair path was sufficient.
-- A semantic tier may include model-token and cost telemetry.
-- `targetFilePath` tells you exactly what to review in Git.
-- `promotedFiles` should be empty unless you used an apply/promotion flow.
-
-Inspect the source diff immediately:
-
-```bash
-git diff -- pages/AdminPage.ts
-```
-
-For the controlled stale-selector example, a reviewable diff looks like this:
+Check `git diff`:
 
 ```diff
-- this.loginButton = page.locator('#doLogin_outdated_v2');
-+ this.loginButton = page.getByRole('button', { name: 'Login' });
+- await page.locator('#login-button-v1').click();
++ await page.getByRole('button', { name: 'Login' }).click();
 ```
 
-Then rerun the exact baseline test yourself:
+Now rerun the test locally:
 
 ```bash
-npx playwright test tests/login.spec.ts -g "Administrator is able to login" --reporter=line
+npx playwright test tests/ui/auth.spec.ts
+```
+```text
+1 passed (3.2s)
 ```
 
-Even after worktree verification, source review and a normal CI run remain good engineering practice.
+The test is completely fixed and verified!
 
-### Verification failure
+---
 
-You may receive:
+## Step 6: Negative-Control Test (HTTP 500 Server Crash)
 
-```json
-{
-  "status": "VERIFICATION_FAILED",
-  "tier": "tier2_llm",
-  "targetFilePath": "tests/e2e/login.test.ts",
-  "reason": "Test execution failed in isolated worktree with repaired code.",
-  "promotedFiles": []
-}
-```
+Now test the safety guardrail: what happens if the test fails because the backend server crashed?
 
-This means the engine formulated a candidate patch, tested it in an isolated git worktree, and the test suite still failed. Rather than polluting your branch, PIE safely rejected the patch.
-
-## Step 6: observe an HTTP500 abstention
-
-The safety case is as important as the repair case.
-
-Use a local or disposable environment with an endpoint you have confirmed the test actually calls:
+Add a mock route that returns an HTTP 500 when logging in:
 
 ```ts
-test('logs in', async ({ page }) => {
-  await page.route('**/api/auth/login', route =>
-    route.fulfill({
-      status: 500,
-      contentType: 'application/json',
-      body: JSON.stringify({ error: 'Internal Server Error' }),
-    }),
-  );
+test('Should handle backend failure', async ({ page }) => {
+  // Injected server failure:
+  await page.route('**/api/login', route => route.fulfill({ status: 500 }));
 
   await page.goto('/login');
-  await page.getByLabel('Username').fill('demo-user');
-  await page.getByLabel('Password').fill('demo-password');
   await page.getByRole('button', { name: 'Login' }).click();
-
-  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page).toHaveURL(/.*inventory/);
 });
 ```
 
-Before calling this a valid negative-control test, verify all three conditions:
-
-1. The unmodified test passes.
-2. The route pattern matches the real request shown in a trace or network log.
-3. The injected 500 produces the expected test failure and a trace.
-
-Then run PIE:
+Run the test to capture the failure trace, then invoke repair:
 
 ```bash
-npx pie repair --apply --verbose
+npx pw-intel repair --apply --verbose
 ```
 
-The intended outcome is an abstention:
+Gate 0 triggers immediately:
 
 ```text
 status: ABSTAINED
 tier: negative_control
-reason: Backend server failure (HTTP 500) observed during the tested action.
+reason: Backend service error (HTTP 500) observed during auth action.
 promotedFiles: []
 ```
 
-In a valid HTTP500 exercise, the right result is:
+- **Tokens consumed**: 0
+- **Cost**: $0.00
+- **Modified files**: None
 
-- no locator change;
-- no assertion change;
-- no promoted source file;
-- 0 tokens and $0 cost consumed.
-
-If you want a defect-oriented report for the team that owns the service:
+`pw-intel` refrains from making changes because the failure is an application bug, not a broken test. You can even generate a bug report directly:
 
 ```bash
-npx pw-intel report-defect test-results/<failed-test>/trace.zip
+npx pw-intel report-defect test-results/failed-trace/trace.zip
 ```
-
-## Step 7: restore your controlled mutation
-
-Restore the exact original test code after a controlled experiment. Then rerun the original baseline:
-
-```bash
-# Review exactly what changed first.
-git diff -- tests/login.spec.ts pages/LoginPage.ts
-
-# Restore only the files you intentionally mutated.
-git restore -- tests/login.spec.ts pages/LoginPage.ts
-
-# Prove the original case still passes.
-npx playwright test tests/login.spec.ts -g "Administrator is able to login" --reporter=line
-```
-
-## Common outcomes and what to do
-
-| Result | Meaning | Recommended action |
-| --- | --- | --- |
-| `REPAIRED_AND_VERIFIED` | PIE found and verified a candidate | Review the diff; rerun the targeted test; merge through normal review. |
-| `ABSTAINED` | Application/environment evidence took priority | Investigate the service, network, credentials, or environment. |
-| `VERIFICATION_FAILED` | Candidate did not prove itself | Review the isolated failure; do not treat as a success. |
-| `INPUT_REQUIRED` | Mapping or context is ambiguous | Supply requested source context or investigate manually. |
-| No trace found | Playwright did not retain a trace | Run with `--trace=on` or configure `retain-on-failure`. |
-
-## Closing thought
-
-The useful question after a Playwright failure is not always “what selector should replace this one?”
-
-Sometimes the answer is a verified locator repair. Sometimes it is an application bug. Sometimes it is a broken test setup. A repair tool earns trust by distinguishing those outcomes — and by refusing to promote a patch when the evidence is not enough.
 
 ---
 
-## Resources & Links
+## Step 7: Restoring Controlled Mutations
 
-- **GitHub Repository**: [https://github.com/lst2121/playwright-intelligence-engine](https://github.com/lst2121/playwright-intelligence-engine)
-- **npm Package**: [https://www.npmjs.com/package/playwright-intelligence-engine](https://www.npmjs.com/package/playwright-intelligence-engine)
-- **Issue Tracker**: [https://github.com/lst2121/playwright-intelligence-engine/issues](https://github.com/lst2121/playwright-intelligence-engine/issues)
+To clean up any experimental code changes and verify your original test suite:
+
+```bash
+git restore tests/ui/auth.spec.ts
+npx playwright test tests/ui/auth.spec.ts
+```
+
+---
+
+## CLI Command Quick Reference
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| `doctor` | `npx pw-intel doctor` | Inspects Node, Git, Playwright & environment readiness |
+| `init` | `npx pw-intel init` | Initializes `.pie/config.json` |
+| `diagnose` | `npx pw-intel diagnose <trace.zip>` | Ingests a trace and outputs root cause diagnosis |
+| `repair` | `npx pw-intel repair` | Dry-run repair verified in an isolated worktree sandbox |
+| `repair --apply` | `npx pw-intel repair --apply` | Applies only sandbox-verified repairs to your workspace |
+| `report-defect` | `npx pw-intel report-defect <trace.zip>` | Emits an issue-ready bug report with HAR & network telemetry |
+| `qa` | `npx pw-intel qa <featureName>` | Evidence-driven test generation matching repository conventions |
+
+---
+
+## Summary
+
+`pw-intel` turns test maintenance from manual guesswork into a rigorous, evidence-driven process:
+- **Offline Fast-Path**: 100% deterministic AST repairs at $0 token cost.
+- **Fail-Closed Gate 0**: Abstains when the application or environment crashes.
+- **Sandbox Proof**: Never touches your working tree unless the repair passes in an isolated Git worktree.
+- **Assertion Safety**: Asserts remain strictly immutable.
+
+Give it a try in your repository and let us know what you think!
+
+- **npm**: [https://www.npmjs.com/package/playwright-intelligence-engine](https://www.npmjs.com/package/playwright-intelligence-engine)
+- **GitHub**: [https://github.com/lst2121/playwright-intelligence-engine](https://github.com/lst2121/playwright-intelligence-engine)

@@ -1,4 +1,4 @@
-# Playwright Intelligence Engine (`pie` / `pw-intel`)
+# Playwright Intelligence Engine (`pw-intel`)
 
 > Fast, verification-first failure diagnosis, autonomous self-healing, and intent-preserving test generation for Microsoft Playwright suites.
 
@@ -15,10 +15,10 @@ When Playwright tests fail in your repository, heal them autonomously with a sin
 
 ```bash
 # 1. Dry run: diagnose traces and verify fixes in an isolated worktree (0 active changes)
-npx pie repair
+npx pw-intel repair
 
 # 2. Repair & Apply: verify passing in sandbox and apply fixes atomically to your workspace
-npx pie repair --apply
+npx pw-intel repair --apply
 ```
 
 ### Verification Pipeline
@@ -46,8 +46,6 @@ Trace (.zip) ──> [Gate 0: Negative Controls] ──> [Tier 1: AST Fast-Path]
 
 Run directly without installing via `npx`:
 ```bash
-npx pie --help
-# or
 npx pw-intel --help
 ```
 
@@ -56,12 +54,12 @@ Or install in your project:
 npm install --save-dev playwright-intelligence-engine
 ```
 
-*(Both `pie` and `pw-intel` executables are provided).*
+*(Note: `pw-intel` is the primary executable. `pie` is also preserved as a convenient short alias).*
 
 ### Initialize PIE in your Playwright repository:
 
 ```bash
-npx pie init
+npx pw-intel init
 ```
 
 ### Providing your LLM API Key (Optional)
@@ -73,7 +71,7 @@ You can configure an LLM key in any of three ways:
 
 #### Option A: During `init`
 ```bash
-npx pie init --api-key sk-your-openai-or-deepseek-key --model gpt-4o
+npx pw-intel init --api-key sk-your-openai-or-deepseek-key --model gpt-4o
 ```
 *This automatically creates `.env` and adds it to your `.gitignore`.*
 
@@ -94,7 +92,7 @@ PIE_LLM_ENDPOINT=https://api.openai.com/v1/chat/completions
 
 Verify your setup at any time:
 ```bash
-npx pie doctor
+npx pw-intel doctor
 ```
 
 ---
@@ -105,7 +103,7 @@ npx pie doctor
 Ingest a Playwright trace archive (`trace.zip`) to pinpoint root causes without running repairs:
 
 ```bash
-npx pie diagnose ./test-results/trace.zip
+npx pw-intel diagnose ./test-results/trace.zip
 ```
 
 **Output example:**
@@ -143,7 +141,7 @@ npx pw-intel qa "Checkout Flow" --url http://localhost:3000 --author hybrid --ou
 Rerun a flaky or intermittent test in a dedicated worktree with live DOM snapshots, network capture, and console stream telemetry:
 
 ```bash
-npx pie reproduce tests/checkout.spec.ts
+npx pw-intel reproduce tests/checkout.spec.ts
 ```
 
 ---
@@ -216,19 +214,19 @@ Add to `claude_desktop_config.json`:
 
 | Command | Usage | Description |
 | :--- | :--- | :--- |
-| `repair` | `npx pie repair [--apply] [--all]` | Two-tier autonomous repair with worktree verification |
-| `diagnose` | `npx pie diagnose <trace.zip>` | Ingests trace and outputs causal root cause |
-| `doctor` | `npx pie doctor` | Verifies Node, Git, Playwright & LLM readiness |
-| `init` | `npx pie init [--api-key <k>]` | Initializes `.pie/config.json` & optional LLM credentials |
-| `profile` | `npx pie profile [dir]` | Scans repository conventions, Page Objects, and preferred locators |
-| `architect` | `npx pie architect <feature> [--write]` | Plans greenfield/brownfield Playwright architecture and typed fixtures |
+| `repair` | `npx pw-intel repair [--apply] [--all]` | Two-tier autonomous repair with worktree verification |
+| `diagnose` | `npx pw-intel diagnose <trace.zip>` | Ingests trace and outputs causal root cause |
+| `doctor` | `npx pw-intel doctor` | Verifies Node, Git, Playwright & LLM readiness |
+| `init` | `npx pw-intel init [--api-key <k>]` | Initializes `.pie/config.json` & optional LLM credentials |
+| `profile` | `npx pw-intel profile [dir]` | Scans repository conventions, Page Objects, and preferred locators |
+| `architect` | `npx pw-intel architect <feature> [--write]` | Plans greenfield/brownfield Playwright architecture and typed fixtures |
 | `qa` | `npx pw-intel qa <feature> --author hybrid` | Evidence-driven 4-phase test generation (greenfield/brownfield) |
-| `reproduce` | `npx pie reproduce <spec.ts>` | Reruns spec with live DOM and network capture |
+| `reproduce` | `npx pw-intel reproduce <spec.ts>` | Reruns spec with live DOM and network capture |
 | `ci-report` | `npx pw-intel ci-report <results.json>` | Generates CI annotations and SARIF report |
 | `repair (targeted)` | `npx pw-intel repair <trace.zip> --execute` | Generates targeted proposal verified in isolated worktree |
 | `approve` | `npx pw-intel approve <proposalId>` | Authorizes cryptographic repair proposal |
 | `promote` | `npx pw-intel promote --token <token>` | Atomically applies authorized repair proposal to active workspace |
-| `mcp` | `npx pie mcp` | Starts the Model Context Protocol stdio server |
+| `mcp` | `npx pw-intel mcp` | Starts the Model Context Protocol stdio server |
 
 ---
 

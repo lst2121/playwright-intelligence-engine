@@ -186,6 +186,7 @@ function defaultSteps(input: ArchitectureGenerationInput): GeneratedStep[] {
   }
   return [
     { action: 'navigate' },
+    { action: 'assert-visible', selector: 'body' },
     { action: 'assert-visible', role: 'heading', name: input.featureName },
   ];
 }
@@ -311,6 +312,10 @@ function renderSpec(
   const requirementComment = requirements?.trim()
     ? `\n    // Requirement: ${requirements.trim().replace(/\r?\n/g, ' ').replace(/\*\//g, '* /')}`
     : '';
+
+  if (lines.filter((l) => l.includes('expect(')).length === 1 && lines.some((l) => l.includes('getByRole') && l.includes('heading'))) {
+    lines.unshift("    await expect(page.locator('body')).toBeVisible();");
+  }
 
   if (useFixtures && fixtureImport) {
     return `import { test, expect } from ${quote(fixtureImport)};

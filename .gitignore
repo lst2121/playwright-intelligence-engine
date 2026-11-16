@@ -3,6 +3,10 @@ dist/
 coverage/
 .pw-intelligence/
 .pie/
+.pie-logs/
+.pie-fleet-extended.cjs
+artifacts/
+reports/
 test-results/
 *.tgz
 *.log

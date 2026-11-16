@@ -496,11 +496,19 @@ export async function runCli(argv: string[]): Promise<void> {
       if (ticket.reproductionCurl) {
         console.log(`Reproduction    : ${ticket.reproductionCurl}`);
       }
+      const outFile = option('--out');
+      if (outFile) {
+        fs.writeFileSync(path.resolve(outFile), ticket.markdown, 'utf8');
+        console.log(`Saved Ticket Markdown: ${outFile}`);
+      }
       if (ticket.savedPath) {
         console.log(`Markdown File   : ${path.relative(process.cwd(), ticket.savedPath)}`);
         console.log(`JSON File       : ${path.relative(process.cwd(), ticket.savedPath.replace(/\\.md$/, '.json'))}`);
       }
-      console.log('\nJira Markup Excerpt:\n' + ticket.jiraMarkup.slice(0, 500) + '...\n');
+      console.log('\n══════════════════════════════════════════════════════════════════════');
+      console.log('                      FULL DEFECT TICKET (MARKDOWN)                  ');
+      console.log('══════════════════════════════════════════════════════════════════════\n');
+      console.log(ticket.markdown);
       return;
     } catch (err: any) {
       console.error(`Defect reporting failed: ${err?.message ?? String(err)}`);

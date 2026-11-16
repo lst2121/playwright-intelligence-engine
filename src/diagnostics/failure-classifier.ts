@@ -88,6 +88,9 @@ export class FailureClassifier {
     /clarity\.ms/i,
     /optimizely/i,
     /fullstory/i,
+    /backtrace/i,
+    /bugsnag/i,
+    /logrocket/i,
   ];
 
   private static readonly NON_CRITICAL_ASSET_PATTERNS = [

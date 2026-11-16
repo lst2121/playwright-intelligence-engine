@@ -168,22 +168,36 @@ export class ArchiveReader {
 
       const parentDir = path.basename(path.dirname(zipPath));
 
+      // Resolve absolute spec path if relative
+      let absSpecPath = resolvedSpecPath;
+      if (absSpecPath && !path.isAbsolute(absSpecPath)) {
+        const repoRootFromTrace = path.resolve(path.dirname(zipPath), '..', '..');
+        const candidate = path.resolve(repoRootFromTrace, absSpecPath);
+        if (fsSync.existsSync(candidate)) {
+          absSpecPath = candidate;
+        }
+      }
+
       // Strategy 1: Match enclosing test titles in resolved spec file against Playwright's trace folder slug
-      if (resolvedSpecPath && fsSync.existsSync(resolvedSpecPath)) {
+      if (absSpecPath && fsSync.existsSync(absSpecPath)) {
         try {
-          const specCode = fsSync.readFileSync(resolvedSpecPath, 'utf8');
+          const specCode = fsSync.readFileSync(absSpecPath, 'utf8');
           const parentDirNorm = parentDir.toLowerCase().replace(/[^a-z0-9]/g, '');
           const testMatches = [...specCode.matchAll(/test(?:\.only|\.skip)?\s*\(\s*['"`]([^'"`]+)['"`]/g)];
           
+          if (testMatches.length === 1 && testMatches[0]?.[1]) {
+            return testMatches[0][1];
+          }
+
           let bestTitle: string | undefined;
           let maxMatches = 0;
 
           for (const match of testMatches) {
             const title = match[1];
             if (title) {
-              const words = title.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+              const words = title.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
               const matchingCount = words.filter((w) => parentDirNorm.includes(w)).length;
-              if (matchingCount > maxMatches && matchingCount >= Math.min(2, words.length)) {
+              if (matchingCount > maxMatches && matchingCount >= 1) {
                 maxMatches = matchingCount;
                 bestTitle = title;
               }

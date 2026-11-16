@@ -705,13 +705,26 @@ CRITICAL INVARIANTS:
     await fs.writeFile(worktreeTarget, repairedCode, 'utf8');
 
     // Execute Playwright test targeting this spec (with precise -g grep isolation for multi-test specs)
-    const relSpec = path.relative(workspaceRoot, testFilePath);
-    const testTitle = ArchiveReader.extractTestTitleFromArchive(tracePath, testFilePath);
+    const absSpec = path.resolve(workspaceRoot, testFilePath);
+    const relSpec = path.relative(workspaceRoot, absSpec);
+    const testTitle = ArchiveReader.extractTestTitleFromArchive(tracePath, absSpec);
+
+    // Verify testTitle actually exists in the spec file before passing as -g grep
+    let validGrep: string | undefined;
+    try {
+      if (testTitle && fsSync.existsSync(absSpec)) {
+        const specContent = fsSync.readFileSync(absSpec, 'utf8');
+        if (specContent.includes(testTitle)) {
+          validGrep = testTitle.trim();
+        }
+      }
+    } catch {}
+
     const projectName = ArchiveReader.extractProjectFromArchive(tracePath, input.configPath);
     const execRes = await ExecutionRunner.runPlaywrightTest({
       cwd: worktree.worktreePath,
       testFilePath: relSpec,
-      grep: testTitle ? testTitle.trim() : undefined,
+      grep: validGrep,
       configPath: input.configPath,
       timeoutMs: 60_000,
       env: { CI: '1', HEADLESS: '1' },

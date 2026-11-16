@@ -523,6 +523,10 @@ export interface PlaywrightProjectInfo {
 export interface BrownfieldRepositoryGraph {
   topology: 'monorepo' | 'standalone';
   testImport: string;
+  testDirectory?: string;
+  testExtension?: string;
+  pageObjectDirectory?: string;
+  fixtureDirectory?: string;
   fixtureExports: FixtureExportInfo[];
   pomExports: PomExportInfo[];
   helperExports: HelperExportInfo[];
@@ -628,6 +632,7 @@ export async function buildBrownfieldRepositoryGraph(root: string): Promise<Brow
     }
 
     // Check barrel re-exports
+    const isSpecOrTestFile = /\.(?:spec|test)\.[^.]+$/i.test(rel);
     for (const expDecl of sf.getExportDeclarations()) {
       const modSpec = expDecl.getModuleSpecifierValue();
       if (!modSpec || !modSpec.startsWith('.')) continue;
@@ -635,14 +640,20 @@ export async function buildBrownfieldRepositoryGraph(root: string): Promise<Brow
       const list = reExportMap.get(targetRel) ?? [];
       list.push(rel);
       reExportMap.set(targetRel, list);
-      if (/fixture|test/i.test(rel) && expDecl.getNamedExports().some((n) => n.getName() === 'test')) {
-        testEntryCandidates.push(rel);
+      if (!isSpecOrTestFile && /fixture|test/i.test(rel) && expDecl.getNamedExports().some((n) => n.getName() === 'test')) {
+        if (!testEntryCandidates.includes(rel)) testEntryCandidates.push(rel);
       }
     }
 
     // Check base.extend({ ... }) or test.extend({ ... })
     if (/(?:base|test)\.extend\b/.test(content)) {
-      testEntryCandidates.push(rel);
+      const exportsTest =
+        sf.getVariableDeclarations().some((v) => v.getName() === 'test' && v.isExported()) ||
+        sf.getExportDeclarations().some((exp) => exp.getNamedExports().some((n) => n.getName() === 'test')) ||
+        /(?:^|\n)\s*export\s+(?:const|let|var)\s+test\b/.test(content);
+      if (!isSpecOrTestFile && exportsTest) {
+        if (!testEntryCandidates.includes(rel)) testEntryCandidates.push(rel);
+      }
       for (const call of sf.getDescendantsOfKind(SyntaxKind.CallExpression)) {
         const exprText = call.getExpression().getText();
         if (!/(?:base|test)\.extend\s*$/.test(exprText) && !exprText.endsWith('.extend')) continue;
@@ -717,7 +728,7 @@ export async function buildBrownfieldRepositoryGraph(root: string): Promise<Brow
   }
 
   // Pick authoritative testImport
-  const barrelFixture = testEntryCandidates.find((c) => /index\.ts$/i.test(c) || /fixtures?\.ts$/i.test(c));
+  const barrelFixture = testEntryCandidates.find((c) => /index\.ts$/i.test(c) || /fixtures?\.ts$/i.test(c) || /playwright-utils\.ts$/i.test(c));
   const testImport = barrelFixture ?? testEntryCandidates[0] ?? '@playwright/test';
   if (testEntryCandidates.length > 1 && !barrelFixture) {
     ambiguities.push(`Multiple fixture entry points detected: ${testEntryCandidates.join(', ')}`);
@@ -772,9 +783,77 @@ export async function buildBrownfieldRepositoryGraph(root: string): Promise<Brow
 
   const topology: 'monorepo' | 'standalone' = appSourceCount > 0 || routes.size > 0 ? 'monorepo' : 'standalone';
 
+  // Find test directory from config or existing test files
+  let testDirectory = 'tests';
+  let testExtension = '.spec.ts';
+
+  for (const cfgPath of manifest.playwrightConfigs) {
+    const fullCfg = path.resolve(projectRoot, cfgPath);
+    const cfgContent = fileContents.get(fullCfg) ?? '';
+    const match = cfgContent.match(/testDir\s*:\s*['"]([^'"]+)['"]/);
+    if (match?.[1]) {
+      const cfgDir = path.posix.dirname(toRel(projectRoot, fullCfg));
+      const rawDir = match[1].replace(/^\.\//, '');
+      testDirectory = cfgDir === '.' ? rawDir : path.posix.normalize(path.posix.join(cfgDir, rawDir));
+      break;
+    }
+  }
+
+  const existingTestFiles: string[] = [];
+  for (const fullPath of fileContents.keys()) {
+    const rel = toRel(projectRoot, fullPath);
+    if (/\.(?:spec|test)\.[^.]+$/i.test(rel)) {
+      existingTestFiles.push(rel);
+    }
+  }
+
+  if (existingTestFiles.length > 0) {
+    let specCount = 0;
+    let testCount = 0;
+    for (const f of existingTestFiles) {
+      if (/\.test\.[^.]+$/i.test(f)) testCount++;
+      if (/\.spec\.[^.]+$/i.test(f)) specCount++;
+    }
+    if (testCount > specCount) {
+      testExtension = '.test.ts';
+    }
+    if (testDirectory === 'tests' && manifest.playwrightConfigs.length === 0) {
+      const dirCounts = new Map<string, number>();
+      for (const f of existingTestFiles) {
+        const dir = path.posix.dirname(f);
+        dirCounts.set(dir, (dirCounts.get(dir) ?? 0) + 1);
+      }
+      let maxCount = 0;
+      for (const [dir, count] of dirCounts.entries()) {
+        if (count > maxCount) {
+          maxCount = count;
+          testDirectory = dir;
+        }
+      }
+    }
+  }
+
+  let pageObjectDirectory = 'tests/pages';
+  if (pomExports.length > 0) {
+    pageObjectDirectory = path.posix.dirname(pomExports[0]!.sourceFile);
+  } else if (testDirectory.includes('/')) {
+    pageObjectDirectory = `${testDirectory.split('/')[0]}/pages`;
+  }
+
+  let fixtureDirectory = 'tests/fixtures';
+  if (fixtureExports.length > 0) {
+    fixtureDirectory = path.posix.dirname(fixtureExports[0]!.sourceFile);
+  } else if (testDirectory.includes('/')) {
+    fixtureDirectory = `${testDirectory.split('/')[0]}/fixtures`;
+  }
+
   return {
     topology,
     testImport,
+    testDirectory,
+    testExtension,
+    pageObjectDirectory,
+    fixtureDirectory,
     fixtureExports,
     pomExports,
     helperExports,

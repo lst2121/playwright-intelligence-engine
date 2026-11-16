@@ -8,7 +8,11 @@ export class HybridAuthor implements Author {
   public readonly kind = 'hybrid';
 
   public async propose(input: AuthorInput): Promise<CandidateChange> {
-    const steps = input.steps ?? [{ action: 'navigate' }, { action: 'assert-visible', role: 'heading', name: input.featureName }];
+    const steps = input.steps ?? [
+      { action: 'navigate' },
+      { action: 'assert-visible', selector: 'body' },
+      { action: 'assert-visible', role: 'heading', name: input.featureName },
+    ];
 
     let namePlan: NamePlan;
     // Attempt LLM symbol proposal if API key is present (opt-in under Vitest)

@@ -311,7 +311,11 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
         requirementId: requirement.id,
         steps: input.suggestedSteps && input.suggestedSteps.length > 0
           ? input.suggestedSteps
-          : [{ action: 'navigate' as const }, { action: 'assert-visible' as const, role: 'heading', name: requirement.title }],
+          : [
+              { action: 'navigate' as const },
+              { action: 'assert-visible' as const, selector: 'body' },
+              { action: 'assert-visible' as const, role: 'heading', name: requirement.title },
+            ],
         reasoningSummary: 'Scenario derived directly from the supplied requirement; business assertions require review.',
         evidenceReferences: [`requirement:${requirement.id}`],
       })),
@@ -478,6 +482,7 @@ export async function runGenerationAgent(input: GenerationAgentInput): Promise<G
         candidateWriteResult = await CandidateWriter.apply(workspaceRoot, candidate, {
           allowModify: input.allowModify ?? true,
           validateLocalImports: false,
+          overwriteCreate: true,
         });
         if (!candidateWriteResult.success) {
           return {

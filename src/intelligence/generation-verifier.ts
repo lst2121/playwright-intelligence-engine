@@ -553,7 +553,7 @@ ${assertLine}
   };
 
   const addValidation = (title: string) => {
-    if (!submitLoc) return;
+    if (!submitLoc || inputEntries.length === 0) return;
     const submitCall = `await ${pageVar}.submitEmpty();`;
     const inputCheck = inputEntries.length > 0
       ? `    await expect(${pageVar}.${inputEntries[0]!.identifier}).toBeVisible();\n`

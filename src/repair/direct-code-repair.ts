@@ -160,7 +160,15 @@ async function extractTraceDomEvidence(_tracePath: string, traceText: string): P
 export function assertPathWithinWorkspace(targetPath: string, workspaceRoot: string): string {
   const resolvedTarget = path.resolve(targetPath);
   const resolvedRoot = path.resolve(workspaceRoot);
-  const rel = path.relative(resolvedRoot, resolvedTarget);
+  // Compare canonical paths whenever the filesystem entries exist. This closes
+  // the symlink escape case that a lexical path.relative check cannot detect.
+  const canonicalRoot = fsSync.existsSync(resolvedRoot)
+    ? fsSync.realpathSync(resolvedRoot)
+    : resolvedRoot;
+  const canonicalTarget = fsSync.existsSync(resolvedTarget)
+    ? fsSync.realpathSync(resolvedTarget)
+    : resolvedTarget;
+  const rel = path.relative(canonicalRoot, canonicalTarget);
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error(`Security Violation: Path '${targetPath}' escapes workspace root '${workspaceRoot}'.`);
   }
@@ -169,10 +177,8 @@ export function assertPathWithinWorkspace(targetPath: string, workspaceRoot: str
 
 export function isPathWithinWorkspace(targetPath: string, workspaceRoot: string): boolean {
   try {
-    const resolvedTarget = path.resolve(targetPath);
-    const resolvedRoot = path.resolve(workspaceRoot);
-    const rel = path.relative(resolvedRoot, resolvedTarget);
-    return !rel.startsWith('..') && !path.isAbsolute(rel);
+    assertPathWithinWorkspace(targetPath, workspaceRoot);
+    return true;
   } catch {
     return false;
   }
@@ -205,7 +211,10 @@ export function validateEndpointUrl(endpointUrl: string): string {
 export async function runDirectCodeRepair(input: DirectCodeRepairInput): Promise<DirectCodeRepairResult> {
   const startedTotal = Date.now();
   const workspaceRoot = path.resolve(input.workspaceRoot ?? process.cwd());
-  const tracePath = path.resolve(workspaceRoot, input.tracePath);
+  const tracePath = assertPathWithinWorkspace(
+    path.resolve(workspaceRoot, input.tracePath),
+    workspaceRoot
+  );
 
   if (!fsSync.existsSync(tracePath)) {
     throw new Error(`Trace archive not found: '${tracePath}'`);

@@ -361,8 +361,22 @@ export async function runCli(argv: string[]): Promise<void> {
         console.log('─'.repeat(72));
       }
 
+      const explicitWorkspace = option('--workspace');
+      let effectiveWorkspace = explicitWorkspace ? path.resolve(explicitWorkspace) : undefined;
+      if (!effectiveWorkspace && traces && traces.length > 0) {
+        const firstTrace = traces[0]!;
+        const trIdx = firstTrace.indexOf('test-results');
+        if (trIdx > 0) {
+          const candidate = firstTrace.slice(0, trIdx).replace(/[/\\]$/, '');
+          if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+            effectiveWorkspace = path.resolve(candidate);
+          }
+        }
+      }
+      effectiveWorkspace = effectiveWorkspace ?? process.cwd();
+
       const hybridResult = await runHybridRepair({
-        workspaceRoot: option('--workspace') ?? process.cwd(),
+        workspaceRoot: effectiveWorkspace,
         tracePaths: traces,
         execute,
         autoPromote,

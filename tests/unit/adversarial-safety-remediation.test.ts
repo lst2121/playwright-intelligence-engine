@@ -548,6 +548,21 @@ export class LoginPage { readonly btn = this.page.getByRole('button', { name: 'L
     expect(assertPathWithinWorkspace(path.resolve(tmpDir, 'safe.ts'), tmpDir)).toBe(path.resolve(tmpDir, 'safe.ts'));
   });
 
+  it('ADV-22b: DirectCodeRepair should reject an existing symlink that escapes the workspace', async () => {
+    const { assertPathWithinWorkspace } = await import('../../src/repair/direct-code-repair.js');
+    const outsideFile = path.resolve(path.dirname(tmpDir), 'outside-workspace.txt');
+    const linkPath = path.resolve(tmpDir, 'escaped-link.txt');
+    await fs.writeFile(outsideFile, 'outside', 'utf8');
+    try {
+      await fs.symlink(outsideFile, linkPath, 'file');
+    } catch {
+      // Windows environments without symlink privileges still exercise the
+      // lexical traversal cases above; skip only this filesystem-specific case.
+      return;
+    }
+    expect(() => assertPathWithinWorkspace(linkPath, tmpDir)).toThrow(/Security Violation/);
+  });
+
   // 23. DirectCodeRepair: Insecure HTTP Protocol Rejection
   it('ADV-23: DirectCodeRepair should reject unencrypted remote HTTP endpoints', async () => {
     const { validateEndpointUrl } = await import('../../src/repair/direct-code-repair.js');

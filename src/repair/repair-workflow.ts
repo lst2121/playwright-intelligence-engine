@@ -59,9 +59,7 @@ function assertWorkspacePath(root: string, target: string, label: string): strin
 }
 
 function resolveReadOnlyPath(root: string, target: string, label: string): string {
-  const resolved = path.isAbsolute(target) ? target : path.resolve(root, target);
-  if (!fsSync.existsSync(resolved)) throw new Error(`${label} not found: '${resolved}'`);
-  return fsSync.realpathSync(resolved);
+  return assertWorkspacePath(root, target, label);
 }
 
 async function loadCorrelatedEvidence(input: RepairWorkflowInput, workspaceRoot: string): Promise<CorrelatedEvidence> {
